@@ -1,0 +1,41 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">MarkShell</string>
+
+    <!-- Connection -->
+    <string name="hint_host">主机地址</string>
+    <string name="hint_port">端口 (默认 22)</string>
+    <string name="hint_username">用户名</string>
+    <string name="hint_password">密码</string>
+    <string name="hint_remote_path">远程路径 (如 /home/user/docs)</string>
+    <string name="btn_connect">连接</string>
+    <string name="btn_disconnect">断开</string>
+    <string name="btn_browse">浏览文件</string>
+
+    <!-- File List -->
+    <string name="title_files">文件列表</string>
+    <string name="empty_directory">空目录</string>
+    <string name="loading">加载中…</string>
+    <string name="refresh">刷新</string>
+    <string name="parent_directory">上级目录</string>
+
+    <!-- Markdown Reader -->
+    <string name="title_reader">Markdown 阅读器</string>
+    <string name="title_viewer">Markdown 查看器</string>
+    <string name="loading_file">加载文件中…</string>
+    <string name="error_loading">加载失败</string>
+    <string name="font_decrease">A-</string>
+    <string name="font_increase">A+</string>
+
+    <!-- Messages -->
+    <string name="error_connection_failed">连接失败: %1$s</string>
+    <string name="error_invalid_host">请输入有效的主机地址</string>
+    <string name="error_invalid_credentials">请输入用户名和密码</string>
+    <string name="msg_connected">已连接</string>
+    <string name="msg_disconnected">已断开</string>
+    <string name="msg_connecting">连接中…</string>
+
+    <!-- Menu -->
+    <string name="action_settings">设置</string>
+    <string name="action_about">关于</string>
+</resources>

@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <color name="md_theme_primary">#BB86FC</color>
+    <color name="md_theme_primary_variant">#3700B3</color>
+    <color name="md_theme_on_primary">#000000</color>
+    <color name="md_theme_secondary">#03DAC6</color>
+    <color name="md_theme_secondary_variant">#03DAC6</color>
+    <color name="md_theme_on_secondary">#000000</color>
+    <color name="md_theme_background">#121212</color>
+    <color name="md_theme_surface">#1E1E1E</color>
+    <color name="md_theme_on_surface">#FFFFFF</color>
+    <color name="md_theme_error">#CF6679</color>
+    <color name="md_theme_on_error">#000000</color>
+
+    <color name="surface_variant">#2D2D2D</color>
+    <color name="text_primary">#E0E0E0</color>
+    <color name="text_secondary">#A0A0A0</color>
+    <color name="divider">#333333</color>
+
+    <color name="card_background">#1E1E1E</color>
+    <color name="card_background_pressed">#2D2D2D</color>
+    <color name="action_edit">#3A7AF0</color>
+    <color name="action_delete">#E53935</color>
+
+    <color name="ssh_connected">#4CAF50</color>
+    <color name="ssh_disconnected">#F44336</color>
+    <color name="markdown_code_bg">#2A2A2A</color>
+    <color name="markdown_blockquote_border">#555555</color>
+    <color name="annotation_underline">#FFD600</color>
+</resources>
