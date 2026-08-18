@@ -1,0 +1,40 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:orientation="vertical"
+    android:paddingStart="20dp"
+    android:paddingEnd="16dp"
+    android:paddingTop="14dp"
+    android:paddingBottom="14dp"
+    android:background="?attr/selectableItemBackground">
+
+    <!-- Original text snippet -->
+    <TextView
+        android:id="@+id/tv_annotation_original"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:textSize="12sp"
+        android:textColor="#BB86FC"
+        android:maxLines="1"
+        android:ellipsize="end"
+        android:layout_marginBottom="5dp" />
+
+    <!-- Annotation text -->
+    <TextView
+        android:id="@+id/tv_annotation_text"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:textSize="14sp"
+        android:textColor="#E0E0E0"
+        android:maxLines="2"
+        android:ellipsize="end" />
+
+    <!-- Divider -->
+    <View
+        android:layout_width="match_parent"
+        android:layout_height="1dp"
+        android:layout_marginTop="14dp"
+        android:background="#2A2A2A" />
+
+</LinearLayout>
