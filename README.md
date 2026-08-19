@@ -45,6 +45,21 @@
 ### CSV 查看器
 表格化渲染，支持表头识别
 
+## 界面预览
+
+<div align="center">
+<table>
+<tr>
+<td align="center"><img src="docs/screen_main.svg" width="200" /><br/>首页 · 连接列表</td>
+<td align="center"><img src="docs/screen_file_browser.svg" width="200" /><br/>文件浏览 · 树形目录</td>
+</tr>
+<tr>
+<td align="center"><img src="docs/screen_markdown_reader.svg" width="200" /><br/>Markdown 阅读器 · 批注高亮</td>
+<td align="center"><img src="docs/screen_code_viewer.svg" width="200" /><br/>代码查看器 · 语法高亮</td>
+</tr>
+</table>
+</div>
+
 ## 技术栈
 
 | 库 | 版本 | 用途 |
