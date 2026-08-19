@@ -1,0 +1,22 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" width="256" height="256">
+  <!-- Background: rounded square, brand purple -->
+  <rect width="256" height="256" rx="56" fill="#BB86FC"/>
+
+  <!-- Terminal prompt > : two-segment polyline -->
+  <polyline points="88,96 116,128 88,160"
+            fill="none" stroke="#FFFFFF" stroke-width="8"
+            stroke-linecap="round" stroke-linejoin="round"/>
+
+  <!-- First text line -->
+  <line x1="136" y1="120" x2="184" y2="120"
+        stroke="#FFFFFF" stroke-width="8" stroke-linecap="round"/>
+
+  <!-- Second text line (shorter, implies paragraph) -->
+  <line x1="136" y1="144" x2="160" y2="144"
+        stroke="#FFFFFF" stroke-width="8" stroke-linecap="round"/>
+
+  <!-- Subtle annotation underline (yellow dashed) -->
+  <line x1="136" y1="128" x2="184" y2="128"
+        stroke="#FFD600" stroke-width="2.5" stroke-dasharray="6 3"
+        stroke-linecap="round"/>
+</svg>
