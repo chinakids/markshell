@@ -1,64 +1,99 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 640" width="320" height="640">
-  <!-- Phone frame -->
-  <rect x="0" y="0" width="320" height="640" rx="24" fill="#121212"/>
-  <rect x="0" y="0" width="320" height="56" rx="24" fill="#1E1E1E"/>
-  <rect x="0" y="36" width="320" height="20" fill="#1E1E1E"/>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 360 740" width="360" height="740">
+  <defs>
+    <style>
+      .bg { fill: #121212; }
+      .surface { fill: #1E1E1E; }
+    </style>
+  </defs>
 
-  <!-- Status bar -->
-  <text x="16" y="34" font-family="system-ui" font-size="11" fill="#A0A0A0">9:41</text>
-  <text x="284" y="34" font-family="system-ui" font-size="11" fill="#A0A0A0">100%</text>
+  <!-- Background -->
+  <rect class="bg" width="360" height="740"/>
 
-  <!-- Toolbar with back arrow -->
-  <text x="16" y="50" font-family="system-ui" font-size="18" fill="#FFFFFF">‹</text>
-  <text x="40" y="50" font-family="system-ui" font-size="14" fill="#E0E0E0">/home/user/docs</text>
+  <!-- Toolbar (actionBarSize ~56dp, bg #1E1E1E) -->
+  <rect x="0" y="0" width="360" height="56" fill="#1E1E1E"/>
+  <!-- Back arrow (navigationIcon, tint white) -->
+  <path d="M20,28 L28,20 L28,36" fill="none" stroke="#FFFFFF" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M28,28 L36,28" stroke="#FFFFFF" stroke-width="2" stroke-linecap="round"/>
+  <!-- Title -->
+  <text x="44" y="36" font-family="system-ui,sans-serif" font-size="18" fill="#FFFFFF">文件列表</text>
 
-  <!-- File list -->
-  <!-- Folder -->
-  <rect x="12" y="68" width="296" height="44" rx="8" fill="#1E1E1E"/>
-  <text x="24" y="94" font-family="system-ui" font-size="16" fill="#BB86FC">📁</text>
-  <text x="48" y="94" font-family="system-ui" font-size="14" fill="#E0E0E0">projects</text>
+  <!-- File items (item_file: paddingH=16, paddingV=12, icon 32dp, marginStart 8, text marginStart 12) -->
+  <!-- Each item: icon area starts at x=16+24=40 (expand icon invisible), file icon at 40+8=48, text at 48+32+12=92 -->
 
-  <!-- Folder -->
-  <rect x="12" y="120" width="296" height="44" rx="8" fill="#1E1E1E"/>
-  <text x="24" y="146" font-family="system-ui" font-size="16" fill="#BB86FC">📁</text>
-  <text x="48" y="146" font-family="system-ui" font-size="14" fill="#E0E0E0">notes</text>
+  <!-- Folder expanded (with expand_more icon) -->
+  <path d="M16,36 L24,28 L24,44" fill="none" stroke="#FFFFFF" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M24,36 L32,36" stroke="#FFFFFF" stroke-width="1.5" stroke-linecap="round"/>
+  <!-- Folder icon (ic_folder, white fill, 32dp) at x=40 -->
+  <path d="M40,76 h-6 c-1.1,0 -2,0.9 -2,2 v12 c0,1.1 0.9,2 2,2 h12 c1.1,0 2,-0.9 2,-2 v-8 c0,-1.1 -0.9,-2 -2,-2 h-4 z" fill="#FFFFFF" transform="scale(1.33)"/>
+  <text x="92" y="92" font-family="system-ui,sans-serif" font-size="15" fill="#E0E0E0">projects</text>
+  <text x="92" y="108" font-family="system-ui,sans-serif" font-size="12" fill="#A0A0A0">4 项</text>
 
-  <!-- Markdown file -->
-  <rect x="12" y="172" width="296" height="44" rx="8" fill="#1E1E1E"/>
-  <text x="24" y="198" font-family="system-ui" font-size="16" fill="#BB86FC">📘</text>
-  <text x="48" y="198" font-family="system-ui" font-size="14" fill="#E0E0E0">README.md</text>
-  <text x="260" y="198" font-family="system-ui" font-size="11" fill="#666666">2.1K</text>
+  <!-- Indented folder (depth 1, expand_more) -->
+  <path d="M40,36 L48,28 L48,44" fill="none" stroke="#FFFFFF" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M48,36 L56,36" stroke="#FFFFFF" stroke-width="1.5" stroke-linecap="round"/>
+  <path d="M64,76 h-6 c-1.1,0 -2,0.9 -2,2 v12 c0,1.1 0.9,2 2,2 h12 c1.1,0 2,-0.9 2,-2 v-8 c0,-1.1 -0.9,-2 -2,-2 h-4 z" fill="#FFFFFF" transform="scale(1.33)"/>
+  <text x="116" y="92" font-family="system-ui,sans-serif" font-size="15" fill="#E0E0E0">src</text>
+  <text x="116" y="108" font-family="system-ui,sans-serif" font-size="12" fill="#A0A0A0">3 项</text>
 
-  <!-- Markdown file -->
-  <rect x="12" y="224" width="296" height="44" rx="8" fill="#1E1E1E"/>
-  <text x="24" y="250" font-family="system-ui" font-size="16" fill="#BB86FC">📘</text>
-  <text x="48" y="250" font-family="system-ui" font-size="14" fill="#E0E0E0">guide.md</text>
-  <text x="260" y="250" font-family="system-ui" font-size="11" fill="#666666">8.5K</text>
+  <!-- Indented file (depth 1, no expand, chevron invisible) -->
+  <!-- ic_file_md (outline #BB86FC, 32dp) at x=64 -->
+  <g transform="translate(64, 124)">
+    <path d="M14,2 H6 c-1.1,0 -2,0.9 -2,2 L4,20 c0,1.1 0.9,2 2,2 H18 c1.1,0 2,-0.9 2,-2 V8 z" fill="none" stroke="#BB86FC" stroke-width="1.5" stroke-linejoin="round"/>
+    <path d="M14,2 v6 h6" fill="none" stroke="#BB86FC" stroke-width="1.5" stroke-linejoin="round"/>
+    <path d="M7.5,14.5 h1 v3 h-1 v-1.5 l-0.5,1 l-0.5,-1 v1.5 h-1 v-3 h1 l0.5,1 z" fill="#BB86FC"/>
+    <path d="M13,14.5 v3 h-0.8 l-1.2,-1.5 v1.5 h-0.8 v-3 h0.8 l1.2,1.5 v-1.5 z" fill="#BB86FC"/>
+  </g>
+  <text x="116" y="148" font-family="system-ui,sans-serif" font-size="15" fill="#E0E0E0">README.md</text>
+  <text x="116" y="164" font-family="system-ui,sans-serif" font-size="12" fill="#A0A0A0">2.1 KB</text>
 
-  <!-- Code file -->
-  <rect x="12" y="276" width="296" height="44" rx="8" fill="#1E1E1E"/>
-  <text x="24" y="302" font-family="system-ui" font-size="16" fill="#3A7AF0">&lt;/&gt;</text>
-  <text x="48" y="302" font-family="system-ui" font-size="14" fill="#E0E0E0">app.ts</text>
-  <text x="260" y="302" font-family="system-ui" font-size="11" fill="#666666">12K</text>
+  <!-- Indented code file (depth 1) -->
+  <g transform="translate(64, 180)">
+    <path d="M9.4,16.6 L4.8,12 l4.6,-4.6 L8,6 l-6,6 6,6 1.4,-1.4 z M14.6,16.6 l4.6,-4.6 -4.6,-4.6 L16,6 l6,6 -6,6 -1.4,-1.4 z" fill="#FFFFFF" transform="scale(1.33)"/>
+  </g>
+  <text x="116" y="204" font-family="system-ui,sans-serif" font-size="15" fill="#E0E0E0">app.ts</text>
+  <text x="116" y="220" font-family="system-ui,sans-serif" font-size="12" fill="#A0A0A0">12.0 KB</text>
 
-  <!-- Code file -->
-  <rect x="12" y="328" width="296" height="44" rx="8" fill="#1E1E1E"/>
-  <text x="24" y="354" font-family="system-ui" font-size="16" fill="#3A7AF0">&lt;/&gt;</text>
-  <text x="48" y="354" font-family="system-ui" font-size="14" fill="#E0E0E0">config.json</text>
-  <text x="260" y="354" font-family="system-ui" font-size="11" fill="#666666">1.2K</text>
+  <!-- Top-level folder collapsed (chevron_right) -->
+  <path d="M16,36 L22,28 L22,44" fill="none" stroke="#FFFFFF" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" transform="translate(0, 144)"/>
+  <path d="M22,36 L28,36" stroke="#FFFFFF" stroke-width="1.5" stroke-linecap="round" transform="translate(0, 144)"/>
+  <path d="M40,76 h-6 c-1.1,0 -2,0.9 -2,2 v12 c0,1.1 0.9,2 2,2 h12 c1.1,0 2,-0.9 2,-2 v-8 c0,-1.1 -0.9,-2 -2,-2 h-4 z" fill="#FFFFFF" transform="scale(1.33) translate(0, 144)"/>
+  <text x="92" y="236" font-family="system-ui,sans-serif" font-size="15" fill="#E0E0E0">notes</text>
+  <text x="92" y="252" font-family="system-ui,sans-serif" font-size="12" fill="#A0A0A0">8 项</text>
 
-  <!-- Image file -->
-  <rect x="12" y="380" width="296" height="44" rx="8" fill="#1E1E1E"/>
-  <text x="24" y="406" font-family="system-ui" font-size="16" fill="#4CAF50">🖼</text>
-  <text x="48" y="406" font-family="system-ui" font-size="14" fill="#E0E0E0">logo.png</text>
-  <text x="260" y="406" font-family="system-ui" font-size="11" fill="#666666">48K</text>
+  <!-- Top-level markdown file -->
+  <g transform="translate(40, 268)">
+    <path d="M14,2 H6 c-1.1,0 -2,0.9 -2,2 L4,20 c0,1.1 0.9,2 2,2 H18 c1.1,0 2,-0.9 2,-2 V8 z" fill="none" stroke="#BB86FC" stroke-width="1.5" stroke-linejoin="round"/>
+    <path d="M14,2 v6 h6" fill="none" stroke="#BB86FC" stroke-width="1.5" stroke-linejoin="round"/>
+    <path d="M7.5,14.5 h1 v3 h-1 v-1.5 l-0.5,1 l-0.5,-1 v1.5 h-1 v-3 h1 l0.5,1 z" fill="#BB86FC"/>
+    <path d="M13,14.5 v3 h-0.8 l-1.2,-1.5 v1.5 h-0.8 v-3 h0.8 l1.2,1.5 v-1.5 z" fill="#BB86FC"/>
+  </g>
+  <text x="92" y="292" font-family="system-ui,sans-serif" font-size="15" fill="#E0E0E0">guide.md</text>
+  <text x="92" y="308" font-family="system-ui,sans-serif" font-size="12" fill="#A0A0A0">8.5 KB</text>
 
-  <!-- CSV file -->
-  <rect x="12" y="432" width="296" height="44" rx="8" fill="#1E1E1E"/>
-  <text x="24" y="458" font-family="system-ui" font-size="16" fill="#FFD600">📊</text>
-  <text x="48" y="458" font-family="system-ui" font-size="14" fill="#E0E0E0">data.csv</text>
-  <text x="260" y="458" font-family="system-ui" font-size="11" fill="#666666">3.4K</text>
+  <!-- Top-level code file -->
+  <g transform="translate(40, 324)">
+    <path d="M9.4,16.6 L4.8,12 l4.6,-4.6 L8,6 l-6,6 6,6 1.4,-1.4 z M14.6,16.6 l4.6,-4.6 -4.6,-4.6 L16,6 l6,6 -6,6 -1.4,-1.4 z" fill="#FFFFFF" transform="scale(1.33)"/>
+  </g>
+  <text x="92" y="348" font-family="system-ui,sans-serif" font-size="15" fill="#E0E0E0">config.json</text>
+  <text x="92" y="364" font-family="system-ui,sans-serif" font-size="12" fill="#A0A0A0">1.2 KB</text>
+
+  <!-- Top-level image file -->
+  <g transform="translate(40, 380)">
+    <path d="M21,19 V5 c0,-1.1 -0.9,-2 -2,-2 H5 c-1.1,0 -2,0.9 -2,2 v14 c0,1.1 0.9,2 2,2 h14 c1.1,0 2,-0.9 2,-2 z M8.5,13.5 l2.5,3.01 L14.5,12 l4.5,6 H5 z" fill="#FFFFFF" transform="scale(1.33)"/>
+  </g>
+  <text x="92" y="404" font-family="system-ui,sans-serif" font-size="15" fill="#E0E0E0">logo.png</text>
+  <text x="92" y="420" font-family="system-ui,sans-serif" font-size="12" fill="#A0A0A0">48.0 KB</text>
+
+  <!-- Top-level csv file -->
+  <g transform="translate(40, 436)">
+    <path d="M14,2 H6 c-1.1,0 -2,0.9 -2,2 L4,20 c0,1.1 0.9,2 2,2 H18 c1.1,0 2,-0.9 2,-2 V8 z" fill="none" stroke="#80CBC4" stroke-width="1.5" stroke-linejoin="round"/>
+    <path d="M14,2 v6 h6" fill="none" stroke="#80CBC4" stroke-width="1.5" stroke-linejoin="round"/>
+    <path d="M7,13 h10 M7,16 h10 M7,19 h10" fill="none" stroke="#80CBC4" stroke-width="1"/>
+    <path d="M10,13 v6 M14,13 v6" fill="none" stroke="#80CBC4" stroke-width="1"/>
+  </g>
+  <text x="92" y="460" font-family="system-ui,sans-serif" font-size="15" fill="#E0E0E0">data.csv</text>
+  <text x="92" y="476" font-family="system-ui,sans-serif" font-size="12" fill="#A0A0A0">3.4 KB</text>
 
   <!-- Caption -->
-  <text x="160" y="620" font-family="system-ui" font-size="12" fill="#666666" text-anchor="middle">文件浏览 · 树形目录</text>
+  <text x="180" y="724" font-family="system-ui,sans-serif" font-size="12" fill="#666666" text-anchor="middle">文件浏览 · 树形目录</text>
 </svg>
