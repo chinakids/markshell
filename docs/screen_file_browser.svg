@@ -1,43 +1,50 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 360 740" width="360" height="740">
-  <defs>
-    <style>
-      .bg { fill: #121212; }
-      .surface { fill: #1E1E1E; }
-    </style>
-  </defs>
+  <!-- Background #121212 -->
+  <rect width="360" height="740" fill="#121212"/>
 
-  <!-- Background -->
-  <rect class="bg" width="360" height="740"/>
-
-  <!-- Toolbar (actionBarSize ~56dp, bg #1E1E1E) -->
-  <rect x="0" y="0" width="360" height="56" fill="#1E1E1E"/>
-  <!-- Back arrow (navigationIcon, tint white) -->
-  <path d="M20,28 L28,20 L28,36" fill="none" stroke="#FFFFFF" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-  <path d="M28,28 L36,28" stroke="#FFFFFF" stroke-width="2" stroke-linecap="round"/>
-  <!-- Title -->
+  <!-- Toolbar (56dp, #1E1E1E) -->
+  <rect width="360" height="56" fill="#1E1E1E"/>
+  <!-- Back arrow -->
+  <path d="M20,28 L28,20 L28,36 M28,28 L36,28" fill="none" stroke="#FFFFFF" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
   <text x="44" y="36" font-family="system-ui,sans-serif" font-size="18" fill="#FFFFFF">文件列表</text>
 
-  <!-- File items (item_file: paddingH=16, paddingV=12, icon 32dp, marginStart 8, text marginStart 12) -->
-  <!-- Each item: icon area starts at x=16+24=40 (expand icon invisible), file icon at 40+8=48, text at 48+32+12=92 -->
+  <!--
+    item_file layout: horizontal, paddingV=12dp, paddingH=16dp
+    ivExpand 24dp | gap 8dp | ivIcon 32dp | gap 12dp | text
+    depth 0: paddingStart=16 → expand@16, icon@48, text@92
+    depth 1: paddingStart=40 → expand@40, icon@72, text@116
+    Each row ~56dp high (12+32+12)
+  -->
 
-  <!-- Folder expanded (with expand_more icon) -->
-  <path d="M16,36 L24,28 L24,44" fill="none" stroke="#FFFFFF" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
-  <path d="M24,36 L32,36" stroke="#FFFFFF" stroke-width="1.5" stroke-linecap="round"/>
-  <!-- Folder icon (ic_folder, white fill, 32dp) at x=40 -->
-  <path d="M40,76 h-6 c-1.1,0 -2,0.9 -2,2 v12 c0,1.1 0.9,2 2,2 h12 c1.1,0 2,-0.9 2,-2 v-8 c0,-1.1 -0.9,-2 -2,-2 h-4 z" fill="#FFFFFF" transform="scale(1.33)"/>
-  <text x="92" y="92" font-family="system-ui,sans-serif" font-size="15" fill="#E0E0E0">projects</text>
-  <text x="92" y="108" font-family="system-ui,sans-serif" font-size="12" fill="#A0A0A0">4 项</text>
+  <!-- ═══ Row 1: folder collapsed (depth 0) ═══ -->
+  <!-- ivExpand: ic_chevron_right, 24dp at (16, 16) -->
+  <g transform="translate(16,16)">
+    <path d="M10,6 L8.59,7.41 13.17,12 8.59,16.59 10,18 16,12 z" fill="#FFFFFF"/>
+  </g>
+  <!-- ivIcon: ic_folder, 32dp at (48, 12) → scale 32/24=1.333 -->
+  <g transform="translate(48,12) scale(1.333)">
+    <path d="M10,4 H4 c-1.1,0 -1.99,0.9 -1.99,2 L2,18 c0,1.1 0.9,2 2,2 h16 c1.1,0 2,-0.9 2,-2 V8 c0,-1.1 -0.9,-2 -2,-2 h-8 l-2,-2 z" fill="#FFFFFF"/>
+  </g>
+  <!-- text at x=92 -->
+  <text x="92" y="36" font-family="system-ui,sans-serif" font-size="15" fill="#E0E0E0">projects</text>
+  <text x="92" y="52" font-family="system-ui,sans-serif" font-size="12" fill="#A0A0A0">文件夹</text>
 
-  <!-- Indented folder (depth 1, expand_more) -->
-  <path d="M40,36 L48,28 L48,44" fill="none" stroke="#FFFFFF" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
-  <path d="M48,36 L56,36" stroke="#FFFFFF" stroke-width="1.5" stroke-linecap="round"/>
-  <path d="M64,76 h-6 c-1.1,0 -2,0.9 -2,2 v12 c0,1.1 0.9,2 2,2 h12 c1.1,0 2,-0.9 2,-2 v-8 c0,-1.1 -0.9,-2 -2,-2 h-4 z" fill="#FFFFFF" transform="scale(1.33)"/>
-  <text x="116" y="92" font-family="system-ui,sans-serif" font-size="15" fill="#E0E0E0">src</text>
-  <text x="116" y="108" font-family="system-ui,sans-serif" font-size="12" fill="#A0A0A0">3 项</text>
+  <!-- ═══ Row 2: folder expanded (depth 0) ═══ y offset 56 -->
+  <!-- ivExpand: ic_expand_more, 24dp at (16, 72) -->
+  <g transform="translate(16,72)">
+    <path d="M16.59,8.59 L12,13.17 7.41,8.59 6,10 l6,6 6,-6 z" fill="#FFFFFF"/>
+  </g>
+  <!-- ivIcon: ic_folder at (48, 68) -->
+  <g transform="translate(48,68) scale(1.333)">
+    <path d="M10,4 H4 c-1.1,0 -1.99,0.9 -1.99,2 L2,18 c0,1.1 0.9,2 2,2 h16 c1.1,0 2,-0.9 2,-2 V8 c0,-1.1 -0.9,-2 -2,-2 h-8 l-2,-2 z" fill="#FFFFFF"/>
+  </g>
+  <text x="92" y="92" font-family="system-ui,sans-serif" font-size="15" fill="#E0E0E0">notes</text>
+  <text x="92" y="108" font-family="system-ui,sans-serif" font-size="12" fill="#A0A0A0">文件夹</text>
 
-  <!-- Indented file (depth 1, no expand, chevron invisible) -->
-  <!-- ic_file_md (outline #BB86FC, 32dp) at x=64 -->
-  <g transform="translate(64, 124)">
+  <!-- ═══ Row 3: md file (depth 1, indented) ═══ y offset 112 -->
+  <!-- ivExpand invisible, ivIcon at (72, 124) -->
+  <!-- ic_file_md: file outline + "MD", stroke #BB86FC, 32dp -->
+  <g transform="translate(72,124) scale(1.333)">
     <path d="M14,2 H6 c-1.1,0 -2,0.9 -2,2 L4,20 c0,1.1 0.9,2 2,2 H18 c1.1,0 2,-0.9 2,-2 V8 z" fill="none" stroke="#BB86FC" stroke-width="1.5" stroke-linejoin="round"/>
     <path d="M14,2 v6 h6" fill="none" stroke="#BB86FC" stroke-width="1.5" stroke-linejoin="round"/>
     <path d="M7.5,14.5 h1 v3 h-1 v-1.5 l-0.5,1 l-0.5,-1 v1.5 h-1 v-3 h1 l0.5,1 z" fill="#BB86FC"/>
@@ -46,53 +53,60 @@
   <text x="116" y="148" font-family="system-ui,sans-serif" font-size="15" fill="#E0E0E0">README.md</text>
   <text x="116" y="164" font-family="system-ui,sans-serif" font-size="12" fill="#A0A0A0">2.1 KB</text>
 
-  <!-- Indented code file (depth 1) -->
-  <g transform="translate(64, 180)">
-    <path d="M9.4,16.6 L4.8,12 l4.6,-4.6 L8,6 l-6,6 6,6 1.4,-1.4 z M14.6,16.6 l4.6,-4.6 -4.6,-4.6 L16,6 l6,6 -6,6 -1.4,-1.4 z" fill="#FFFFFF" transform="scale(1.33)"/>
+  <!-- ═══ Row 4: code file (depth 1) ═══ y offset 168 -->
+  <!-- ic_file_code: </> shape, white, 32dp at (72, 180) -->
+  <g transform="translate(72,180) scale(1.333)">
+    <path d="M9.4,16.6 L4.8,12 l4.6,-4.6 L8,6 l-6,6 6,6 1.4,-1.4 z M14.6,16.6 l4.6,-4.6 -4.6,-4.6 L16,6 l6,6 -6,6 -1.4,-1.4 z" fill="#FFFFFF"/>
   </g>
   <text x="116" y="204" font-family="system-ui,sans-serif" font-size="15" fill="#E0E0E0">app.ts</text>
   <text x="116" y="220" font-family="system-ui,sans-serif" font-size="12" fill="#A0A0A0">12.0 KB</text>
 
-  <!-- Top-level folder collapsed (chevron_right) -->
-  <path d="M16,36 L22,28 L22,44" fill="none" stroke="#FFFFFF" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" transform="translate(0, 144)"/>
-  <path d="M22,36 L28,36" stroke="#FFFFFF" stroke-width="1.5" stroke-linecap="round" transform="translate(0, 144)"/>
-  <path d="M40,76 h-6 c-1.1,0 -2,0.9 -2,2 v12 c0,1.1 0.9,2 2,2 h12 c1.1,0 2,-0.9 2,-2 v-8 c0,-1.1 -0.9,-2 -2,-2 h-4 z" fill="#FFFFFF" transform="scale(1.33) translate(0, 144)"/>
-  <text x="92" y="236" font-family="system-ui,sans-serif" font-size="15" fill="#E0E0E0">notes</text>
-  <text x="92" y="252" font-family="system-ui,sans-serif" font-size="12" fill="#A0A0A0">8 项</text>
-
-  <!-- Top-level markdown file -->
-  <g transform="translate(40, 268)">
-    <path d="M14,2 H6 c-1.1,0 -2,0.9 -2,2 L4,20 c0,1.1 0.9,2 2,2 H18 c1.1,0 2,-0.9 2,-2 V8 z" fill="none" stroke="#BB86FC" stroke-width="1.5" stroke-linejoin="round"/>
-    <path d="M14,2 v6 h6" fill="none" stroke="#BB86FC" stroke-width="1.5" stroke-linejoin="round"/>
-    <path d="M7.5,14.5 h1 v3 h-1 v-1.5 l-0.5,1 l-0.5,-1 v1.5 h-1 v-3 h1 l0.5,1 z" fill="#BB86FC"/>
-    <path d="M13,14.5 v3 h-0.8 l-1.2,-1.5 v1.5 h-0.8 v-3 h0.8 l1.2,1.5 v-1.5 z" fill="#BB86FC"/>
+  <!-- ═══ Row 5: image file (depth 1) ═══ y offset 224 -->
+  <!-- ic_file_image: image icon, white, 32dp at (72, 236) -->
+  <g transform="translate(72,236) scale(1.333)">
+    <path d="M21,19 V5 c0,-1.1 -0.9,-2 -2,-2 H5 c-1.1,0 -2,0.9 -2,2 v14 c0,1.1 0.9,2 2,2 h14 c1.1,0 2,-0.9 2,-2 z M8.5,13.5 l2.5,3.01 L14.5,12 l4.5,6 H5 z" fill="#FFFFFF"/>
   </g>
-  <text x="92" y="292" font-family="system-ui,sans-serif" font-size="15" fill="#E0E0E0">guide.md</text>
-  <text x="92" y="308" font-family="system-ui,sans-serif" font-size="12" fill="#A0A0A0">8.5 KB</text>
+  <text x="116" y="260" font-family="system-ui,sans-serif" font-size="15" fill="#E0E0E0">logo.png</text>
+  <text x="116" y="276" font-family="system-ui,sans-serif" font-size="12" fill="#A0A0A0">48.0 KB</text>
 
-  <!-- Top-level code file -->
-  <g transform="translate(40, 324)">
-    <path d="M9.4,16.6 L4.8,12 l4.6,-4.6 L8,6 l-6,6 6,6 1.4,-1.4 z M14.6,16.6 l4.6,-4.6 -4.6,-4.6 L16,6 l6,6 -6,6 -1.4,-1.4 z" fill="#FFFFFF" transform="scale(1.33)"/>
-  </g>
-  <text x="92" y="348" font-family="system-ui,sans-serif" font-size="15" fill="#E0E0E0">config.json</text>
-  <text x="92" y="364" font-family="system-ui,sans-serif" font-size="12" fill="#A0A0A0">1.2 KB</text>
-
-  <!-- Top-level image file -->
-  <g transform="translate(40, 380)">
-    <path d="M21,19 V5 c0,-1.1 -0.9,-2 -2,-2 H5 c-1.1,0 -2,0.9 -2,2 v14 c0,1.1 0.9,2 2,2 h14 c1.1,0 2,-0.9 2,-2 z M8.5,13.5 l2.5,3.01 L14.5,12 l4.5,6 H5 z" fill="#FFFFFF" transform="scale(1.33)"/>
-  </g>
-  <text x="92" y="404" font-family="system-ui,sans-serif" font-size="15" fill="#E0E0E0">logo.png</text>
-  <text x="92" y="420" font-family="system-ui,sans-serif" font-size="12" fill="#A0A0A0">48.0 KB</text>
-
-  <!-- Top-level csv file -->
-  <g transform="translate(40, 436)">
+  <!-- ═══ Row 6: csv file (depth 0) ═══ y offset 280 -->
+  <!-- ivExpand invisible, ivIcon at (48, 292) -->
+  <!-- ic_file_csv: file outline + table grid, stroke #80CBC4, 32dp -->
+  <g transform="translate(48,292) scale(1.333)">
     <path d="M14,2 H6 c-1.1,0 -2,0.9 -2,2 L4,20 c0,1.1 0.9,2 2,2 H18 c1.1,0 2,-0.9 2,-2 V8 z" fill="none" stroke="#80CBC4" stroke-width="1.5" stroke-linejoin="round"/>
     <path d="M14,2 v6 h6" fill="none" stroke="#80CBC4" stroke-width="1.5" stroke-linejoin="round"/>
     <path d="M7,13 h10 M7,16 h10 M7,19 h10" fill="none" stroke="#80CBC4" stroke-width="1"/>
     <path d="M10,13 v6 M14,13 v6" fill="none" stroke="#80CBC4" stroke-width="1"/>
   </g>
-  <text x="92" y="460" font-family="system-ui,sans-serif" font-size="15" fill="#E0E0E0">data.csv</text>
-  <text x="92" y="476" font-family="system-ui,sans-serif" font-size="12" fill="#A0A0A0">3.4 KB</text>
+  <text x="92" y="316" font-family="system-ui,sans-serif" font-size="15" fill="#E0E0E0">data.csv</text>
+  <text x="92" y="332" font-family="system-ui,sans-serif" font-size="12" fill="#A0A0A0">3.4 KB</text>
+
+  <!-- ═══ Row 7: folder collapsed (depth 0) ═══ y offset 336 -->
+  <g transform="translate(16,348)">
+    <path d="M10,6 L8.59,7.41 13.17,12 8.59,16.59 10,18 16,12 z" fill="#FFFFFF"/>
+  </g>
+  <g transform="translate(48,344) scale(1.333)">
+    <path d="M10,4 H4 c-1.1,0 -1.99,0.9 -1.99,2 L2,18 c0,1.1 0.9,2 2,2 h16 c1.1,0 2,-0.9 2,-2 V8 c0,-1.1 -0.9,-2 -2,-2 h-8 l-2,-2 z" fill="#FFFFFF"/>
+  </g>
+  <text x="92" y="368" font-family="system-ui,sans-serif" font-size="15" fill="#E0E0E0">config</text>
+  <text x="92" y="384" font-family="system-ui,sans-serif" font-size="12" fill="#A0A0A0">文件夹</text>
+
+  <!-- ═══ Row 8: md file (depth 0) ═══ y offset 392 -->
+  <g transform="translate(48,404) scale(1.333)">
+    <path d="M14,2 H6 c-1.1,0 -2,0.9 -2,2 L4,20 c0,1.1 0.9,2 2,2 H18 c1.1,0 2,-0.9 2,-2 V8 z" fill="none" stroke="#BB86FC" stroke-width="1.5" stroke-linejoin="round"/>
+    <path d="M14,2 v6 h6" fill="none" stroke="#BB86FC" stroke-width="1.5" stroke-linejoin="round"/>
+    <path d="M7.5,14.5 h1 v3 h-1 v-1.5 l-0.5,1 l-0.5,-1 v1.5 h-1 v-3 h1 l0.5,1 z" fill="#BB86FC"/>
+    <path d="M13,14.5 v3 h-0.8 l-1.2,-1.5 v1.5 h-0.8 v-3 h0.8 l1.2,1.5 v-1.5 z" fill="#BB86FC"/>
+  </g>
+  <text x="92" y="428" font-family="system-ui,sans-serif" font-size="15" fill="#E0E0E0">guide.md</text>
+  <text x="92" y="444" font-family="system-ui,sans-serif" font-size="12" fill="#A0A0A0">8.5 KB</text>
+
+  <!-- ═══ Row 9: code file (depth 0) ═══ y offset 448 -->
+  <g transform="translate(48,460) scale(1.333)">
+    <path d="M9.4,16.6 L4.8,12 l4.6,-4.6 L8,6 l-6,6 6,6 1.4,-1.4 z M14.6,16.6 l4.6,-4.6 -4.6,-4.6 L16,6 l6,6 -6,6 -1.4,-1.4 z" fill="#FFFFFF"/>
+  </g>
+  <text x="92" y="484" font-family="system-ui,sans-serif" font-size="15" fill="#E0E0E0">config.json</text>
+  <text x="92" y="500" font-family="system-ui,sans-serif" font-size="12" fill="#A0A0A0">1.2 KB</text>
 
   <!-- Caption -->
   <text x="180" y="724" font-family="system-ui,sans-serif" font-size="12" fill="#666666" text-anchor="middle">文件浏览 · 树形目录</text>
