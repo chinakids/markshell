@@ -83,8 +83,16 @@ public class RemoteFile {
                 || lower.endsWith(".bmp");
     }
 
+    public boolean isTextFile() {
+        if (directory) return false;
+        String lower = name.toLowerCase();
+        return lower.endsWith(".txt")
+                || lower.endsWith(".log")
+                || lower.endsWith(".text");
+    }
+
     public boolean isViewable() {
-        return isMarkdown() || isCsv() || isCodeFile() || isImageFile();
+        return isMarkdown() || isCsv() || isCodeFile() || isImageFile() || isTextFile();
     }
 
     public String getFormattedSize() {

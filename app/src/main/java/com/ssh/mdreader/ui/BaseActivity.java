@@ -39,6 +39,11 @@ public abstract class BaseActivity extends AppCompatActivity {
         }
     }
 
+    /** True when the current window is wide enough (foldable unfolded / tablet) for two-pane UIs. */
+    protected boolean isLargeScreen() {
+        return getResources().getConfiguration().screenWidthDp >= 600;
+    }
+
     protected void showLoading(boolean loading) {
         // Override in subclass
     }

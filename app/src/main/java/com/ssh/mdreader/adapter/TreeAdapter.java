@@ -186,6 +186,8 @@ public class TreeAdapter extends RecyclerView.Adapter<TreeAdapter.ViewHolder> {
                 holder.ivIcon.setImageResource(R.drawable.ic_file_code);
             } else if (file.isImageFile()) {
                 holder.ivIcon.setImageResource(R.drawable.ic_file_image);
+            } else if (file.isTextFile()) {
+                holder.ivIcon.setImageResource(R.drawable.ic_file_txt);
             } else {
                 holder.ivIcon.setImageResource(R.drawable.ic_file_unsupported);
             }

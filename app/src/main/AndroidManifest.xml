@@ -33,6 +33,7 @@
         <activity android:name=".ui.CsvReaderActivity" />
         <activity android:name=".ui.CodeViewerActivity" />
         <activity android:name=".ui.ImageViewerActivity" />
+        <activity android:name=".ui.TextViewerActivity" />
 
     </application>
 

@@ -4,7 +4,6 @@ import android.os.Bundle;
 import android.text.Layout;
 import android.text.Spannable;
 import android.text.SpannableStringBuilder;
-import android.text.method.LinkMovementMethod;
 import android.util.TypedValue;
 import android.view.ActionMode;
 import android.view.Gravity;
@@ -14,6 +13,7 @@ import android.view.MenuItem;
 import android.view.MotionEvent;
 import android.view.ScaleGestureDetector;
 import android.view.View;
+import android.view.ViewConfiguration;
 import android.view.ViewGroup;
 import android.widget.LinearLayout;
 import android.widget.PopupWindow;
@@ -81,6 +81,8 @@ public class MarkdownReaderActivity extends BaseActivity {
     // ── Active popup ──────────────────────────────────────────────────────────
     private PopupWindow activePopup;
     private float lastTouchX, lastTouchY;
+    private long lastDownTime;
+    private float lastDownX, lastDownY;
 
     // ─────────────────────────────────────────────────────────────────────────
     @Override
@@ -156,11 +158,33 @@ public class MarkdownReaderActivity extends BaseActivity {
             return event.getPointerCount() >= 2;
         });
 
+        tvContent.setTextIsSelectable(true);
+
         tvContent.setOnTouchListener((v, event) -> {
-            if (event.getAction() == MotionEvent.ACTION_DOWN) {
-                lastTouchX = event.getRawX();
-                lastTouchY = event.getRawY();
-                if (activePopup != null) { activePopup.dismiss(); activePopup = null; }
+            switch (event.getAction()) {
+                case MotionEvent.ACTION_DOWN:
+                    lastTouchX = event.getRawX();
+                    lastTouchY = event.getRawY();
+                    lastDownTime = event.getEventTime();
+                    lastDownX = event.getRawX();
+                    lastDownY = event.getRawY();
+                    if (activePopup != null) { activePopup.dismiss(); activePopup = null; }
+                    break;
+                case MotionEvent.ACTION_UP: {
+                    long dt = event.getEventTime() - lastDownTime;
+                    float dx = Math.abs(event.getRawX() - lastDownX);
+                    float dy = Math.abs(event.getRawY() - lastDownY);
+                    float slop = ViewConfiguration.get(v.getContext()).getScaledTouchSlop();
+                    // Treat as click only if: short press, no significant movement,
+                    // and no text is currently selected (so we don't steal selection taps)
+                    if (dt < ViewConfiguration.getLongPressTimeout()
+                            && dx < slop && dy < slop
+                            && tvContent.getSelectionStart() == tvContent.getSelectionEnd()) {
+                        handleAnnotationClick(event);
+                        return true;
+                    }
+                    break;
+                }
             }
             return false;
         });
@@ -287,7 +311,7 @@ public class MarkdownReaderActivity extends BaseActivity {
 
         tvContent.setTextSize(TypedValue.COMPLEX_UNIT_SP, currentFontSize);
         markwon.setMarkdown(tvContent, markdownContent);
-        tvContent.setMovementMethod(LinkMovementMethod.getInstance());
+        tvContent.setTextIsSelectable(true);
 
         applyAnnotationSpans();
 
@@ -329,7 +353,7 @@ public class MarkdownReaderActivity extends BaseActivity {
         }
 
         tvContent.setText(ssb);
-        tvContent.setMovementMethod(LinkMovementMethod.getInstance());
+        tvContent.setTextIsSelectable(true);
     }
 
     // ── Drawer helpers ────────────────────────────────────────────────────────
@@ -379,6 +403,37 @@ public class MarkdownReaderActivity extends BaseActivity {
     }
 
     // ── Annotation click → PopupWindow ────────────────────────────────────────
+
+    /**
+     * Hit-tests the touch position against any AnnotationSpan in the rendered
+     * text.  If a span is found, fires its click callback.
+     */
+    private void handleAnnotationClick(MotionEvent event) {
+        Layout layout = tvContent.getLayout();
+        if (layout == null) return;
+
+        // Convert screen coordinates to local TextView coordinates
+        float x = event.getX();
+        float y = event.getY();
+
+        // Account for text padding
+        x -= tvContent.getTotalPaddingLeft();
+        y -= tvContent.getTotalPaddingTop();
+
+        // Convert to relative scroll offset
+        x += tvContent.getScrollX();
+        y += tvContent.getScrollY();
+
+        int line = layout.getLineForVertical((int) y);
+        int charOffset = layout.getOffsetForHorizontal(line, x);
+        if (charOffset < 0 || charOffset >= tvContent.getText().length()) return;
+
+        android.text.Spanned spanned = (android.text.Spanned) tvContent.getText();
+        AnnotationSpan[] spans = spanned.getSpans(charOffset, charOffset, AnnotationSpan.class);
+        if (spans.length > 0) {
+            spans[0].onClick(tvContent);
+        }
+    }
 
     private void onAnnotationClicked(AnnotationEntry entry, View anchor) {
         if (isFinishing() || isDestroyed()) return;
@@ -465,7 +520,7 @@ public class MarkdownReaderActivity extends BaseActivity {
                             runOnUiThread(() -> {
                                 // Re-apply spans only — no need to re-render Markdown
                                 markwon.setMarkdown(tvContent, markdownContent);
-                                tvContent.setMovementMethod(LinkMovementMethod.getInstance());
+                                tvContent.setTextIsSelectable(true);
                                 applyAnnotationSpans();
                                 UiUtils.showToast(MarkdownReaderActivity.this, "批注已删除");
                             });

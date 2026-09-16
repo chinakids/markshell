@@ -1,10 +1,14 @@
 package com.ssh.mdreader.ui;
 
+import android.app.Dialog;
 import android.content.Intent;
 import android.os.Bundle;
+import android.view.Gravity;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
+import android.view.Window;
+import android.view.WindowManager;
 import android.widget.ProgressBar;
 import android.widget.TextView;
 
@@ -12,7 +16,9 @@ import androidx.annotation.NonNull;
 import androidx.recyclerview.widget.LinearLayoutManager;
 import androidx.recyclerview.widget.RecyclerView;
 
+import com.google.android.material.button.MaterialButton;
 import com.google.android.material.floatingactionbutton.FloatingActionButton;
+import com.google.android.material.textfield.TextInputEditText;
 import com.ssh.mdreader.R;
 import com.ssh.mdreader.model.SshConfig;
 import com.ssh.mdreader.ssh.SshManager;
@@ -52,7 +58,11 @@ public class MainActivity extends BaseActivity {
         recycler.setAdapter(adapter);
 
         fabAdd.setOnClickListener(v -> {
-            startActivity(new Intent(this, ConnectionActivity.class));
+            if (isLargeScreen()) {
+                showConnectionDialog();
+            } else {
+                startActivity(new Intent(this, ConnectionActivity.class));
+            }
         });
     }
 
@@ -150,6 +160,155 @@ public class MainActivity extends BaseActivity {
                     loadData();
                 },
                 (d) -> {});
+    }
+
+    // ── Large-screen: connection dialog ──────────────────────────────────────
+
+    /**
+     * Shows the new-connection form as a brand-styled dialog instead of
+     * launching the full-screen Activity (foldable-unfolded / tablet layout).
+     */
+    private void showConnectionDialog() {
+        if (isFinishing() || isDestroyed()) return;
+
+        Dialog dialog = new Dialog(this, R.style.BrandDialog);
+        View view = LayoutInflater.from(this).inflate(R.layout.dialog_connection, null);
+        dialog.setContentView(view);
+
+        Window window = dialog.getWindow();
+        if (window != null) {
+            WindowManager.LayoutParams lp = window.getAttributes();
+            lp.width = (int) (getResources().getDisplayMetrics().widthPixels * 0.8f);
+            lp.gravity = Gravity.CENTER;
+            window.setAttributes(lp);
+        }
+        dialog.setCancelable(true);
+
+        TextInputEditText etAlias      = view.findViewById(R.id.et_alias);
+        TextInputEditText etHost       = view.findViewById(R.id.et_host);
+        TextInputEditText etPort       = view.findViewById(R.id.et_port);
+        TextInputEditText etUsername   = view.findViewById(R.id.et_username);
+        TextInputEditText etPassword   = view.findViewById(R.id.et_password);
+        TextInputEditText etRemotePath = view.findViewById(R.id.et_remote_path);
+        MaterialButton btnSave      = view.findViewById(R.id.btn_save_only);
+        MaterialButton btnConnect   = view.findViewById(R.id.btn_connect);
+        ProgressBar    progressBar  = view.findViewById(R.id.progress_bar);
+
+        btnSave.setOnClickListener(v -> {
+            SshConfig config = validateAndBuildConfig(
+                    etAlias, etHost, etPort, etUsername, etPassword, etRemotePath, btnSave);
+            if (config == null) return;
+            prefManager.saveConnection(config);
+            dialog.dismiss();
+            UiUtils.showToast(this, "已保存");
+            loadData();
+        });
+
+        btnConnect.setOnClickListener(v -> {
+            SshConfig config = validateAndBuildConfig(
+                    etAlias, etHost, etPort, etUsername, etPassword, etRemotePath, btnConnect);
+            if (config == null) return;
+            connectFromDialog(dialog, config, progressBar, btnConnect);
+        });
+
+        dialog.show();
+    }
+
+    private void connectFromDialog(Dialog dialog, SshConfig config,
+                                    ProgressBar progressBar, MaterialButton btnConnect) {
+        if (isFinishing() || isDestroyed()) return;
+        progressBar.setVisibility(View.VISIBLE);
+        btnConnect.setEnabled(false);
+        btnConnect.setText(R.string.msg_connecting);
+
+        SshManager.getInstance().connect(config, new SshManager.ConnectionListener() {
+            @Override
+            public void onConnected() {
+                runOnUiThread(() -> {
+                    if (isFinishing() || isDestroyed()) return;
+                    progressBar.setVisibility(View.GONE);
+                    btnConnect.setEnabled(true);
+                    btnConnect.setText(R.string.btn_connect);
+                    prefManager.saveConnection(config);
+                    dialog.dismiss();
+                    UiUtils.showToast(MainActivity.this, getString(R.string.msg_connected));
+
+                    String path = config.getRemotePath();
+                    if (path == null || path.isEmpty()) {
+                        path = SshManager.getInstance().getHomeDirectory();
+                    }
+                    Intent intent = new Intent(MainActivity.this, FileBrowserActivity.class);
+                    intent.putExtra("remote_path", path);
+                    startActivity(intent);
+                });
+            }
+
+            @Override
+            public void onError(String message) {
+                runOnUiThread(() -> {
+                    if (isFinishing() || isDestroyed()) return;
+                    progressBar.setVisibility(View.GONE);
+                    btnConnect.setEnabled(true);
+                    btnConnect.setText(R.string.btn_connect);
+                    DialogHelper.showConfirmDialog(MainActivity.this,
+                            "连接失败", message,
+                            "重试", "取消",
+                            d -> connectFromDialog(dialog, config, progressBar, btnConnect),
+                            d -> {});
+                });
+            }
+
+            @Override
+            public void onDisconnected() {
+            }
+        });
+    }
+
+    /**
+     * Validates the dialog form fields and builds an {@link SshConfig}.
+     * Password is NOT trimmed; all other fields are trimmed.
+     *
+     * @return the config, or null when validation fails
+     */
+    private SshConfig validateAndBuildConfig(
+            TextInputEditText etAlias, TextInputEditText etHost, TextInputEditText etPort,
+            TextInputEditText etUsername, TextInputEditText etPassword,
+            TextInputEditText etRemotePath, View anchor) {
+
+        String alias      = text(etAlias);
+        String host       = text(etHost);
+        String portStr    = text(etPort);
+        String username   = text(etUsername);
+        String password   = rawText(etPassword);
+        String remotePath = text(etRemotePath);
+
+        if (host.isEmpty()) {
+            etHost.setError(getString(R.string.error_invalid_host));
+            return null;
+        }
+        if (username.isEmpty() || password.isEmpty()) {
+            UiUtils.showSnackbar(anchor, getString(R.string.error_invalid_credentials));
+            return null;
+        }
+
+        int port;
+        try {
+            port = portStr.isEmpty() ? 22 : Integer.parseInt(portStr);
+        } catch (NumberFormatException e) {
+            etPort.setError("端口无效");
+            return null;
+        }
+
+        return new SshConfig(alias, host, port, username, password,
+                remotePath.isEmpty() ? "" : remotePath);
+    }
+
+    private String text(TextInputEditText editText) {
+        return editText.getText() != null ? editText.getText().toString().trim() : "";
+    }
+
+    private String rawText(TextInputEditText editText) {
+        return editText.getText() != null ? editText.getText().toString() : "";
     }
 
     private static class HomeAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder> {
