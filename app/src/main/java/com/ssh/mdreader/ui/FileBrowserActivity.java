@@ -125,19 +125,25 @@ public class FileBrowserActivity extends BaseActivity
         swipeRefresh.setOnRefreshListener(this::loadFiles);
 
         btnRetry.setOnClickListener(v -> {
-            if (sshManager.isConnectionAlive()) {
-                // 连接还在，直接重新加载
-                recyclerFiles.setVisibility(View.VISIBLE);
-                loadFiles();
-            } else {
-                // 连接已断开或 zombie，重新连接
-                SshConfig config = sshManager.getConfig();
-                if (config != null) {
-                    reconnectAndReload(config);
+            // isConnectionAlive() is a blocking SFTP round-trip; never on main thread.
+            progressBar.setVisibility(View.VISIBLE);
+            sshManager.checkConnectionAlive(alive -> runOnUiThread(() -> {
+                if (isFinishing() || isDestroyed()) return;
+                progressBar.setVisibility(View.GONE);
+                if (alive) {
+                    // 连接还在，直接重新加载
+                    recyclerFiles.setVisibility(View.VISIBLE);
+                    loadFiles();
                 } else {
-                    showErrorPage("无法获取连接配置，请返回重新连接");
+                    // 连接已断开或 zombie，重新连接
+                    SshConfig config = sshManager.getConfig();
+                    if (config != null) {
+                        reconnectAndReload(config);
+                    } else {
+                        showErrorPage("无法获取连接配置，请返回重新连接");
+                    }
                 }
-            }
+            }));
         });
 
         updateToolbarSubtitle();
@@ -191,15 +197,19 @@ public class FileBrowserActivity extends BaseActivity
                     progressBar.setVisibility(View.GONE);
                     swipeRefresh.setRefreshing(false);
 
-                    // If the connection died (e.g. network switch), try to reconnect automatically
-                    if (!sshManager.isConnectionAlive()) {
-                        SshConfig savedConfig = sshManager.getConfig();
-                        if (savedConfig != null) {
-                            reconnectAndReload(savedConfig);
-                            return;
+                    // If the connection died (e.g. network switch), try to reconnect automatically.
+                    // Liveness check is a blocking SFTP round-trip => run off the main thread.
+                    sshManager.checkConnectionAlive(alive -> runOnUiThread(() -> {
+                        if (isFinishing() || isDestroyed()) return;
+                        if (!alive) {
+                            SshConfig savedConfig = sshManager.getConfig();
+                            if (savedConfig != null) {
+                                reconnectAndReload(savedConfig);
+                                return;
+                            }
                         }
-                    }
-                    showErrorPage(message);
+                        showErrorPage(message);
+                    }));
                 });
             }
         });

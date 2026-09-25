@@ -20,6 +20,8 @@ import java.util.Vector;
 public class SshManager {
 
     private static final int CONNECT_TIMEOUT_MS = 10_000;
+    /** Socket read timeout: bounds blocking channel I/O (e.g. liveness pwd()) on zombie links. */
+    private static final int IO_TIMEOUT_MS = 10_000;
 
     private static volatile SshManager instance;
 
@@ -78,6 +80,9 @@ public class SshManager {
                 props.put("StrictHostKeyChecking", "no");
                 session.setConfig(props);
                 session.setServerAliveInterval(5000);
+                // Bound socket reads so channel I/O on a silently-broken link
+                // fails fast instead of blocking indefinitely.
+                session.setTimeout(IO_TIMEOUT_MS);
                 session.connect(CONNECT_TIMEOUT_MS);
 
                 sftpChannel = (ChannelSftp) session.openChannel("sftp");
@@ -156,6 +161,21 @@ public class SshManager {
         } catch (Exception e) {
             return false;
         }
+    }
+
+    public interface ConnectionAliveCallback {
+        void onResult(boolean alive);
+    }
+
+    /**
+     * Asynchronous liveness check.  {@link #isConnectionAlive()} performs a
+     * blocking SFTP round-trip (up to the socket read timeout on a zombie
+     * link), so it must never be invoked from the main thread.  This runs the
+     * check on a background thread and delivers the result via
+     * {@code callback} (still on that background thread).
+     */
+    public void checkConnectionAlive(ConnectionAliveCallback callback) {
+        new Thread(() -> callback.onResult(isConnectionAlive()), "ssh-alive-check").start();
     }
 
     public String getHomeDirectory() {
