@@ -16,7 +16,19 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Properties;
 import java.util.Vector;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 
+/**
+ * Singleton owner of the SSH/SFTP connection.
+ *
+ * <p>JSch's {@link ChannelSftp} is NOT thread-safe: concurrent commands on the
+ * same channel can corrupt its internal stream. All SFTP operations here are
+ * therefore serialized on a single worker thread (see {@link #sftpExecutor}),
+ * which also bounds thread creation (one worker instead of a thread per op).</p>
+ *
+ * <p>Callbacks are delivered on the worker thread, never on the main thread.</p>
+ */
 public class SshManager {
 
     private static final int CONNECT_TIMEOUT_MS = 10_000;
@@ -24,6 +36,13 @@ public class SshManager {
     private static final int IO_TIMEOUT_MS = 10_000;
 
     private static volatile SshManager instance;
+
+    /** Single worker serializing every session/channel operation. */
+    private final ExecutorService sftpExecutor = Executors.newSingleThreadExecutor(r -> {
+        Thread t = new Thread(r, "sftp-worker");
+        t.setDaemon(true);
+        return t;
+    });
 
     private Session session;
     private ChannelSftp sftpChannel;
@@ -67,8 +86,11 @@ public class SshManager {
     public void connect(SshConfig config, ConnectionListener listener) {
         this.config = config;
         this.listener = listener;
+        // Capture per-request listener so callbacks always reach the Activity
+        // that initiated THIS connect, even if another one registers later.
+        ConnectionListener cb = listener;
 
-        new Thread(() -> {
+        sftpExecutor.execute(() -> {
             cleanupSync();
 
             try {
@@ -94,17 +116,19 @@ public class SshManager {
                     homeDirectory = "/";
                 }
 
-                if (listener != null) listener.onConnected();
+                if (cb != null) cb.onConnected();
             } catch (Exception e) {
                 cleanupSync();
-                if (listener != null) listener.onError(e.getMessage());
+                if (cb != null) cb.onError(e.getMessage());
             }
-        }, "ssh-connect").start();
+        });
     }
 
     /**
      * Synchronously force-closes any existing session and SFTP channel.
-     * Safe to call from any thread. No callbacks are fired.
+     * Callbacks are not fired. MUST be called on the {@code sftpExecutor}
+     * worker only, so that no in-flight operation touches the channel while
+     * it is being torn down.
      */
     private void cleanupSync() {
         try {
@@ -122,7 +146,7 @@ public class SshManager {
     }
 
     public void disconnect() {
-        new Thread(() -> {
+        sftpExecutor.execute(() -> {
             try {
                 if (sftpChannel != null && sftpChannel.isConnected()) {
                     sftpChannel.disconnect();
@@ -135,9 +159,10 @@ public class SshManager {
                 sftpChannel = null;
                 session = null;
                 // Do NOT clear config — preserve it for reconnection
-                if (listener != null) listener.onDisconnected();
+                ConnectionListener cb = listener;
+                if (cb != null) cb.onDisconnected();
             }
-        }, "ssh-disconnect").start();
+        });
     }
 
     public boolean isConnected() {
@@ -170,12 +195,12 @@ public class SshManager {
     /**
      * Asynchronous liveness check.  {@link #isConnectionAlive()} performs a
      * blocking SFTP round-trip (up to the socket read timeout on a zombie
-     * link), so it must never be invoked from the main thread.  This runs the
-     * check on a background thread and delivers the result via
-     * {@code callback} (still on that background thread).
+     * link), so it must never be invoked from the main thread.  This queues
+     * the check on the SFTP worker (serialized with other channel ops) and
+     * delivers the result via {@code callback} (still on that worker thread).
      */
     public void checkConnectionAlive(ConnectionAliveCallback callback) {
-        new Thread(() -> callback.onResult(isConnectionAlive()), "ssh-alive-check").start();
+        sftpExecutor.execute(() -> callback.onResult(isConnectionAlive()));
     }
 
     public String getHomeDirectory() {
@@ -187,7 +212,7 @@ public class SshManager {
     }
 
     public void listFiles(String path, FileListCallback callback) {
-        new Thread(() -> {
+        sftpExecutor.execute(() -> {
             try {
                 ChannelSftp channel = sftpChannel;
                 if (channel == null || !channel.isConnected()) {
@@ -225,11 +250,11 @@ public class SshManager {
             } catch (SftpException e) {
                 callback.onError(e.getMessage());
             }
-        }, "ssh-ls").start();
+        });
     }
 
     public void readFile(String path, FileContentCallback callback) {
-        new Thread(() -> {
+        sftpExecutor.execute(() -> {
             try {
                 ChannelSftp channel = sftpChannel;
                 if (channel == null || !channel.isConnected()) {
@@ -249,7 +274,7 @@ public class SshManager {
             } catch (Exception e) {
                 callback.onError(e.getMessage());
             }
-        }, "ssh-read").start();
+        });
     }
 
     public interface FileBytesCallback {
@@ -258,7 +283,7 @@ public class SshManager {
     }
 
     public void readFileBytes(String path, FileBytesCallback callback) {
-        new Thread(() -> {
+        sftpExecutor.execute(() -> {
             try {
                 ChannelSftp channel = sftpChannel;
                 if (channel == null || !channel.isConnected()) {
@@ -278,7 +303,7 @@ public class SshManager {
             } catch (Exception e) {
                 callback.onError(e.getMessage());
             }
-        }, "ssh-read-bytes").start();
+        });
     }
 
     public interface WriteFileCallback {
@@ -287,7 +312,7 @@ public class SshManager {
     }
 
     public void writeFile(String path, String content, boolean append, WriteFileCallback callback) {
-        new Thread(() -> {
+        sftpExecutor.execute(() -> {
             try {
                 ChannelSftp channel = sftpChannel;
                 if (channel == null || !channel.isConnected()) {
@@ -302,7 +327,7 @@ public class SshManager {
             } catch (Exception e) {
                 callback.onError(e.getMessage());
             }
-        }, "ssh-write").start();
+        });
     }
 
     public interface DeleteFileCallback {
@@ -311,7 +336,7 @@ public class SshManager {
     }
 
     public void deleteFile(String path, DeleteFileCallback callback) {
-        new Thread(() -> {
+        sftpExecutor.execute(() -> {
             try {
                 ChannelSftp channel = sftpChannel;
                 if (channel == null || !channel.isConnected()) {
@@ -323,6 +348,6 @@ public class SshManager {
             } catch (Exception e) {
                 callback.onError(e.getMessage());
             }
-        }, "ssh-delete").start();
+        });
     }
 }
