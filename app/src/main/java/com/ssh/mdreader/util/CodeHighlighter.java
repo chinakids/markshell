@@ -101,9 +101,11 @@ public class CodeHighlighter {
      * Resolves a file name to a Prism4j language identifier.
      * Falls back to a similar language when exact match is unavailable
      * (e.g. TypeScript → JavaScript).
+     * <p>Package-private (not private) to allow direct JVM unit testing.
+     * Behavior unchanged.</p>
      */
     @NonNull
-    private static String resolveLanguage(@NonNull String fileName) {
+    static String resolveLanguage(@NonNull String fileName) {
         String lower = fileName.toLowerCase();
         if (lower.endsWith(".json"))                     return "json";
         if (lower.endsWith(".py"))                       return "python";
@@ -187,8 +189,10 @@ public class CodeHighlighter {
      * Resolves a Prism4j token type string to an ARGB colour.
      * Token types can be compound (e.g. {@code "keyword.control"});
      * we try the full type first, then the base type before the dot.
+     * <p>Package-private (not private) to allow direct JVM unit testing.
+     * Behavior unchanged.</p>
      */
-    private static int resolveColor(@NonNull String type) {
+    static int resolveColor(@NonNull String type) {
         Integer color = TYPE_COLORS.get(type);
         if (color != null) return color;
 

@@ -50,7 +50,13 @@ public class AnnotationEntry {
 
     @NonNull
     private static String csvQuote(@NonNull String s) {
-        return "\"" + s.replace("\"", "\"\"") + "\"";
+        // Escape order matters: backslash first, then newline, then quotes.
+        // Newline is stored as the two-char literal "\n" so CSV line-based
+        // parsing (split by '\n') stays symmetric. Old files never contain
+        // these escape literals, so parsing stays backward compatible.
+        return "\"" + s.replace("\\", "\\\\")
+                .replace("\n", "\\n")
+                .replace("\"", "\"\"") + "\"";
     }
 
     /**
@@ -105,6 +111,12 @@ public class AnnotationEntry {
             } else if (c == ',' && !inQuotes) {
                 fields.add(sb.toString());
                 sb.setLength(0);
+            } else if (c == '\\' && i + 1 < line.length()
+                    && (line.charAt(i + 1) == 'n' || line.charAt(i + 1) == '\\')) {
+                // Symmetric unescape: "\n" -> newline, "\\" -> backslash
+                char next = line.charAt(i + 1);
+                sb.append(next == 'n' ? '\n' : '\\');
+                i++;
             } else {
                 sb.append(c);
             }
