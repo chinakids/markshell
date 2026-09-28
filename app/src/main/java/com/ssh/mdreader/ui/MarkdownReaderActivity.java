@@ -53,6 +53,7 @@ public class MarkdownReaderActivity extends BaseActivity {
     private static final String TAG = "MarkdownReaderActivity";
     private static final int MENU_ANNOTATE_ID  = 0xA1010;
     private static final int MENU_DRAWER_ID    = 0xA1011;
+    private static final String KEY_SCROLL_Y   = "scroll_y";
 
     // ── Views ─────────────────────────────────────────────────────────────────
     private TextView    tvContent;
@@ -72,6 +73,7 @@ public class MarkdownReaderActivity extends BaseActivity {
     private Markwon markwon;
     private String  markdownContent;
     private int     currentFontSize;
+    private int     restoredScrollY;
     private PreferenceManager prefManager;
     private ScaleGestureDetector scaleDetector;
 
@@ -106,6 +108,9 @@ public class MarkdownReaderActivity extends BaseActivity {
         initViews();
         initDrawer();
         buildMarkwon();
+        if (savedInstanceState != null) {
+            restoredScrollY = savedInstanceState.getInt(KEY_SCROLL_Y, 0);
+        }
         loadContent();
     }
 
@@ -270,6 +275,7 @@ public class MarkdownReaderActivity extends BaseActivity {
                     markdownContent = content;
                     render();           // render first, then load spans
                     loadAnnotations();
+                    restoreScrollPosition();
                 });
             }
             @Override
@@ -609,6 +615,28 @@ public class MarkdownReaderActivity extends BaseActivity {
     }
 
     // ── Lifecycle ─────────────────────────────────────────────────────────────
+
+    @Override
+    protected void onSaveInstanceState(@NonNull Bundle outState) {
+        super.onSaveInstanceState(outState);
+        if (scrollView != null) {
+            outState.putInt(KEY_SCROLL_Y, scrollView.getScrollY());
+        }
+    }
+
+    /**
+     * Applies the scroll position saved in {@link #onSaveInstanceState}, once,
+     * after the async content load has rendered.  The framework's own
+     * ScrollView state restore runs before the content exists, so it is
+     * ineffective here; this explicit restore is what keeps the reading
+     * position across rotation / background recreation.
+     */
+    private void restoreScrollPosition() {
+        if (restoredScrollY <= 0) return;
+        int y = restoredScrollY;
+        restoredScrollY = 0;   // consume — apply exactly once
+        scrollView.post(() -> scrollView.scrollTo(0, y));
+    }
 
     @Override
     public void onBackPressed() {
