@@ -2,6 +2,7 @@ package com.ssh.mdreader.util;
 
 import android.content.Context;
 import android.content.SharedPreferences;
+import android.util.Log;
 
 import com.ssh.mdreader.model.SshConfig;
 
@@ -13,6 +14,7 @@ import java.util.ArrayList;
 import java.util.List;
 
 public class PreferenceManager {
+    private static final String TAG = "PreferenceManager";
     private static final String PREF_NAME = "ssh_md_reader_prefs";
     private static final String KEY_SAVED_CONNECTIONS = "saved_connections";
     private static final String KEY_FONT_SIZE = "font_size";
@@ -56,7 +58,8 @@ public class PreferenceManager {
                 config.setRemotePath(obj.optString("remotePath", "/"));
                 list.add(config);
             }
-        } catch (JSONException ignored) {
+        } catch (JSONException e) {
+            Log.w(TAG, "读取已保存连接失败，已忽略损坏的配置", e);
         }
         return list;
     }
@@ -102,7 +105,8 @@ public class PreferenceManager {
                 obj.put("password", c.getPassword());
                 obj.put("remotePath", c.getRemotePath());
                 arr.put(obj);
-            } catch (JSONException ignored) {
+            } catch (JSONException e) {
+                Log.w(TAG, "序列化连接配置失败，该条未保存: " + c.getHost(), e);
             }
         }
         prefs.edit().putString(KEY_SAVED_CONNECTIONS, arr.toString()).apply();

@@ -7,6 +7,7 @@ import android.graphics.Typeface;
 import android.os.Bundle;
 import android.text.SpannableStringBuilder;
 import android.text.TextUtils;
+import android.util.Log;
 import android.util.TypedValue;
 import android.view.Gravity;
 import android.view.Menu;
@@ -46,6 +47,8 @@ import io.noties.markwon.image.ImagesPlugin;
 
 public class FileBrowserActivity extends BaseActivity
         implements TreeAdapter.OnFileActionListener {
+
+    private static final String TAG = "FileBrowserActivity";
 
     private RecyclerView recyclerFiles;
     private SwipeRefreshLayout swipeRefresh;
@@ -414,6 +417,7 @@ public class FileBrowserActivity extends BaseActivity
                                 highlighted = CodeHighlighter.highlight(
                                         content, file.getName());
                             } catch (Throwable t) {
+                                Log.w(TAG, "代码高亮失败（回退纯文本）: " + file.getName(), t);
                                 highlighted = new SpannableStringBuilder(content);
                             }
                             SpannableStringBuilder result = highlighted;

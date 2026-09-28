@@ -4,6 +4,7 @@ import android.os.Bundle;
 import android.text.Layout;
 import android.text.Spannable;
 import android.text.SpannableStringBuilder;
+import android.util.Log;
 import android.util.TypedValue;
 import android.view.ActionMode;
 import android.view.Gravity;
@@ -49,6 +50,7 @@ public class MarkdownReaderActivity extends BaseActivity {
     private static final int FONT_SIZE_MIN     = 12;
     private static final int FONT_SIZE_MAX     = 40;
     private static final int FONT_SIZE_DEFAULT = 16;
+    private static final String TAG = "MarkdownReaderActivity";
     private static final int MENU_ANNOTATE_ID  = 0xA1010;
     private static final int MENU_DRAWER_ID    = 0xA1011;
 
@@ -549,7 +551,9 @@ public class MarkdownReaderActivity extends BaseActivity {
             if (tvSelStart >= 0 && tvSelStart < safeEnd) {
                 selectedText = rendered.subSequence(tvSelStart, safeEnd).toString();
             }
-        } catch (Exception ignored) {}
+        } catch (Exception e) {
+            Log.d(TAG, "读取选中文本失败", e);
+        }
 
         final String finalSelected = selectedText.trim();
         final int    finalSelStart = tvSelStart;

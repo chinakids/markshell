@@ -1,5 +1,7 @@
 package com.ssh.mdreader.util;
 
+import android.util.Log;
+
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 
@@ -20,6 +22,8 @@ import java.util.List;
  * {@code "id","批注内容","原文片段","出现序号"}</p>
  */
 public class AnnotationHelper {
+
+    private static final String TAG = "AnnotationHelper";
 
     /** CSV header written as the first line of every annotation file. */
     public static final String CSV_HEADER = "\"id\",\"批注内容\",\"原文片段\",\"出现序号\"";
@@ -105,7 +109,12 @@ public class AnnotationHelper {
             if (trimmed.isEmpty()) continue;
             if (i == 0 && isHeaderRow(trimmed)) continue;
             AnnotationEntry entry = AnnotationEntry.parse(trimmed);
-            if (entry != null) list.add(entry);
+            if (entry != null) {
+                list.add(entry);
+            } else if (!isLegacyFormatLine(trimmed)) {
+                // 既不是遗留格式也不是空行 → 数据损坏，记日志便于诊断
+                Log.w(TAG, "跳过无法解析的批注行（第 " + (i + 1) + " 行）: " + trimmed);
+            }
         }
         return list;
     }
@@ -113,6 +122,11 @@ public class AnnotationHelper {
     private static boolean isHeaderRow(@NonNull String line) {
         String norm = line.toLowerCase().replaceAll("[\"\\s]", "");
         return norm.startsWith("id,") || norm.equals("id");
+    }
+
+    /** True for legacy line/col format rows (e.g. "L3:5-…") skipped by design. */
+    private static boolean isLegacyFormatLine(@NonNull String line) {
+        return line.startsWith("L") && line.contains(":");
     }
 
     /** Serialises the annotations list to CSV with a header on the first line. */

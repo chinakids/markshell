@@ -1,5 +1,7 @@
 package com.ssh.mdreader.ssh;
 
+import android.util.Log;
+
 import com.jcraft.jsch.ChannelSftp;
 import com.jcraft.jsch.JSch;
 import com.jcraft.jsch.Session;
@@ -7,6 +9,7 @@ import com.jcraft.jsch.SftpATTRS;
 import com.jcraft.jsch.SftpException;
 import com.ssh.mdreader.model.RemoteFile;
 import com.ssh.mdreader.model.SshConfig;
+import com.ssh.mdreader.util.UiUtils;
 
 import java.io.ByteArrayOutputStream;
 import java.io.InputStream;
@@ -31,6 +34,7 @@ import java.util.concurrent.Executors;
  */
 public class SshManager {
 
+    private static final String TAG = "SshManager";
     private static final int CONNECT_TIMEOUT_MS = 10_000;
     /** Socket read timeout: bounds blocking channel I/O (e.g. liveness pwd()) on zombie links. */
     private static final int IO_TIMEOUT_MS = 10_000;
@@ -113,13 +117,15 @@ public class SshManager {
                 try {
                     homeDirectory = sftpChannel.getHome();
                 } catch (Exception e) {
+                    Log.w(TAG, "获取远端 home 目录失败，回退到 /", e);
                     homeDirectory = "/";
                 }
 
                 if (cb != null) cb.onConnected();
             } catch (Exception e) {
+                Log.w(TAG, "连接失败: " + config.getHost() + ":" + config.getPort(), e);
                 cleanupSync();
-                if (cb != null) cb.onError(e.getMessage());
+                if (cb != null) cb.onError(UiUtils.errorMessage(e));
             }
         });
     }
@@ -134,15 +140,17 @@ public class SshManager {
         try {
             ChannelSftp ch = sftpChannel;
             if (ch != null) {
-                try { ch.disconnect(); } catch (Exception ignored) {}
+                try { ch.disconnect(); } catch (Exception e) { Log.w(TAG, "断开 SFTP channel 失败", e); }
                 sftpChannel = null;
             }
             Session s = session;
             if (s != null) {
-                try { s.disconnect(); } catch (Exception ignored) {}
+                try { s.disconnect(); } catch (Exception e) { Log.w(TAG, "断开 Session 失败", e); }
                 session = null;
             }
-        } catch (Exception ignored) {}
+        } catch (Exception e) {
+            Log.w(TAG, "清理连接状态失败", e);
+        }
     }
 
     public void disconnect() {
@@ -154,7 +162,8 @@ public class SshManager {
                 if (session != null && session.isConnected()) {
                     session.disconnect();
                 }
-            } catch (Exception ignored) {
+            } catch (Exception e) {
+                Log.w(TAG, "断开连接失败", e);
             } finally {
                 sftpChannel = null;
                 session = null;
@@ -184,6 +193,7 @@ public class SshManager {
             sftpChannel.pwd();
             return true;
         } catch (Exception e) {
+            Log.d(TAG, "连接存活检查失败", e);
             return false;
         }
     }
@@ -248,7 +258,8 @@ public class SshManager {
 
                 callback.onSuccess(files);
             } catch (SftpException e) {
-                callback.onError(e.getMessage());
+                Log.w(TAG, "列出目录失败: " + path, e);
+                callback.onError(UiUtils.errorMessage(e));
             }
         });
     }
@@ -272,7 +283,8 @@ public class SshManager {
                 is.close();
                 callback.onSuccess(baos.toString(StandardCharsets.UTF_8.name()));
             } catch (Exception e) {
-                callback.onError(e.getMessage());
+                Log.w(TAG, "读取文件失败: " + path, e);
+                callback.onError(UiUtils.errorMessage(e));
             }
         });
     }
@@ -301,7 +313,8 @@ public class SshManager {
                 is.close();
                 callback.onSuccess(baos.toByteArray());
             } catch (Exception e) {
-                callback.onError(e.getMessage());
+                Log.w(TAG, "读取文件失败: " + path, e);
+                callback.onError(UiUtils.errorMessage(e));
             }
         });
     }
@@ -325,7 +338,8 @@ public class SshManager {
                 channel.put(bais, path, mode);
                 callback.onSuccess();
             } catch (Exception e) {
-                callback.onError(e.getMessage());
+                Log.w(TAG, "写文件失败: " + path, e);
+                callback.onError(UiUtils.errorMessage(e));
             }
         });
     }
@@ -346,7 +360,8 @@ public class SshManager {
                 channel.rm(path);
                 callback.onSuccess();
             } catch (Exception e) {
-                callback.onError(e.getMessage());
+                Log.w(TAG, "删除文件失败: " + path, e);
+                callback.onError(UiUtils.errorMessage(e));
             }
         });
     }

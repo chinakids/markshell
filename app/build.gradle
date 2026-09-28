@@ -31,6 +31,12 @@ android {
     buildFeatures {
         viewBinding true
     }
+
+    testOptions {
+        // JVM 单测中把未 mock 的 android.* 调用（如 Log）降级为 no-op，
+        // 避免「Method not mocked」异常；纯逻辑测试不受影响。
+        unitTests.returnDefaultValues = true
+    }
 }
 
 dependencies {

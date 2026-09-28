@@ -136,7 +136,7 @@ public class ImageViewerActivity extends BaseActivity {
                 getContentResolver().insert(MediaStore.Images.Media.EXTERNAL_CONTENT_URI, values);
             }
         } catch (Exception e) {
-            UiUtils.showToast(this, "保存失败: " + e.getMessage());
+            UiUtils.showToast(this, "保存失败: " + UiUtils.errorMessage(e));
         }
     }
 

@@ -2,6 +2,7 @@ package com.ssh.mdreader.ui;
 
 import android.os.Bundle;
 import android.text.SpannableStringBuilder;
+import android.util.Log;
 import android.view.MotionEvent;
 import android.view.ScaleGestureDetector;
 import android.view.View;
@@ -17,6 +18,8 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
 public class CodeViewerActivity extends BaseActivity {
+
+    private static final String TAG = "CodeViewerActivity";
 
     private TextView textLineNumbers;
     private TextView textCodeContent;
@@ -108,6 +111,7 @@ public class CodeViewerActivity extends BaseActivity {
                 result = CodeHighlighter.highlight(
                         code, fileName != null ? fileName : "");
             } catch (Throwable t) {
+                Log.w(TAG, "代码高亮失败（回退纯文本）: " + fileName, t);
                 result = new SpannableStringBuilder(code);
             }
             final SpannableStringBuilder highlighted = result;

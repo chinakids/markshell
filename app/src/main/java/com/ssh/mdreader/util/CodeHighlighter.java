@@ -3,6 +3,7 @@ package com.ssh.mdreader.util;
 import android.text.SpannableStringBuilder;
 import android.text.Spanned;
 import android.text.style.ForegroundColorSpan;
+import android.util.Log;
 
 import androidx.annotation.NonNull;
 
@@ -20,6 +21,8 @@ import io.noties.prism4j.Prism4j;
  * <p>Safe to call from any thread (no Android view dependencies).</p>
  */
 public class CodeHighlighter {
+
+    private static final String TAG = "CodeHighlighter";
 
     // ── Colour palette (dark-theme, VS Code-inspired) ─────────────────────────
     private static final int COLOR_KEYWORD     = 0xFF569CD6;  // blue
@@ -151,6 +154,7 @@ public class CodeHighlighter {
         } catch (Throwable e) {
             // Tokenization failed (e.g. malformed HTML, StackOverflowError on
             // deeply nested markup) — return plain text without highlighting
+            Log.w(TAG, "代码高亮失败，已回退纯文本: " + fileName, e);
         }
         return ssb;
     }
