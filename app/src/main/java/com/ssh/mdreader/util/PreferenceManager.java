@@ -19,6 +19,9 @@ public class PreferenceManager {
     private static final String KEY_SAVED_CONNECTIONS = "saved_connections";
     private static final String KEY_FONT_SIZE = "font_size";
     private static final String KEY_SHOW_HIDDEN = "show_hidden";
+    private static final String KEY_HEARTBEAT_MS = "heartbeat_interval_ms";
+    /** 与 SshManager.DEFAULT_HEARTBEAT_MS 保持一致。 */
+    private static final int DEFAULT_HEARTBEAT_MS = 5_000;
 
     private final SharedPreferences prefs;
 
@@ -126,5 +129,14 @@ public class PreferenceManager {
 
     public boolean getShowHidden() {
         return prefs.getBoolean(KEY_SHOW_HIDDEN, false);
+    }
+
+    /** 心跳间隔（毫秒）。默认 5000，与 SshManager 默认一致。 */
+    public void saveHeartbeatIntervalMs(int ms) {
+        prefs.edit().putInt(KEY_HEARTBEAT_MS, ms).apply();
+    }
+
+    public int getHeartbeatIntervalMs() {
+        return prefs.getInt(KEY_HEARTBEAT_MS, DEFAULT_HEARTBEAT_MS);
     }
 }

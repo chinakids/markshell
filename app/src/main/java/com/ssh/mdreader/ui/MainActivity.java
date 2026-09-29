@@ -9,6 +9,7 @@ import android.view.View;
 import android.view.ViewGroup;
 import android.view.Window;
 import android.view.WindowManager;
+import android.widget.ImageButton;
 import android.widget.ProgressBar;
 import android.widget.TextView;
 
@@ -46,6 +47,8 @@ public class MainActivity extends BaseActivity {
                 View.SYSTEM_UI_FLAG_LAYOUT_STABLE | View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN);
 
         prefManager = new PreferenceManager(this);
+        // 启动时把持久化的心跳间隔注入 SshManager（下次连接/重连生效）
+        SshManager.getInstance().setHeartbeatIntervalMs(prefManager.getHeartbeatIntervalMs());
         recycler = findViewById(R.id.recycler_home);
         layoutEmpty = findViewById(R.id.layout_empty);
         FloatingActionButton fabAdd = findViewById(R.id.fab_add);
@@ -54,6 +57,7 @@ public class MainActivity extends BaseActivity {
         adapter.setOnConnectListener(this::quickConnect);
         adapter.setOnEditListener(this::editConnection);
         adapter.setOnDeleteListener(this::deleteConnection);
+        adapter.setOnSettingsClickListener(this::showHeartbeatSettings);
         recycler.setLayoutManager(new LinearLayoutManager(this));
         recycler.setAdapter(adapter);
 
@@ -160,6 +164,30 @@ public class MainActivity extends BaseActivity {
                     loadData();
                 },
                 (d) -> {});
+    }
+
+    // ── 连接保活设置 ─────────────────────────────────────────────────────────
+
+    private static final int[] HEARTBEAT_OPTIONS_MS = {5_000, 10_000, 30_000, 60_000};
+
+    /**
+     * 连接保活设置：用户选择心跳间隔后持久化到偏好，并立即注入 SshManager。
+     * 对已建立连接不生效，下次 connect/自动重连时生效（JSch 的 setServerAliveInterval）。
+     */
+    private void showHeartbeatSettings() {
+        if (isFinishing() || isDestroyed()) return;
+        int current = prefManager.getHeartbeatIntervalMs();
+        DialogHelper.showListDialog(this,
+                "连接保活 · 当前心跳 " + (current / 1000) + " 秒",
+                new String[]{"心跳间隔：5 秒（默认）", "心跳间隔：10 秒",
+                        "心跳间隔：30 秒", "心跳间隔：60 秒"},
+                null,
+                (dialog, which) -> {
+                    int ms = HEARTBEAT_OPTIONS_MS[which];
+                    prefManager.saveHeartbeatIntervalMs(ms);
+                    SshManager.getInstance().setHeartbeatIntervalMs(ms);
+                    UiUtils.showToast(this, "已保存，下次连接生效");
+                });
     }
 
     // ── Large-screen: connection dialog ──────────────────────────────────────
@@ -320,6 +348,10 @@ public class MainActivity extends BaseActivity {
             void onConnect(SshConfig config, int position);
         }
 
+        public interface OnSettingsClickListener {
+            void onSettings();
+        }
+
         public interface OnEditListener {
             void onEdit(SshConfig config, int position);
         }
@@ -332,12 +364,14 @@ public class MainActivity extends BaseActivity {
         private OnConnectListener connectListener;
         private OnEditListener editListener;
         private OnDeleteListener deleteListener;
+        private OnSettingsClickListener settingsListener;
         private boolean clickable = true;
         private int connectingPosition = -1;
 
         void setOnConnectListener(OnConnectListener l) { connectListener = l; }
         void setOnEditListener(OnEditListener l) { editListener = l; }
         void setOnDeleteListener(OnDeleteListener l) { deleteListener = l; }
+        void setOnSettingsClickListener(OnSettingsClickListener l) { settingsListener = l; }
         void setClickable(boolean clickable) { this.clickable = clickable; }
         void setConnecting(int position) { connectingPosition = position; notifyDataSetChanged(); }
         void clearConnecting() { connectingPosition = -1; notifyDataSetChanged(); }
@@ -375,6 +409,9 @@ public class MainActivity extends BaseActivity {
             if (holder instanceof HeaderVH) {
                 HeaderVH h = (HeaderVH) holder;
                 h.tvCount.setText(data.size() + " 个已保存连接");
+                h.btnSettings.setOnClickListener(v -> {
+                    if (settingsListener != null) settingsListener.onSettings();
+                });
             } else if (holder instanceof ItemVH) {
                 ItemVH h = (ItemVH) holder;
                 int dataPos = position - 1;
@@ -425,10 +462,12 @@ public class MainActivity extends BaseActivity {
 
         static class HeaderVH extends RecyclerView.ViewHolder {
             final TextView tvCount;
+            final ImageButton btnSettings;
 
             HeaderVH(@NonNull View itemView) {
                 super(itemView);
                 tvCount = itemView.findViewById(R.id.tv_connection_count);
+                btnSettings = itemView.findViewById(R.id.btn_settings);
             }
         }
 

@@ -39,7 +39,10 @@ public class SshManager {
     /** Socket read timeout: bounds blocking channel I/O (e.g. liveness pwd()) on zombie links. */
     private static final int IO_TIMEOUT_MS = 10_000;
     /** Keepalive heartbeat interval to the SSH server (JSch setServerAliveInterval). */
-    private static final int HEARTBEAT_MS = 5_000;
+    static final int DEFAULT_HEARTBEAT_MS = 5_000;
+    /** 合法心跳间隔范围（毫秒）；越界值回退默认，见 {@link #sanitizeHeartbeat(int)}。 */
+    static final int HEARTBEAT_MIN_MS = 1_000;
+    static final int HEARTBEAT_MAX_MS = 60_000;
     /** Unanswered heartbeats before JSch declares the link dead (JSch default is 1; 3 tolerates transient hiccups). */
     private static final int HEARTBEAT_COUNT_MAX = 3;
 
@@ -59,6 +62,8 @@ public class SshManager {
     private ConnectionListener listener;
     /** Set when the user explicitly disconnects; suppresses auto-reconnect (cleared by connect()). */
     private volatile boolean userDisconnected;
+    /** 心跳间隔（毫秒），由 UI 层从偏好注入；对已建立连接不生效，下次 connect/自动重连生效。 */
+    private volatile int heartbeatIntervalMs = DEFAULT_HEARTBEAT_MS;
 
     public interface ConnectionListener {
         void onConnected();
@@ -91,6 +96,21 @@ public class SshManager {
 
     public void setConnectionListener(ConnectionListener listener) {
         this.listener = listener;
+    }
+
+    /** 设置心跳间隔（毫秒）。非法值（<1000 或 >60000）回退默认 5000。 */
+    public void setHeartbeatIntervalMs(int ms) {
+        this.heartbeatIntervalMs = sanitizeHeartbeat(ms);
+    }
+
+    public int getHeartbeatIntervalMs() {
+        return heartbeatIntervalMs;
+    }
+
+    /** 心跳间隔合法性过滤：越界值回退默认 5000。包级可见以便单测。 */
+    static int sanitizeHeartbeat(int ms) {
+        if (ms < HEARTBEAT_MIN_MS || ms > HEARTBEAT_MAX_MS) return DEFAULT_HEARTBEAT_MS;
+        return ms;
     }
 
     public void connect(SshConfig config, ConnectionListener listener) {
@@ -131,7 +151,7 @@ public class SshManager {
         Properties props = new Properties();
         props.put("StrictHostKeyChecking", "no");
         session.setConfig(props);
-        session.setServerAliveInterval(HEARTBEAT_MS);
+        session.setServerAliveInterval(heartbeatIntervalMs);
         session.setServerAliveCountMax(HEARTBEAT_COUNT_MAX);
         // Bound socket reads so channel I/O on a silently-broken link
         // fails fast instead of blocking indefinitely.
