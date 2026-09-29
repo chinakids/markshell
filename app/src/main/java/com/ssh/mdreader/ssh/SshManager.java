@@ -38,6 +38,10 @@ public class SshManager {
     private static final int CONNECT_TIMEOUT_MS = 10_000;
     /** Socket read timeout: bounds blocking channel I/O (e.g. liveness pwd()) on zombie links. */
     private static final int IO_TIMEOUT_MS = 10_000;
+    /** Keepalive heartbeat interval to the SSH server (JSch setServerAliveInterval). */
+    private static final int HEARTBEAT_MS = 5_000;
+    /** Unanswered heartbeats before JSch declares the link dead (JSch default is 1; 3 tolerates transient hiccups). */
+    private static final int HEARTBEAT_COUNT_MAX = 3;
 
     private static volatile SshManager instance;
 
@@ -53,6 +57,8 @@ public class SshManager {
     private SshConfig config;
     private String homeDirectory = "/";
     private ConnectionListener listener;
+    /** Set when the user explicitly disconnects; suppresses auto-reconnect (cleared by connect()). */
+    private volatile boolean userDisconnected;
 
     public interface ConnectionListener {
         void onConnected();
@@ -90,29 +96,14 @@ public class SshManager {
     public void connect(SshConfig config, ConnectionListener listener) {
         this.config = config;
         this.listener = listener;
+        userDisconnected = false;
         // Capture per-request listener so callbacks always reach the Activity
         // that initiated THIS connect, even if another one registers later.
         ConnectionListener cb = listener;
 
         sftpExecutor.execute(() -> {
-            cleanupSync();
-
             try {
-                JSch jsch = new JSch();
-                session = jsch.getSession(config.getUsername(), config.getHost(), config.getPort());
-                session.setPassword(config.getPassword());
-
-                Properties props = new Properties();
-                props.put("StrictHostKeyChecking", "no");
-                session.setConfig(props);
-                session.setServerAliveInterval(5000);
-                // Bound socket reads so channel I/O on a silently-broken link
-                // fails fast instead of blocking indefinitely.
-                session.setTimeout(IO_TIMEOUT_MS);
-                session.connect(CONNECT_TIMEOUT_MS);
-
-                sftpChannel = (ChannelSftp) session.openChannel("sftp");
-                sftpChannel.connect(CONNECT_TIMEOUT_MS);
+                openChannelSync();
 
                 try {
                     homeDirectory = sftpChannel.getHome();
@@ -128,6 +119,90 @@ public class SshManager {
                 if (cb != null) cb.onError(UiUtils.errorMessage(e));
             }
         });
+    }
+
+    /** 用当前 config 建连（session + sftp channel），失败时同步清理。仅限 worker 线程调用。 */
+    private void openChannelSync() throws Exception {
+        cleanupSync();
+        JSch jsch = new JSch();
+        session = jsch.getSession(config.getUsername(), config.getHost(), config.getPort());
+        session.setPassword(config.getPassword());
+
+        Properties props = new Properties();
+        props.put("StrictHostKeyChecking", "no");
+        session.setConfig(props);
+        session.setServerAliveInterval(HEARTBEAT_MS);
+        session.setServerAliveCountMax(HEARTBEAT_COUNT_MAX);
+        // Bound socket reads so channel I/O on a silently-broken link
+        // fails fast instead of blocking indefinitely.
+        session.setTimeout(IO_TIMEOUT_MS);
+        session.connect(CONNECT_TIMEOUT_MS);
+
+        sftpChannel = (ChannelSftp) session.openChannel("sftp");
+        sftpChannel.connect(CONNECT_TIMEOUT_MS);
+    }
+
+    /**
+     * 返回当前可用的 SFTP 通道；若连接已死（JSch 心跳判死或对端断开），
+     * 自动用最近一次 config 重连一次再返回。用户显式断开后不自动重连。
+     * 仅限 worker 线程调用。
+     */
+    private ChannelSftp obtainChannel() throws Exception {
+        if (session != null && session.isConnected()
+                && sftpChannel != null && sftpChannel.isConnected()) {
+            return sftpChannel;
+        }
+        if (userDisconnected) {
+            throw new IllegalStateException("已断开连接");
+        }
+        if (config == null) {
+            throw new IllegalStateException("未配置连接");
+        }
+        Log.w(TAG, "连接已断开，自动重连: " + config.getHost() + ":" + config.getPort());
+        openChannelSync();
+        return sftpChannel;
+    }
+
+    private interface SftpOp {
+        void run(ChannelSftp channel) throws Exception;
+    }
+
+    /**
+     * 一次 SFTP 操作的统一执行骨架（worker 线程上调用）：先校验/重连通道，
+     * 然后执行；{@code retryable}（只读类操作）在疑似断线的异常下重连后重试一次。
+     * 写/删类操作传 {@code false}，避免 append 在部分写入后被重试造成重复数据。
+     */
+    private void runOp(String name, boolean retryable, SftpOp op, java.util.function.Consumer<String> onError) {
+        try {
+            op.run(obtainChannel());
+        } catch (Exception first) {
+            if (retryable && isConnectionGone(first)) {
+                Log.w(TAG, name + " 疑似断线，重连后重试一次", first);
+                try {
+                    op.run(obtainChannel());
+                    return;
+                } catch (Exception second) {
+                    Log.w(TAG, name + " 重试仍失败", second);
+                    onError.accept(UiUtils.errorMessage(second));
+                    return;
+                }
+            }
+            Log.w(TAG, name + " 失败", first);
+            onError.accept(UiUtils.errorMessage(first));
+        }
+    }
+
+    /** 判断异常是否表明 SSH 链路已断（与「文件不存在/权限不足」等业务错误区分）。包级可见以便单测。 */
+    static boolean isConnectionGone(Exception e) {
+        if (e instanceof java.io.IOException || e instanceof java.net.SocketException) return true;
+        if (e instanceof SftpException) {
+            String m = e.getMessage();
+            if (m == null) return true;
+            m = m.toLowerCase();
+            return m.contains("closed") || m.contains("connection")
+                    || m.contains("eof") || m.contains("timeout") || m.contains("broken");
+        }
+        return false;
     }
 
     /**
@@ -154,6 +229,7 @@ public class SshManager {
     }
 
     public void disconnect() {
+        userDisconnected = true;
         sftpExecutor.execute(() -> {
             try {
                 if (sftpChannel != null && sftpChannel.isConnected()) {
@@ -222,71 +298,49 @@ public class SshManager {
     }
 
     public void listFiles(String path, FileListCallback callback) {
-        sftpExecutor.execute(() -> {
-            try {
-                ChannelSftp channel = sftpChannel;
-                if (channel == null || !channel.isConnected()) {
-                    callback.onError("未连接到服务器");
-                    return;
-                }
+        sftpExecutor.execute(() -> runOp("列出目录", true, channel -> {
+            Vector<ChannelSftp.LsEntry> entries = channel.ls(path);
+            List<RemoteFile> files = new ArrayList<>();
 
-                Vector<ChannelSftp.LsEntry> entries = channel.ls(path);
-                List<RemoteFile> files = new ArrayList<>();
+            for (ChannelSftp.LsEntry entry : entries) {
+                String name = entry.getFilename();
+                if (name.equals(".") || name.equals("..")) continue;
 
-                for (ChannelSftp.LsEntry entry : entries) {
-                    String name = entry.getFilename();
-                    if (name.equals(".") || name.equals("..")) continue;
+                SftpATTRS attrs = entry.getAttrs();
+                String fullPath = path.endsWith("/") ? path + name : path + "/" + name;
 
-                    SftpATTRS attrs = entry.getAttrs();
-                    String fullPath = path.endsWith("/") ? path + name : path + "/" + name;
-
-                    files.add(new RemoteFile(
-                            name,
-                            fullPath,
-                            attrs.isDir(),
-                            attrs.getSize(),
-                            attrs.getPermissions()
-                    ));
-                }
-
-                Collections.sort(files, (a, b) -> {
-                    if (a.isDirectory() != b.isDirectory()) {
-                        return a.isDirectory() ? -1 : 1;
-                    }
-                    return a.getName().compareToIgnoreCase(b.getName());
-                });
-
-                callback.onSuccess(files);
-            } catch (SftpException e) {
-                Log.w(TAG, "列出目录失败: " + path, e);
-                callback.onError(UiUtils.errorMessage(e));
+                files.add(new RemoteFile(
+                        name,
+                        fullPath,
+                        attrs.isDir(),
+                        attrs.getSize(),
+                        attrs.getPermissions()
+                ));
             }
-        });
+
+            Collections.sort(files, (a, b) -> {
+                if (a.isDirectory() != b.isDirectory()) {
+                    return a.isDirectory() ? -1 : 1;
+                }
+                return a.getName().compareToIgnoreCase(b.getName());
+            });
+
+            callback.onSuccess(files);
+        }, callback::onError));
     }
 
     public void readFile(String path, FileContentCallback callback) {
-        sftpExecutor.execute(() -> {
-            try {
-                ChannelSftp channel = sftpChannel;
-                if (channel == null || !channel.isConnected()) {
-                    callback.onError("未连接到服务器");
-                    return;
-                }
-
-                InputStream is = channel.get(path);
-                ByteArrayOutputStream baos = new ByteArrayOutputStream();
-                byte[] buffer = new byte[8192];
-                int len;
-                while ((len = is.read(buffer)) != -1) {
-                    baos.write(buffer, 0, len);
-                }
-                is.close();
-                callback.onSuccess(baos.toString(StandardCharsets.UTF_8.name()));
-            } catch (Exception e) {
-                Log.w(TAG, "读取文件失败: " + path, e);
-                callback.onError(UiUtils.errorMessage(e));
+        sftpExecutor.execute(() -> runOp("读取文件", true, channel -> {
+            InputStream is = channel.get(path);
+            ByteArrayOutputStream baos = new ByteArrayOutputStream();
+            byte[] buffer = new byte[8192];
+            int len;
+            while ((len = is.read(buffer)) != -1) {
+                baos.write(buffer, 0, len);
             }
-        });
+            is.close();
+            callback.onSuccess(baos.toString(StandardCharsets.UTF_8.name()));
+        }, callback::onError));
     }
 
     public interface FileBytesCallback {
@@ -295,28 +349,17 @@ public class SshManager {
     }
 
     public void readFileBytes(String path, FileBytesCallback callback) {
-        sftpExecutor.execute(() -> {
-            try {
-                ChannelSftp channel = sftpChannel;
-                if (channel == null || !channel.isConnected()) {
-                    callback.onError("未连接到服务器");
-                    return;
-                }
-
-                InputStream is = channel.get(path);
-                ByteArrayOutputStream baos = new ByteArrayOutputStream();
-                byte[] buffer = new byte[8192];
-                int len;
-                while ((len = is.read(buffer)) != -1) {
-                    baos.write(buffer, 0, len);
-                }
-                is.close();
-                callback.onSuccess(baos.toByteArray());
-            } catch (Exception e) {
-                Log.w(TAG, "读取文件失败: " + path, e);
-                callback.onError(UiUtils.errorMessage(e));
+        sftpExecutor.execute(() -> runOp("读取字节", true, channel -> {
+            InputStream is = channel.get(path);
+            ByteArrayOutputStream baos = new ByteArrayOutputStream();
+            byte[] buffer = new byte[8192];
+            int len;
+            while ((len = is.read(buffer)) != -1) {
+                baos.write(buffer, 0, len);
             }
-        });
+            is.close();
+            callback.onSuccess(baos.toByteArray());
+        }, callback::onError));
     }
 
     public interface WriteFileCallback {
@@ -325,23 +368,13 @@ public class SshManager {
     }
 
     public void writeFile(String path, String content, boolean append, WriteFileCallback callback) {
-        sftpExecutor.execute(() -> {
-            try {
-                ChannelSftp channel = sftpChannel;
-                if (channel == null || !channel.isConnected()) {
-                    callback.onError("未连接到服务器");
-                    return;
-                }
-                byte[] bytes = content.getBytes(StandardCharsets.UTF_8);
-                java.io.ByteArrayInputStream bais = new java.io.ByteArrayInputStream(bytes);
-                int mode = append ? ChannelSftp.APPEND : ChannelSftp.OVERWRITE;
-                channel.put(bais, path, mode);
-                callback.onSuccess();
-            } catch (Exception e) {
-                Log.w(TAG, "写文件失败: " + path, e);
-                callback.onError(UiUtils.errorMessage(e));
-            }
-        });
+        sftpExecutor.execute(() -> runOp("写文件", false, channel -> {
+            byte[] bytes = content.getBytes(StandardCharsets.UTF_8);
+            java.io.ByteArrayInputStream bais = new java.io.ByteArrayInputStream(bytes);
+            int mode = append ? ChannelSftp.APPEND : ChannelSftp.OVERWRITE;
+            channel.put(bais, path, mode);
+            callback.onSuccess();
+        }, callback::onError));
     }
 
     public interface DeleteFileCallback {
@@ -350,19 +383,9 @@ public class SshManager {
     }
 
     public void deleteFile(String path, DeleteFileCallback callback) {
-        sftpExecutor.execute(() -> {
-            try {
-                ChannelSftp channel = sftpChannel;
-                if (channel == null || !channel.isConnected()) {
-                    callback.onError("未连接到服务器");
-                    return;
-                }
-                channel.rm(path);
-                callback.onSuccess();
-            } catch (Exception e) {
-                Log.w(TAG, "删除文件失败: " + path, e);
-                callback.onError(UiUtils.errorMessage(e));
-            }
-        });
+        sftpExecutor.execute(() -> runOp("删除文件", false, channel -> {
+            channel.rm(path);
+            callback.onSuccess();
+        }, callback::onError));
     }
 }
