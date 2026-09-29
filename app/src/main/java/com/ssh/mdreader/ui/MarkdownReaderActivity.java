@@ -484,8 +484,22 @@ public class MarkdownReaderActivity extends BaseActivity {
 
     private void confirmDeleteAnnotation(AnnotationEntry entry) {
         if (isFinishing() || isDestroyed()) return;
+
+        // Show what is being deleted (annotated text + source snippet), so the
+        // confirmation is not a blind "are you sure".
+        String text = entry.text != null ? entry.text.trim() : "";
+        if (text.isEmpty()) text = "（空批注）";
+        if (text.length() > 40) text = text.substring(0, 40) + "…";
+
+        String orig = entry.originalText != null ? entry.originalText.trim() : "";
+        if (orig.length() > 40) orig = orig.substring(0, 40) + "…";
+
+        String message = "批注：「" + text + "」"
+                + (orig.isEmpty() ? "" : "\n原文：「" + orig + "」")
+                + "\n\n确定要删除这条批注吗？";
+
         DialogHelper.showDangerConfirmDialog(this,
-                "删除批注", "确定要删除这条批注吗？",
+                "删除批注", message,
                 "删除", "取消",
                 d -> deleteAnnotation(entry),
                 d -> {});

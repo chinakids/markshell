@@ -3,6 +3,7 @@ package com.ssh.mdreader.adapter;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
+import android.widget.ImageView;
 import android.widget.TextView;
 
 import androidx.annotation.NonNull;
@@ -49,7 +50,7 @@ public class AnnotationListAdapter
     public void onBindViewHolder(@NonNull VH holder, int position) {
         AnnotationEntry entry = items.get(position);
 
-        // Original text — truncated label
+        // Original text — truncated label (matches the unrendered source text)
         String orig = entry.originalText != null ? entry.originalText.trim() : "";
         holder.tvOriginal.setText(orig.isEmpty() ? "（原文未知）" : orig);
 
@@ -61,7 +62,12 @@ public class AnnotationListAdapter
             if (clickListener != null) clickListener.onItemClick(entry);
         });
 
-        // Long-press → delete
+        // Per-row delete icon → confirm-and-delete (same path as long-press)
+        holder.btnDelete.setOnClickListener(v -> {
+            if (deleteListener != null) deleteListener.onItemDelete(entry);
+        });
+
+        // Long-press → delete (legacy convenience)
         holder.itemView.setOnLongClickListener(v -> {
             if (deleteListener != null) deleteListener.onItemDelete(entry);
             return true;
@@ -71,13 +77,15 @@ public class AnnotationListAdapter
     @Override public int getItemCount() { return items.size(); }
 
     static class VH extends RecyclerView.ViewHolder {
-        final TextView tvOriginal;
-        final TextView tvText;
+        final TextView  tvOriginal;
+        final TextView  tvText;
+        final ImageView btnDelete;
 
         VH(@NonNull View itemView) {
             super(itemView);
             tvOriginal = itemView.findViewById(R.id.tv_annotation_original);
             tvText     = itemView.findViewById(R.id.tv_annotation_text);
+            btnDelete  = itemView.findViewById(R.id.btn_annotation_delete);
         }
     }
 }
