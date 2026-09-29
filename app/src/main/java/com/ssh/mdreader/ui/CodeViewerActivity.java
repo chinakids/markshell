@@ -6,8 +6,10 @@ import android.util.Log;
 import android.view.MotionEvent;
 import android.view.ScaleGestureDetector;
 import android.view.View;
+import android.widget.ScrollView;
 import android.widget.TextView;
 
+import androidx.annotation.NonNull;
 import androidx.appcompat.widget.Toolbar;
 
 import com.ssh.mdreader.R;
@@ -20,10 +22,13 @@ import java.util.concurrent.Executors;
 public class CodeViewerActivity extends BaseActivity {
 
     private static final String TAG = "CodeViewerActivity";
+    private static final String KEY_SCROLL_Y = "scroll_y";
 
     private TextView textLineNumbers;
     private TextView textCodeContent;
     private View loadingOverlay;
+    private ScrollView scrollView;
+    private int restoredScrollY;
     private float currentTextSize = 14f;
     private static final float MIN_TEXT_SIZE = 8f;
     private static final float MAX_TEXT_SIZE = 32f;
@@ -49,6 +54,10 @@ public class CodeViewerActivity extends BaseActivity {
         textLineNumbers = findViewById(R.id.text_line_numbers);
         textCodeContent = findViewById(R.id.text_code_content);
         loadingOverlay = findViewById(R.id.loading_overlay);
+        scrollView = findViewById(R.id.scroll_view);
+        if (savedInstanceState != null) {
+            restoredScrollY = savedInstanceState.getInt(KEY_SCROLL_Y, 0);
+        }
 
         String filePath = getIntent().getStringExtra("file_path");
         fileName = getIntent().getStringExtra("file_name");
@@ -120,6 +129,7 @@ public class CodeViewerActivity extends BaseActivity {
                 if (loadingOverlay != null) {
                     loadingOverlay.setVisibility(View.GONE);
                 }
+                restoreScrollPosition();
             });
         });
     }
@@ -137,6 +147,29 @@ public class CodeViewerActivity extends BaseActivity {
     public boolean dispatchTouchEvent(MotionEvent ev) {
         scaleGestureDetector.onTouchEvent(ev);
         return super.dispatchTouchEvent(ev);
+    }
+
+    // ── Lifecycle: preserve scroll position across recreation ────────────────
+
+    @Override
+    protected void onSaveInstanceState(@NonNull Bundle outState) {
+        super.onSaveInstanceState(outState);
+        if (scrollView != null) {
+            outState.putInt(KEY_SCROLL_Y, scrollView.getScrollY());
+        }
+    }
+
+    /**
+     * Applies the scroll position saved in {@link #onSaveInstanceState}, once,
+     * after async content + highlighting has set the text.  The framework's
+     * own ScrollView state restore runs before the content exists, so it is
+     * ineffective here; this explicit restore keeps the reading position.
+     */
+    private void restoreScrollPosition() {
+        if (restoredScrollY <= 0) return;
+        int y = restoredScrollY;
+        restoredScrollY = 0;   // consume — apply exactly once
+        scrollView.post(() -> scrollView.scrollTo(0, y));
     }
 
     @Override

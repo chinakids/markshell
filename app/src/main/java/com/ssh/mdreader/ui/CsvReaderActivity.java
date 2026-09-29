@@ -9,6 +9,8 @@ import android.widget.TableLayout;
 import android.widget.TableRow;
 import android.widget.TextView;
 
+import androidx.annotation.NonNull;
+
 import com.ssh.mdreader.R;
 import com.ssh.mdreader.ssh.SshManager;
 import com.ssh.mdreader.util.UiUtils;
@@ -18,9 +20,12 @@ import java.util.List;
 
 public class CsvReaderActivity extends BaseActivity {
 
+    private static final String KEY_SCROLL_Y = "scroll_y";
+
     private TableLayout tableLayout;
     private View loadingOverlay;
     private ScrollView scrollView;
+    private int restoredScrollY;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -33,6 +38,9 @@ public class CsvReaderActivity extends BaseActivity {
         tableLayout = findViewById(R.id.table_layout);
         loadingOverlay = findViewById(R.id.loading_overlay);
         scrollView = findViewById(R.id.scroll_view);
+        if (savedInstanceState != null) {
+            restoredScrollY = savedInstanceState.getInt(KEY_SCROLL_Y, 0);
+        }
 
         loadContent();
     }
@@ -52,6 +60,7 @@ public class CsvReaderActivity extends BaseActivity {
                         loadingOverlay.setVisibility(View.GONE);
                     }
                     renderCsv(content);
+                    restoreScrollPosition();
                 });
             }
             @Override
@@ -131,5 +140,28 @@ public class CsvReaderActivity extends BaseActivity {
         }
         fields.add(sb.toString());
         return fields;
+    }
+
+    // ── Lifecycle: preserve scroll position across recreation ────────────────
+
+    @Override
+    protected void onSaveInstanceState(@NonNull Bundle outState) {
+        super.onSaveInstanceState(outState);
+        if (scrollView != null) {
+            outState.putInt(KEY_SCROLL_Y, scrollView.getScrollY());
+        }
+    }
+
+    /**
+     * Applies the scroll position saved in {@link #onSaveInstanceState}, once,
+     * after the async content load has built the table.  The framework's own
+     * ScrollView state restore runs before the content exists, so it is
+     * ineffective here; this explicit restore keeps the reading position.
+     */
+    private void restoreScrollPosition() {
+        if (restoredScrollY <= 0) return;
+        int y = restoredScrollY;
+        restoredScrollY = 0;   // consume — apply exactly once
+        scrollView.post(() -> scrollView.scrollTo(0, y));
     }
 }
