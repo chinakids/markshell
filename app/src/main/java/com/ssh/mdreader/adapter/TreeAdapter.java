@@ -51,7 +51,8 @@ public class TreeAdapter extends RecyclerView.Adapter<TreeAdapter.ViewHolder> {
 
     /**
      * Renames a node (by old path) in the internal tree and refreshes the list.
-     * Directory nodes keep their expanded state and already-loaded children.
+     * Directory nodes keep their expanded state, already-loaded children and
+     * have all descendant paths rewritten to the new prefix.
      */
     public void renameFile(String oldPath, String newName) {
         if (renameInList(rootFiles, oldPath, newName)) {
@@ -65,13 +66,7 @@ public class TreeAdapter extends RecyclerView.Adapter<TreeAdapter.ViewHolder> {
             if (node.getPath().equals(oldPath)) {
                 int slash = oldPath.lastIndexOf('/');
                 String newPath = slash < 0 ? newName : oldPath.substring(0, slash + 1) + newName;
-                RemoteFile renamed = new RemoteFile(newName, newPath, node.isDirectory(),
-                        node.getSize(), node.getPermissions());
-                renamed.setDepth(node.getDepth());
-                renamed.setExpanded(node.isExpanded());
-                renamed.setChildrenLoaded(node.isChildrenLoaded());
-                renamed.getChildren().addAll(node.getChildren());
-                nodes.set(i, renamed);
+                nodes.set(i, copyNode(node, newName, newPath));
                 return true;
             }
             if (node.isDirectory() && node.isChildrenLoaded()) {
@@ -81,6 +76,30 @@ public class TreeAdapter extends RecyclerView.Adapter<TreeAdapter.ViewHolder> {
             }
         }
         return false;
+    }
+
+    /**
+     * Builds a deep copy of {@code node} named {@code newName} at {@code newPath},
+     * preserving depth/expanded/childrenLoaded and rewriting every descendant
+     * path to the new prefix (目录改名后子树仍可导航). Package-private for unit tests.
+     */
+    static RemoteFile copyNode(RemoteFile node, String newName, String newPath) {
+        RemoteFile copy = new RemoteFile(newName, newPath, node.isDirectory(),
+                node.getSize(), node.getPermissions());
+        copy.setDepth(node.getDepth());
+        copy.setExpanded(node.isExpanded());
+        copy.setChildrenLoaded(node.isChildrenLoaded());
+        String oldDir = node.getPath() + "/";
+        String newDir = newPath + "/";
+        for (RemoteFile child : node.getChildren()) {
+            if (child.getPath().startsWith(oldDir)) {
+                String childPath = newDir + child.getPath().substring(oldDir.length());
+                copy.getChildren().add(copyNode(child, child.getName(), childPath));
+            } else {
+                copy.getChildren().add(child);
+            }
+        }
+        return copy;
     }
 
     private boolean removeFromList(List<RemoteFile> nodes, String path) {

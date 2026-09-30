@@ -746,10 +746,12 @@ public class FileBrowserActivity extends BaseActivity
 
         DialogHelper.showListDialog(this,
                 dir.getName(),
-                new String[]{"设为主目录"},
-                new int[]{R.drawable.ic_folder_set},
+                new String[]{"重命名", "设为主目录"},
+                new int[]{R.drawable.ic_edit, R.drawable.ic_folder_set},
                 (dialog, which) -> {
                     if (which == 0) {
+                        renameFile(dir);
+                    } else if (which == 1) {
                         prefManager.updateRemotePath(
                                 config.getHost(), config.getPort(),
                                 config.getUsername(), dir.getPath());
