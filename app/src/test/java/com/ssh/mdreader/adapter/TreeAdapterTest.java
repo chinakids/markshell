@@ -8,9 +8,15 @@ import com.ssh.mdreader.model.RemoteFile;
 
 import org.junit.Test;
 
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+
 /**
- * TreeAdapter.copyNode 纯逻辑单测：目录改名后子树路径递归改写、展开态保留。
- * 不实例化 TreeAdapter（避免 RecyclerView 依赖），只测包级静态方法。
+ * TreeAdapter 纯逻辑单测：copyNode / removeFromList / collectExpandedDirs /
+ * applyExistingState 树内操作。不实例化 TreeAdapter（避免 RecyclerView 依赖），
+ * 只测包级静态方法。
  */
 public class TreeAdapterTest {
 
@@ -77,5 +83,118 @@ public class TreeAdapterTest {
         assertEquals("/tmp/b.txt", renamed.getPath());
         assertTrue(renamed.getChildren().isEmpty());
         assertFalse(renamed.isDirectory());
+    }
+
+    @Test
+    public void removeFromList_removesRootNodeByPath() {
+        List<RemoteFile> nodes = new ArrayList<>();
+        nodes.add(dir("a", "/data/a", false, false));
+        nodes.add(file("b.md", "/data/b.md"));
+
+        boolean removed = TreeAdapter.removeFromList(nodes, "/data/a");
+
+        assertTrue(removed);
+        assertEquals(1, nodes.size());
+        assertEquals("/data/b.md", nodes.get(0).getPath());
+    }
+
+    @Test
+    public void removeFromList_descendsIntoLoadedSubtree() {
+        RemoteFile sub = dir("sub", "/data/a/sub", true, true);
+        sub.getChildren().add(file("f.txt", "/data/a/sub/f.txt"));
+        RemoteFile a = dir("a", "/data/a", true, true);
+        a.getChildren().add(sub);
+        List<RemoteFile> nodes = new ArrayList<>();
+        nodes.add(a);
+
+        boolean removed = TreeAdapter.removeFromList(nodes, "/data/a/sub/f.txt");
+
+        assertTrue(removed);
+        assertEquals(0, a.getChildren().get(0).getChildren().size());
+    }
+
+    @Test
+    public void removeFromList_notFoundKeepsListUntouched() {
+        List<RemoteFile> nodes = new ArrayList<>();
+        nodes.add(dir("a", "/data/a", false, true));
+        nodes.get(0).getChildren().add(file("x.txt", "/data/a/x.txt"));
+
+        boolean removed = TreeAdapter.removeFromList(nodes, "/data/nope");
+
+        assertFalse(removed);
+        assertEquals(1, nodes.size());
+        assertEquals(1, nodes.get(0).getChildren().size());
+    }
+
+    @Test
+    public void collectExpandedDirs_collectsOnlyExpandedAndRecurses() {
+        RemoteFile inner = dir("inner", "/a/b/inner", true, true);
+        RemoteFile expanded = dir("b", "/a/b", true, true);
+        expanded.getChildren().add(inner);
+        RemoteFile other = dir("c", "/a/c", false, true); // 未展开，不收集
+        List<RemoteFile> nodes = new ArrayList<>();
+        nodes.add(expanded);
+        nodes.add(other);
+
+        Map<String, RemoteFile> map = new HashMap<>();
+        TreeAdapter.collectExpandedDirs(nodes, map);
+
+        assertTrue(map.containsKey("/a/b"));
+        assertTrue(map.containsKey("/a/b/inner"));
+        assertFalse(map.containsKey("/a/c"));
+        assertEquals(inner, map.get("/a/b/inner"));
+    }
+
+    @Test
+    public void applyExistingState_preservesExpandedDirWithOldChildren() {
+        RemoteFile oldChild = file("old.txt", "/data/a/old.txt");
+        RemoteFile oldA = dir("a", "/data/a", true, true);
+        oldA.getChildren().add(oldChild);
+        Map<String, RemoteFile> oldMap = new HashMap<>();
+        oldMap.put("/data/a", oldA);
+
+        RemoteFile newA = dir("a", "/data/a", false, false);
+        List<RemoteFile> files = new ArrayList<>();
+        files.add(newA);
+        TreeAdapter.applyExistingState(files, oldMap);
+
+        assertTrue(newA.isExpanded());
+        assertTrue(newA.isChildrenLoaded());
+        assertEquals(1, newA.getChildren().size());
+        assertEquals("/data/a/old.txt", newA.getChildren().get(0).getPath());
+        assertEquals(1, newA.getChildren().get(0).getDepth());
+        assertEquals(0, newA.getDepth());
+        assertFalse(newA.getChildren().get(0).isDirectory());
+    }
+
+    @Test
+    public void applyExistingState_resetsUnmatchedDirectories() {
+        Map<String, RemoteFile> oldMap = new HashMap<>();
+        RemoteFile fresh = dir("new", "/data/new", false, false);
+        fresh.getChildren().add(file("stale.txt", "/data/new/stale.txt"));
+
+        List<RemoteFile> files = new ArrayList<>();
+        files.add(fresh);
+        TreeAdapter.applyExistingState(files, oldMap);
+
+        assertFalse(fresh.isExpanded());
+        assertFalse(fresh.isChildrenLoaded());
+        assertTrue(fresh.getChildren().isEmpty());
+    }
+
+    @Test
+    public void applyExistingState_matchesByPathAcrossInstances() {
+        RemoteFile oldA = dir("a", "/data/a", true, true);
+        oldA.getChildren().add(file("old.txt", "/data/a/old.txt"));
+        Map<String, RemoteFile> oldMap = new HashMap<>();
+        oldMap.put("/data/a", oldA);
+
+        RemoteFile newA = dir("a", "/data/a", true, true); // 不同实例，同路径
+        List<RemoteFile> files = new ArrayList<>();
+        files.add(newA);
+        TreeAdapter.applyExistingState(files, oldMap);
+
+        assertEquals(1, newA.getChildren().size());
+        assertEquals("old.txt", newA.getChildren().get(0).getName());
     }
 }

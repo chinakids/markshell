@@ -102,7 +102,9 @@ public class TreeAdapter extends RecyclerView.Adapter<TreeAdapter.ViewHolder> {
         return copy;
     }
 
-    private boolean removeFromList(List<RemoteFile> nodes, String path) {
+    /** Recursively removes {@code path} from {@code nodes}, descending into loaded
+     *  directories. Package-private (pure logic, no instance state) for unit tests. */
+    static boolean removeFromList(List<RemoteFile> nodes, String path) {
         for (int i = 0; i < nodes.size(); i++) {
             RemoteFile node = nodes.get(i);
             if (node.getPath().equals(path)) {
@@ -137,6 +139,19 @@ public class TreeAdapter extends RecyclerView.Adapter<TreeAdapter.ViewHolder> {
         collectExpandedDirs(rootFiles, oldMap);
 
         rootFiles.clear();
+        applyExistingState(files, oldMap);
+        rootFiles.addAll(files);
+        rebuildFlatList();
+    }
+
+    /**
+     * Applies preserved expansion state from {@code oldMap} (keyed by path) onto each
+     * new file: directories matched by path keep expanded/childrenLoaded and inherit
+     * the old children (depth reset to 1); unmatched ones start collapsed.
+     * Package-private (pure logic, no instance state) for unit tests.
+     */
+    static void applyExistingState(List<RemoteFile> files,
+                                   java.util.Map<String, RemoteFile> oldMap) {
         for (RemoteFile f : files) {
             f.setDepth(0);
             RemoteFile old = oldMap.get(f.getPath());
@@ -155,12 +170,12 @@ public class TreeAdapter extends RecyclerView.Adapter<TreeAdapter.ViewHolder> {
                 f.getChildren().clear();
             }
         }
-        rootFiles.addAll(files);
-        rebuildFlatList();
     }
 
-    /** Recursively collects all expanded directories by path. */
-    private void collectExpandedDirs(List<RemoteFile> nodes, java.util.Map<String, RemoteFile> map) {
+    /** Recursively collects all expanded directories by path. Package-private
+     *  (pure logic, no instance state) for unit tests. */
+    static void collectExpandedDirs(List<RemoteFile> nodes,
+                                    java.util.Map<String, RemoteFile> map) {
         for (RemoteFile node : nodes) {
             if (node.isDirectory() && node.isExpanded()) {
                 map.put(node.getPath(), node);
