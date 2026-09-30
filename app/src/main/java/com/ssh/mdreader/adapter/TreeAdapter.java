@@ -49,6 +49,40 @@ public class TreeAdapter extends RecyclerView.Adapter<TreeAdapter.ViewHolder> {
         }
     }
 
+    /**
+     * Renames a node (by old path) in the internal tree and refreshes the list.
+     * Directory nodes keep their expanded state and already-loaded children.
+     */
+    public void renameFile(String oldPath, String newName) {
+        if (renameInList(rootFiles, oldPath, newName)) {
+            rebuildFlatList();
+        }
+    }
+
+    private boolean renameInList(List<RemoteFile> nodes, String oldPath, String newName) {
+        for (int i = 0; i < nodes.size(); i++) {
+            RemoteFile node = nodes.get(i);
+            if (node.getPath().equals(oldPath)) {
+                int slash = oldPath.lastIndexOf('/');
+                String newPath = slash < 0 ? newName : oldPath.substring(0, slash + 1) + newName;
+                RemoteFile renamed = new RemoteFile(newName, newPath, node.isDirectory(),
+                        node.getSize(), node.getPermissions());
+                renamed.setDepth(node.getDepth());
+                renamed.setExpanded(node.isExpanded());
+                renamed.setChildrenLoaded(node.isChildrenLoaded());
+                renamed.getChildren().addAll(node.getChildren());
+                nodes.set(i, renamed);
+                return true;
+            }
+            if (node.isDirectory() && node.isChildrenLoaded()) {
+                if (renameInList(node.getChildren(), oldPath, newName)) {
+                    return true;
+                }
+            }
+        }
+        return false;
+    }
+
     private boolean removeFromList(List<RemoteFile> nodes, String path) {
         for (int i = 0; i < nodes.size(); i++) {
             RemoteFile node = nodes.get(i);

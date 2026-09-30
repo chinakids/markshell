@@ -408,4 +408,27 @@ public class SshManager {
             callback.onSuccess();
         }, callback::onError));
     }
+
+    public interface RenameFileCallback {
+        void onSuccess();
+        void onError(String message);
+    }
+
+    public void renameFile(String oldPath, String newPath, RenameFileCallback callback) {
+        sftpExecutor.execute(() -> runOp("重命名", false, channel -> {
+            channel.rename(oldPath, newPath);
+            callback.onSuccess();
+        }, callback::onError));
+    }
+
+    /**
+     * 由原路径与「同目录下的新文件名」构造目标路径（纯函数，便于单测）。
+     * 新名不允许包含 '/'（含路径的移动需求见 {@code renameFile} 完整路径调用，
+     * UI 层仅负责拦截）。
+     */
+    public static String buildRenamePath(String oldPath, String newName) {
+        int idx = oldPath.lastIndexOf('/');
+        if (idx < 0) return newName;
+        return oldPath.substring(0, idx + 1) + newName;
+    }
 }

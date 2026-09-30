@@ -39,6 +39,22 @@ public class SshManagerTest {
     }
 
     @Test
+    public void buildRenamePath_joinsSameDirectory() {
+        assertEquals("/a/b/d.txt", SshManager.buildRenamePath("/a/b/c.txt", "d.txt"));
+        assertEquals("/tmp/g.log", SshManager.buildRenamePath("/tmp/f.log", "g.log"));
+        // 根目录下文件：保留前导斜杠
+        assertEquals("/x", SshManager.buildRenamePath("/file", "x"));
+    }
+
+    @Test
+    public void buildRenamePath_preservesNewNameAsIs() {
+        // 新名自身含路径（移动场景由 UI 拦截，底层按完整新名处理）
+        assertEquals("/a/b/sub/d.txt", SshManager.buildRenamePath("/a/b/c.txt", "sub/d.txt"));
+        // 无斜杠的异常路径：直接返回新名
+        assertEquals("d.txt", SshManager.buildRenamePath("c.txt", "d.txt"));
+    }
+
+    @Test
     public void sanitizeHeartbeat_rejectsOutOfRange() {
         assertEquals(SshManager.DEFAULT_HEARTBEAT_MS, SshManager.sanitizeHeartbeat(0));
         assertEquals(SshManager.DEFAULT_HEARTBEAT_MS, SshManager.sanitizeHeartbeat(999));

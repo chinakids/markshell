@@ -655,12 +655,51 @@ public class FileBrowserActivity extends BaseActivity
     public void onFileLongClick(RemoteFile file) {
         DialogHelper.showListDialog(this,
                 file.getName(),
-                new String[]{"删除"},
-                new int[]{R.drawable.ic_delete},
+                new String[]{"重命名", "删除"},
+                new int[]{R.drawable.ic_edit, R.drawable.ic_delete},
                 (dialog, which) -> {
                     if (which == 0) {
+                        renameFile(file);
+                    } else if (which == 1) {
                         confirmDeleteFile(file);
                     }
+                });
+    }
+
+    private void renameFile(RemoteFile file) {
+        DialogHelper.showInputDialog(this,
+                "重命名 " + file.getName(),
+                "输入新名称（不含 /）",
+                "重命名", "取消",
+                input -> {
+                    if (input.isEmpty()) {
+                        UiUtils.showToast(this, "名称不能为空");
+                        return;
+                    }
+                    if (input.equals(file.getName())) {
+                        UiUtils.showToast(this, "名称未改变");
+                        return;
+                    }
+                    if (input.contains("/")) {
+                        UiUtils.showToast(this, "名称不能包含 /");
+                        return;
+                    }
+                    String newPath = SshManager.buildRenamePath(file.getPath(), input);
+                    sshManager.renameFile(file.getPath(), newPath, new SshManager.RenameFileCallback() {
+                        @Override
+                        public void onSuccess() {
+                            runOnUiThread(() -> {
+                                UiUtils.showToast(FileBrowserActivity.this, "已重命名为 " + input);
+                                adapter.renameFile(file.getPath(), input);
+                            });
+                        }
+
+                        @Override
+                        public void onError(String message) {
+                            runOnUiThread(() ->
+                                    UiUtils.showToast(FileBrowserActivity.this, "重命名失败: " + message));
+                        }
+                    });
                 });
     }
 
