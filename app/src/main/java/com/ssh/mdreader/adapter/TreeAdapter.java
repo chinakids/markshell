@@ -85,7 +85,7 @@ public class TreeAdapter extends RecyclerView.Adapter<TreeAdapter.ViewHolder> {
      */
     static RemoteFile copyNode(RemoteFile node, String newName, String newPath) {
         RemoteFile copy = new RemoteFile(newName, newPath, node.isDirectory(),
-                node.getSize(), node.getPermissions());
+                node.getSize(), node.getPermissions(), node.getMtime());
         copy.setDepth(node.getDepth());
         copy.setExpanded(node.isExpanded());
         copy.setChildrenLoaded(node.isChildrenLoaded());

@@ -9,13 +9,13 @@ import com.jcraft.jsch.SftpATTRS;
 import com.jcraft.jsch.SftpException;
 import com.ssh.mdreader.model.RemoteFile;
 import com.ssh.mdreader.model.SshConfig;
+import com.ssh.mdreader.util.FileSortUtils;
 import com.ssh.mdreader.util.UiUtils;
 
 import java.io.ByteArrayOutputStream;
 import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.List;
 import java.util.Properties;
 import java.util.Vector;
@@ -334,18 +334,14 @@ public class SshManager {
                         fullPath,
                         attrs.isDir(),
                         attrs.getSize(),
-                        attrs.getPermissions()
+                        attrs.getPermissions(),
+                        attrs.getMTime()
                 ));
             }
 
-            Collections.sort(files, (a, b) -> {
-                if (a.isDirectory() != b.isDirectory()) {
-                    return a.isDirectory() ? -1 : 1;
-                }
-                return a.getName().compareToIgnoreCase(b.getName());
-            });
-
-            callback.onSuccess(files);
+            // SFTP 返回顺序不定，API 兜底固定为名称序；UI 层可按偏好再排。
+            List<RemoteFile> sorted = FileSortUtils.sort(files, FileSortUtils.SORT_NAME);
+            callback.onSuccess(sorted);
         }, callback::onError));
     }
 

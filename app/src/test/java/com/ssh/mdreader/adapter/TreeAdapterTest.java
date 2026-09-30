@@ -15,14 +15,14 @@ import org.junit.Test;
 public class TreeAdapterTest {
 
     private RemoteFile dir(String name, String path, boolean expanded, boolean loaded) {
-        RemoteFile d = new RemoteFile(name, path, true, 0, 493);
+        RemoteFile d = new RemoteFile(name, path, true, 0, 493, 100);
         d.setExpanded(expanded);
         d.setChildrenLoaded(loaded);
         return d;
     }
 
     private RemoteFile file(String name, String path) {
-        return new RemoteFile(name, path, false, 123, 420);
+        return new RemoteFile(name, path, false, 123, 420, 200);
     }
 
     @Test

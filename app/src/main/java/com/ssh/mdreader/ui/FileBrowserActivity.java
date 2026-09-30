@@ -34,6 +34,7 @@ import com.ssh.mdreader.model.SshConfig;
 import com.ssh.mdreader.ssh.SshManager;
 import com.ssh.mdreader.util.CodeHighlighter;
 import com.ssh.mdreader.util.DialogHelper;
+import com.ssh.mdreader.util.FileSortUtils;
 import com.ssh.mdreader.util.PreferenceManager;
 import com.ssh.mdreader.util.UiUtils;
 
@@ -106,7 +107,26 @@ public class FileBrowserActivity extends BaseActivity
             item.setTitle(showHidden ? "隐藏隐藏文件" : "显示隐藏文件");
             return true;
         }
+        if (id == R.id.action_sort) {
+            showSortDialog();
+            return true;
+        }
         return super.onOptionsItemSelected(item);
+    }
+
+    private void showSortDialog() {
+        final int current = prefManager.getFileSortMode();
+        final String[] names = {"按名称", "按修改时间", "按大小"};
+        DialogHelper.showListDialog(this,
+                "排序方式",
+                names,
+                null,
+                (dialog, which) -> {
+                    if (which == current) return;
+                    prefManager.saveFileSortMode(which);
+                    UiUtils.showToast(this, "已切换为" + names[which]);
+                    loadFiles();
+                });
     }
 
     private void initViews() {
@@ -184,7 +204,7 @@ public class FileBrowserActivity extends BaseActivity
                     } else {
                         tvEmpty.setVisibility(View.GONE);
                     }
-                    adapter.setFiles(files);
+                    adapter.setFiles(FileSortUtils.sort(files, prefManager.getFileSortMode()));
 
                     // Restore scroll position
                     if (savedScrollY[0] >= 0 && savedScrollY[0] < adapter.getItemCount()) {
@@ -260,7 +280,7 @@ public class FileBrowserActivity extends BaseActivity
         sshManager.listFiles(dir.getPath(), new SshManager.FileListCallback() {
             @Override
             public void onSuccess(List<RemoteFile> files) {
-                runOnUiThread(() -> callback.onLoaded(files));
+                runOnUiThread(() -> callback.onLoaded(FileSortUtils.sort(files, prefManager.getFileSortMode())));
             }
 
             @Override

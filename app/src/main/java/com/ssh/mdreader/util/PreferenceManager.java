@@ -20,6 +20,7 @@ public class PreferenceManager {
     private static final String KEY_FONT_SIZE = "font_size";
     private static final String KEY_SHOW_HIDDEN = "show_hidden";
     private static final String KEY_HEARTBEAT_MS = "heartbeat_interval_ms";
+    private static final String KEY_FILE_SORT_MODE = "file_sort_mode";
     /** 与 SshManager.DEFAULT_HEARTBEAT_MS 保持一致。 */
     private static final int DEFAULT_HEARTBEAT_MS = 5_000;
 
@@ -138,5 +139,14 @@ public class PreferenceManager {
 
     public int getHeartbeatIntervalMs() {
         return prefs.getInt(KEY_HEARTBEAT_MS, DEFAULT_HEARTBEAT_MS);
+    }
+
+    /** 文件列表排序模式，取值见 FileSortUtils（0=名称 1=修改时间 2=大小）。 */
+    public void saveFileSortMode(int mode) {
+        prefs.edit().putInt(KEY_FILE_SORT_MODE, mode).apply();
+    }
+
+    public int getFileSortMode() {
+        return prefs.getInt(KEY_FILE_SORT_MODE, 0);
     }
 }

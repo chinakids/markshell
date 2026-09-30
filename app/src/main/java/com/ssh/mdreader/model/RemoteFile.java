@@ -9,18 +9,21 @@ public class RemoteFile {
     private final boolean directory;
     private final long size;
     private final int permissions;
+    /** 最后修改时间（Unix 秒，来自 SFTP attrs.getMTime()；未知为 0）。 */
+    private final long mtime;
 
     private int depth;
     private boolean expanded;
     private boolean childrenLoaded;
     private final List<RemoteFile> children = new ArrayList<>();
 
-    public RemoteFile(String name, String path, boolean directory, long size, int permissions) {
+    public RemoteFile(String name, String path, boolean directory, long size, int permissions, long mtime) {
         this.name = name;
         this.path = path;
         this.directory = directory;
         this.size = size;
         this.permissions = permissions;
+        this.mtime = mtime;
     }
 
     public String getName() { return name; }
@@ -28,6 +31,7 @@ public class RemoteFile {
     public boolean isDirectory() { return directory; }
     public long getSize() { return size; }
     public int getPermissions() { return permissions; }
+    public long getMtime() { return mtime; }
 
     public int getDepth() { return depth; }
     public void setDepth(int depth) { this.depth = depth; }

@@ -8,4 +8,9 @@
         android:title="显示隐藏文件"
         app:showAsAction="ifRoom" />
 
+    <item
+        android:id="@+id/action_sort"
+        android:title="排序"
+        app:showAsAction="never" />
+
 </menu>
