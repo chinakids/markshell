@@ -5,6 +5,7 @@ import android.graphics.Bitmap;
 import android.graphics.BitmapFactory;
 import android.graphics.Typeface;
 import android.os.Bundle;
+import android.text.InputType;
 import android.text.SpannableStringBuilder;
 import android.text.TextUtils;
 import android.util.Log;
@@ -676,12 +677,14 @@ public class FileBrowserActivity extends BaseActivity
     public void onFileLongClick(RemoteFile file) {
         DialogHelper.showListDialog(this,
                 file.getName(),
-                new String[]{"重命名", "删除"},
-                new int[]{R.drawable.ic_edit, R.drawable.ic_delete},
+                new String[]{"重命名", "权限", "删除"},
+                new int[]{R.drawable.ic_edit, R.drawable.ic_lock, R.drawable.ic_delete},
                 (dialog, which) -> {
                     if (which == 0) {
                         renameFile(file);
                     } else if (which == 1) {
+                        showChmodDialog(file);
+                    } else if (which == 2) {
                         confirmDeleteFile(file);
                     }
                 });
@@ -750,6 +753,42 @@ public class FileBrowserActivity extends BaseActivity
         });
     }
 
+    /**
+     * 修改文件/目录权限：预填当前八进制权限（&amp; 0777 去掉文件类型位），
+     * 校验 3~4 位八进制后提交，成功刷新列表。
+     */
+    private void showChmodDialog(RemoteFile file) {
+        String current = Integer.toOctalString(file.getPermissions() & 0777);
+        DialogHelper.showInputDialog(this,
+                "权限 " + file.getName(),
+                "当前 " + current + "，输入 3~4 位八进制（如 644、755、1777）",
+                "确定", "取消",
+                InputType.TYPE_CLASS_NUMBER,
+                current,
+                input -> {
+                    int mode = SshManager.parseOctalMode(input);
+                    if (mode < 0) {
+                        UiUtils.showToast(this, "权限格式：3 或 4 位八进制（如 755）");
+                        return;
+                    }
+                    sshManager.chmodFile(file.getPath(), mode, new SshManager.ChmodCallback() {
+                        @Override
+                        public void onSuccess() {
+                            runOnUiThread(() -> {
+                                UiUtils.showToast(FileBrowserActivity.this, "已设置权限 " + input);
+                                loadFiles();
+                            });
+                        }
+
+                        @Override
+                        public void onError(String message) {
+                            runOnUiThread(() ->
+                                    UiUtils.showToast(FileBrowserActivity.this, "设置权限失败: " + message));
+                        }
+                    });
+                });
+    }
+
     @Override
     protected void onResume() {
         super.onResume();
@@ -767,12 +806,14 @@ public class FileBrowserActivity extends BaseActivity
 
         DialogHelper.showListDialog(this,
                 dir.getName(),
-                new String[]{"重命名", "设为主目录"},
-                new int[]{R.drawable.ic_edit, R.drawable.ic_folder_set},
+                new String[]{"重命名", "权限", "设为主目录"},
+                new int[]{R.drawable.ic_edit, R.drawable.ic_lock, R.drawable.ic_folder_set},
                 (dialog, which) -> {
                     if (which == 0) {
                         renameFile(dir);
                     } else if (which == 1) {
+                        showChmodDialog(dir);
+                    } else if (which == 2) {
                         prefManager.updateRemotePath(
                                 config.getHost(), config.getPort(),
                                 config.getUsername(), dir.getPath());

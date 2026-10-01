@@ -4,6 +4,7 @@ import android.app.Activity;
 import android.app.Dialog;
 import android.content.Context;
 import android.graphics.Color;
+import android.text.InputType;
 import android.view.Gravity;
 import android.view.LayoutInflater;
 import android.view.View;
@@ -166,12 +167,31 @@ public class DialogHelper {
 
     /**
      * Brand-styled input dialog with a multi-line EditText.
+     * 旧签名保持不变，委托给带 {@code inputType}/{@code initialText} 的新重载（默认无特殊输入法、无预填）。
      */
     public static void showInputDialog(@NonNull Context context,
                                        @NonNull String title,
                                        @NonNull String hint,
                                        @NonNull String positiveText,
                                        @NonNull String negativeText,
+                                       @NonNull OnInputListener inputListener) {
+        showInputDialog(context, title, hint, positiveText, negativeText, 0, null, inputListener);
+    }
+
+    /**
+     * 带输入法类型与预填文本的输入对话框。
+     *
+     * @param inputType   非 0 时替换 EditText 输入法类型（如 {@code InputType.TYPE_CLASS_NUMBER}）
+     *                    并改为单行紧凑布局；0 表示保持布局默认（多行文本）。
+     * @param initialText 非 null 时预填文本并全选，便于整体替换。
+     */
+    public static void showInputDialog(@NonNull Context context,
+                                       @NonNull String title,
+                                       @NonNull String hint,
+                                       @NonNull String positiveText,
+                                       @NonNull String negativeText,
+                                       int inputType,
+                                       String initialText,
                                        @NonNull OnInputListener inputListener) {
         if (!canShow(context)) return;
 
@@ -184,6 +204,17 @@ public class DialogHelper {
 
         EditText et = view.findViewById(R.id.dialog_input_et);
         et.setHint(hint);
+
+        if (inputType != 0) {
+            et.setInputType(inputType);
+            et.setMinLines(1);
+            et.setMaxLines(1);
+            et.setGravity(Gravity.CENTER_VERTICAL);
+        }
+        if (initialText != null && !initialText.isEmpty()) {
+            et.setText(initialText);
+            et.setSelection(0, et.length());
+        }
 
         TextView btnNeg = view.findViewById(R.id.dialog_input_btn_negative);
         btnNeg.setText(negativeText);

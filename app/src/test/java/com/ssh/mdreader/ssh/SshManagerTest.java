@@ -70,6 +70,28 @@ public class SshManagerTest {
     }
 
     @Test
+    public void parseOctalMode_validModes() {
+        assertEquals(0x1ED, SshManager.parseOctalMode("755"));   // 0755
+        assertEquals(0x1A4, SshManager.parseOctalMode("644"));   // 0644
+        assertEquals(0x3FF, SshManager.parseOctalMode("1777"));  // 01777（setuid 场景）
+        assertEquals(0x1A4, SshManager.parseOctalMode("0644"));  // 前导 0 合法
+        assertEquals(0, SshManager.parseOctalMode("000"));
+    }
+
+    @Test
+    public void parseOctalMode_rejectsInvalid() {
+        assertEquals(-1, SshManager.parseOctalMode("888"));   // 非八进制位
+        assertEquals(-1, SshManager.parseOctalMode("75"));    // 位数不足
+        assertEquals(-1, SshManager.parseOctalMode("1"));
+        assertEquals(-1, SshManager.parseOctalMode("0"));     // 唯一 0 位不足（须写 000）
+        assertEquals(-1, SshManager.parseOctalMode(""));      // 空输入
+        assertEquals(-1, SshManager.parseOctalMode(null));
+        assertEquals(-1, SshManager.parseOctalMode("755 "));  // 多余空格
+        assertEquals(-1, SshManager.parseOctalMode("07775")); // 位数超限
+        assertEquals(-1, SshManager.parseOctalMode("abc"));
+    }
+
+    @Test
     public void setHeartbeatInterval_sanitizesAndStores() {
         SshManager mgr = SshManager.getInstance();
         int original = mgr.getHeartbeatIntervalMs();

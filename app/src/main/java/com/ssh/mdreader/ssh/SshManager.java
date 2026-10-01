@@ -417,6 +417,35 @@ public class SshManager {
         }, callback::onError));
     }
 
+    public interface ChmodCallback {
+        void onSuccess();
+        void onError(String message);
+    }
+
+    /**
+     * 修改文件/目录权限（JSch chmod 走 SSH_FXP_SETSTAT，OpenSSH sftp-server 协议标配）。
+     * 只读之外的变更操作不重试（与 renameFile 同口径）。
+     */
+    public void chmodFile(String path, int mode, ChmodCallback callback) {
+        sftpExecutor.execute(() -> runOp("修改权限", false, channel -> {
+            channel.chmod(mode, path);
+            callback.onSuccess();
+        }, callback::onError));
+    }
+
+    /**
+     * 把用户输入解析为八进制权限值（纯函数，便于单测；UI 层亦用于校验）。
+     * 仅接受 3~4 位八进制数（如 644 / 755 / 1777）；非法输入返回 -1。
+     */
+    public static int parseOctalMode(String input) {
+        if (input == null || !input.matches("[0-7]{3,4}")) return -1;
+        try {
+            return Integer.parseInt(input, 8);
+        } catch (NumberFormatException e) {
+            return -1;
+        }
+    }
+
     /**
      * 由原路径与「同目录下的新文件名」构造目标路径（纯函数，便于单测）。
      * 新名不允许包含 '/'（含路径的移动需求见 {@code renameFile} 完整路径调用，
