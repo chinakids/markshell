@@ -456,4 +456,54 @@ public class SshManager {
         if (idx < 0) return newName;
         return oldPath.substring(0, idx + 1) + newName;
     }
+
+    /**
+     * 构造「移动到目标目录」的完整目标路径（纯函数，便于单测）：
+     * 源文件名保持不变，拼接在 targetDir 之后；规范掉多余的结尾斜杠（根目录除外）。
+     */
+    public static String buildMovePath(String srcPath, String targetDir) {
+        int idx = srcPath.lastIndexOf('/');
+        String name = idx < 0 ? srcPath : srcPath.substring(idx + 1);
+        if ("/".equals(targetDir)) return "/" + name;
+        String base = targetDir.endsWith("/")
+                ? targetDir.substring(0, targetDir.length() - 1) : targetDir;
+        return base + "/" + name;
+    }
+
+    /** 目录部分（不含末级名称），根目录返回 "/"；无斜杠时返回 ""。 */
+    private static String parentOf(String path) {
+        String p = path;
+        while (p.length() > 1 && p.endsWith("/")) {
+            p = p.substring(0, p.length() - 1);
+        }
+        int idx = p.lastIndexOf('/');
+        if (idx < 0) return "";
+        if (idx == 0) return "/";
+        return p.substring(0, idx);
+    }
+
+    /**
+     * 目标目录是否与源同位置（即目标目录 = 源所在目录，移动等于没动）。
+     * 纯函数，便于单测；UI 层据此拦截并提示。
+     */
+    public static boolean isMoveSameLocation(String srcPath, String targetDir) {
+        if (targetDir == null) return false;
+        String target = targetDir.length() > 1 && targetDir.endsWith("/")
+                ? targetDir.substring(0, targetDir.length() - 1) : targetDir;
+        if (target.isEmpty()) return false;
+        return target.equals(parentOf(srcPath));
+    }
+
+    /**
+     * 目录源是否要移动到自身或其子孙目录中（仅对目录源有意义；文件源调用方不应触发）。
+     * 纯函数，便于单测；UI 层据此拦截并提示。
+     */
+    public static boolean isMoveIntoItself(String srcPath, String targetDir) {
+        if (targetDir == null) return false;
+        String src = srcPath.endsWith("/") && !srcPath.equals("/")
+                ? srcPath.substring(0, srcPath.length() - 1) : srcPath;
+        String target = targetDir.endsWith("/") && !targetDir.equals("/")
+                ? targetDir.substring(0, targetDir.length() - 1) : targetDir;
+        return target.equals(src) || target.startsWith(src + "/");
+    }
 }

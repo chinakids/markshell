@@ -105,4 +105,34 @@ public class SshManagerTest {
             mgr.setHeartbeatIntervalMs(original);
         }
     }
+
+    @Test
+    public void buildMovePath_joinsTargetDirAndName() {
+        assertEquals("/a/b/note.md", SshManager.buildMovePath("/a/c/note.md", "/a/b"));
+        assertEquals("/a/b/note.md", SshManager.buildMovePath("/a/c/note.md", "/a/b/"));
+        // 根目录目标：只保留一个前导斜杠
+        assertEquals("/note.md", SshManager.buildMovePath("/a/c/note.md", "/"));
+        // 根目录下的源（无父目录前缀）
+        assertEquals("/b/note.md", SshManager.buildMovePath("/note.md", "/b"));
+    }
+
+    @Test
+    public void isMoveSameLocation_targetEqualsSourceParent() {
+        assertTrue(SshManager.isMoveSameLocation("/a/b/note.md", "/a/b"));
+        assertTrue(SshManager.isMoveSameLocation("/a/b/note.md", "/a/b/")); // 结尾斜杠等价
+        assertTrue(SshManager.isMoveSameLocation("/note.md", "/"));         // 根目录下文件
+        assertFalse(SshManager.isMoveSameLocation("/a/b/note.md", "/a"));
+        assertFalse(SshManager.isMoveSameLocation("/a/b/note.md", null));
+    }
+
+    @Test
+    public void isMoveIntoItself_selfOrDescendant() {
+        assertTrue(SshManager.isMoveIntoItself("/a/b", "/a/b"));
+        assertTrue(SshManager.isMoveIntoItself("/a/b", "/a/b/data"));
+        assertTrue(SshManager.isMoveIntoItself("/a/b", "/a/b/data/sub"));
+        assertTrue(SshManager.isMoveIntoItself("/a/b", "/a/b/"));       // 结尾斜杠等价
+        assertFalse(SshManager.isMoveIntoItself("/a/b", "/a"));         // 上级合法
+        assertFalse(SshManager.isMoveIntoItself("/a/b", "/a/bc"));      // 前缀相似≠子孙
+        assertFalse(SshManager.isMoveIntoItself("/a/b", null));
+    }
 }

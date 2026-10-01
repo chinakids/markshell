@@ -35,6 +35,7 @@ import com.ssh.mdreader.model.SshConfig;
 import com.ssh.mdreader.ssh.SshManager;
 import com.ssh.mdreader.util.CodeHighlighter;
 import com.ssh.mdreader.util.DialogHelper;
+import com.ssh.mdreader.util.DirectoryPickerDialog;
 import com.ssh.mdreader.util.FileSortUtils;
 import com.ssh.mdreader.util.PreferenceManager;
 import com.ssh.mdreader.util.UiUtils;
@@ -64,6 +65,7 @@ public class FileBrowserActivity extends BaseActivity
     private final SshManager sshManager = SshManager.getInstance();
     private String currentPath;
     private PreferenceManager prefManager;
+    private DirectoryPickerDialog dirPicker;
 
     // ── Two-pane preview (layout-w600dp) ──────────────────────────────────────
     private FrameLayout previewContainer;
@@ -677,17 +679,46 @@ public class FileBrowserActivity extends BaseActivity
     public void onFileLongClick(RemoteFile file) {
         DialogHelper.showListDialog(this,
                 file.getName(),
-                new String[]{"重命名", "权限", "删除"},
-                new int[]{R.drawable.ic_edit, R.drawable.ic_lock, R.drawable.ic_delete},
+                new String[]{"移动", "重命名", "权限", "删除"},
+                new int[]{R.drawable.ic_move, R.drawable.ic_edit, R.drawable.ic_lock, R.drawable.ic_delete},
                 (dialog, which) -> {
                     if (which == 0) {
-                        renameFile(file);
+                        moveFile(file);
                     } else if (which == 1) {
-                        showChmodDialog(file);
+                        renameFile(file);
                     } else if (which == 2) {
+                        showChmodDialog(file);
+                    } else if (which == 3) {
                         confirmDeleteFile(file);
                     }
                 });
+    }
+
+    /** 移动文件/目录到其他目录：弹目录选择器，确认后 JSch rename（跨目录=目标前缀不同）。 */
+    private void moveFile(RemoteFile file) {
+        dirPicker = DirectoryPickerDialog.show(this,
+                file.getPath(), file.getName(), file.isDirectory(),
+                targetDir -> sshManager.renameFile(
+                        file.getPath(),
+                        SshManager.buildMovePath(file.getPath(), targetDir),
+                        new SshManager.RenameFileCallback() {
+                            @Override
+                            public void onSuccess() {
+                                runOnUiThread(() -> {
+                                    if (isFinishing() || isDestroyed()) return;
+                                    UiUtils.showToast(FileBrowserActivity.this,
+                                            "已移动到 " + targetDir);
+                                    adapter.removeFile(file.getPath());
+                                });
+                            }
+
+                            @Override
+                            public void onError(String message) {
+                                runOnUiThread(() ->
+                                        UiUtils.showToast(FileBrowserActivity.this,
+                                                "移动失败: " + message));
+                            }
+                        }));
     }
 
     private void renameFile(RemoteFile file) {
@@ -806,14 +837,16 @@ public class FileBrowserActivity extends BaseActivity
 
         DialogHelper.showListDialog(this,
                 dir.getName(),
-                new String[]{"重命名", "权限", "设为主目录"},
-                new int[]{R.drawable.ic_edit, R.drawable.ic_lock, R.drawable.ic_folder_set},
+                new String[]{"移动", "重命名", "权限", "设为主目录"},
+                new int[]{R.drawable.ic_move, R.drawable.ic_edit, R.drawable.ic_lock, R.drawable.ic_folder_set},
                 (dialog, which) -> {
                     if (which == 0) {
-                        renameFile(dir);
+                        moveFile(dir);
                     } else if (which == 1) {
-                        showChmodDialog(dir);
+                        renameFile(dir);
                     } else if (which == 2) {
+                        showChmodDialog(dir);
+                    } else if (which == 3) {
                         prefManager.updateRemotePath(
                                 config.getHost(), config.getPort(),
                                 config.getUsername(), dir.getPath());
@@ -831,6 +864,10 @@ public class FileBrowserActivity extends BaseActivity
     @Override
     protected void onDestroy() {
         super.onDestroy();
+        if (dirPicker != null) {
+            dirPicker.dismiss();
+            dirPicker = null;
+        }
         if (isFinishing()) {
             sshManager.disconnect();
         }

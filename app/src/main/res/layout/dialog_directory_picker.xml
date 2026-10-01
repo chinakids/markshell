@@ -1,0 +1,106 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:orientation="vertical"
+    android:background="@drawable/bg_dialog"
+    android:padding="24dp">
+
+    <TextView
+        android:id="@+id/dialog_picker_title"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:singleLine="true"
+        android:ellipsize="end"
+        android:textSize="20sp"
+        android:textColor="#E0E0E0"
+        android:textStyle="bold" />
+
+    <TextView
+        android:id="@+id/dialog_picker_path"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="10dp"
+        android:singleLine="true"
+        android:ellipsize="middle"
+        android:textSize="14sp"
+        android:textColor="#A0A0A0" />
+
+    <FrameLayout
+        android:layout_width="match_parent"
+        android:layout_height="260dp"
+        android:layout_marginTop="12dp">
+
+        <androidx.recyclerview.widget.RecyclerView
+            android:id="@+id/dialog_picker_recycler"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:overScrollMode="never" />
+
+        <TextView
+            android:id="@+id/dialog_picker_empty"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_gravity="center"
+            android:text="该目录下没有子目录"
+            android:textColor="#A0A0A0"
+            android:textSize="14sp"
+            android:visibility="gone" />
+
+        <ProgressBar
+            android:id="@+id/dialog_picker_progress"
+            style="?android:attr/progressBarStyleSmall"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_gravity="center" />
+
+    </FrameLayout>
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="16dp"
+        android:orientation="horizontal"
+        android:gravity="end">
+
+        <TextView
+            android:id="@+id/dialog_picker_btn_parent"
+            android:layout_width="wrap_content"
+            android:layout_height="40dp"
+            android:gravity="center"
+            android:paddingStart="20dp"
+            android:paddingEnd="20dp"
+            android:text="上级"
+            android:textSize="14sp"
+            android:textColor="#BB86FC"
+            android:background="?attr/selectableItemBackground" />
+
+        <TextView
+            android:id="@+id/dialog_picker_btn_negative"
+            android:layout_width="wrap_content"
+            android:layout_height="40dp"
+            android:gravity="center"
+            android:paddingStart="20dp"
+            android:paddingEnd="20dp"
+            android:layout_marginStart="4dp"
+            android:text="取消"
+            android:textSize="14sp"
+            android:textColor="#BB86FC"
+            android:background="?attr/selectableItemBackground" />
+
+        <TextView
+            android:id="@+id/dialog_picker_btn_move"
+            android:layout_width="wrap_content"
+            android:layout_height="40dp"
+            android:gravity="center"
+            android:paddingStart="24dp"
+            android:paddingEnd="24dp"
+            android:layout_marginStart="12dp"
+            android:text="移动到此"
+            android:textSize="14sp"
+            android:textColor="#000000"
+            android:background="@drawable/bg_dialog_btn_primary" />
+
+    </LinearLayout>
+
+</LinearLayout>

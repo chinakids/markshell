@@ -249,7 +249,8 @@ public class DialogHelper {
         dialog.dismiss();
     }
 
-    private static void applyDialogSize(Dialog dialog) {
+    /** 对话框宽度设为屏幕 88%、居中；util 包内共享（以 DirectoryPickerDialog 复用）。 */
+    static void applyDialogSize(Dialog dialog) {
         Window window = dialog.getWindow();
         if (window != null) {
             WindowManager.LayoutParams lp = window.getAttributes();
