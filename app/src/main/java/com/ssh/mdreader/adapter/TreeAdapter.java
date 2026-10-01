@@ -12,8 +12,10 @@ import androidx.recyclerview.widget.RecyclerView;
 
 import com.ssh.mdreader.R;
 import com.ssh.mdreader.model.RemoteFile;
+import com.ssh.mdreader.util.FileSortUtils;
 
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 
 public class TreeAdapter extends RecyclerView.Adapter<TreeAdapter.ViewHolder> {
@@ -131,9 +133,21 @@ public class TreeAdapter extends RecyclerView.Adapter<TreeAdapter.ViewHolder> {
 
     /**
      * Replaces root files while preserving expanded state and loaded children
-     * of directories that still exist (matched by path).
+     * of directories that still exist (matched by path). Convenience variant
+     * defaulting to name order; prefer {@link #setFiles(List, int)} when the
+     * caller knows the active sort mode.
      */
     public void setFiles(List<RemoteFile> files) {
+        setFiles(files, FileSortUtils.SORT_NAME);
+    }
+
+    /**
+     * Replaces root files (supplied already sorted by {@code sortMode}) while
+     * preserving expanded state and loaded children of directories that still
+     * exist (matched by path); preserved subtrees are re-sorted with the same
+     * mode so expanded directories stay consistent with the main list.
+     */
+    public void setFiles(List<RemoteFile> files, int sortMode) {
         // Build a map of old expanded dirs by path
         java.util.Map<String, RemoteFile> oldMap = new java.util.HashMap<>();
         collectExpandedDirs(rootFiles, oldMap);
@@ -141,7 +155,21 @@ public class TreeAdapter extends RecyclerView.Adapter<TreeAdapter.ViewHolder> {
         rootFiles.clear();
         applyExistingState(files, oldMap);
         rootFiles.addAll(files);
+        sortLoadedChildren(rootFiles, sortMode);
         rebuildFlatList();
+    }
+
+    /** Recursively re-sorts the children of every loaded directory using
+     *  {@code sortMode} (directories first, then per-mode ordering), so subtrees
+     *  preserved by {@code setFiles} follow the active sort order.
+     *  Package-private (pure logic, no instance state) for unit tests. */
+    static void sortLoadedChildren(List<RemoteFile> nodes, int sortMode) {
+        for (RemoteFile f : nodes) {
+            if (f.isDirectory() && f.isChildrenLoaded()) {
+                Collections.sort(f.getChildren(), FileSortUtils.comparator(sortMode));
+                sortLoadedChildren(f.getChildren(), sortMode);
+            }
+        }
     }
 
     /**

@@ -5,6 +5,7 @@ import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 
 import com.ssh.mdreader.model.RemoteFile;
+import com.ssh.mdreader.util.FileSortUtils;
 
 import org.junit.Test;
 
@@ -196,5 +197,60 @@ public class TreeAdapterTest {
 
         assertEquals(1, newA.getChildren().size());
         assertEquals("old.txt", newA.getChildren().get(0).getName());
+    }
+
+    private RemoteFile fileM(String name, String path, long mtime) {
+        return new RemoteFile(name, path, false, 123, 420, mtime);
+    }
+
+    @Test
+    public void sortLoadedChildren_resortsByMtimeModeDirsFirst() {
+        RemoteFile a = dir("a", "/data/a", true, true);
+        a.getChildren().add(fileM("z.txt", "/data/a/z.txt", 100));
+        a.getChildren().add(fileM("a.txt", "/data/a/a.txt", 500));
+        a.getChildren().add(dir("sub", "/data/a/sub", false, false)); // 目录恒在前
+        List<RemoteFile> nodes = new ArrayList<>();
+        nodes.add(a);
+
+        TreeAdapter.sortLoadedChildren(nodes, FileSortUtils.SORT_MTIME);
+
+        List<RemoteFile> kids = a.getChildren();
+        assertEquals("sub", kids.get(0).getName());
+        assertEquals("a.txt", kids.get(1).getName());
+        assertEquals("z.txt", kids.get(2).getName());
+    }
+
+    @Test
+    public void sortLoadedChildren_recursesIntoNestedLoadedDirs() {
+        RemoteFile sub = dir("sub", "/data/a/sub", true, true);
+        sub.getChildren().add(fileM("x.txt", "/data/a/sub/x.txt", 1000));
+        sub.getChildren().add(fileM("y.txt", "/data/a/sub/y.txt", 50));
+        RemoteFile a = dir("a", "/data/a", true, true);
+        a.getChildren().add(sub);
+        List<RemoteFile> nodes = new ArrayList<>();
+        nodes.add(a);
+
+        TreeAdapter.sortLoadedChildren(nodes, FileSortUtils.SORT_MTIME);
+
+        assertEquals("x.txt", sub.getChildren().get(0).getName());
+        assertEquals("y.txt", sub.getChildren().get(1).getName());
+    }
+
+    @Test
+    public void sortLoadedChildren_leavesUnloadedDirsAndRootOrderAlone() {
+        RemoteFile unloaded = dir("u", "/data/u", false, false);
+        unloaded.getChildren().add(fileM("old.txt", "/data/u/old.txt", 999));
+        RemoteFile fresh = dir("fresh", "/data/fresh", false, false);
+        List<RemoteFile> nodes = new ArrayList<>();
+        nodes.add(fresh);
+        nodes.add(unloaded);
+
+        TreeAdapter.sortLoadedChildren(nodes, FileSortUtils.SORT_SIZE);
+
+        // 根节点列表由调用方排序，函数只重排"已加载"子树，不动根序
+        assertEquals("fresh", nodes.get(0).getName());
+        assertEquals("u", nodes.get(1).getName());
+        // 未加载目录的旧子序保留（其 children 本应在加载时排序）
+        assertEquals(1, unloaded.getChildren().size());
     }
 }

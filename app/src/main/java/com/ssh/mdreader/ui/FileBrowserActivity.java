@@ -204,7 +204,8 @@ public class FileBrowserActivity extends BaseActivity
                     } else {
                         tvEmpty.setVisibility(View.GONE);
                     }
-                    adapter.setFiles(FileSortUtils.sort(files, prefManager.getFileSortMode()));
+                    int sortMode = prefManager.getFileSortMode();
+                    adapter.setFiles(FileSortUtils.sort(files, sortMode), sortMode);
 
                     // Restore scroll position
                     if (savedScrollY[0] >= 0 && savedScrollY[0] < adapter.getItemCount()) {
