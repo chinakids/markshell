@@ -5,7 +5,6 @@ import android.graphics.Bitmap;
 import android.graphics.BitmapFactory;
 import android.graphics.Typeface;
 import android.os.Bundle;
-import android.text.InputType;
 import android.text.SpannableStringBuilder;
 import android.text.TextUtils;
 import android.util.Log;
@@ -35,15 +34,13 @@ import com.ssh.mdreader.model.SshConfig;
 import com.ssh.mdreader.ssh.SshManager;
 import com.ssh.mdreader.util.CodeHighlighter;
 import com.ssh.mdreader.util.DialogHelper;
-import com.ssh.mdreader.util.DirectoryPickerDialog;
+import com.ssh.mdreader.util.FileOpsHelper;
 import com.ssh.mdreader.util.FileSortUtils;
 import com.ssh.mdreader.util.PreferenceManager;
 import com.ssh.mdreader.util.UiUtils;
 
 import java.util.ArrayList;
-import java.util.HashSet;
 import java.util.List;
-import java.util.Set;
 
 import io.noties.markwon.Markwon;
 import io.noties.markwon.ext.tables.TablePlugin;
@@ -51,7 +48,7 @@ import io.noties.markwon.ext.tasklist.TaskListPlugin;
 import io.noties.markwon.image.ImagesPlugin;
 
 public class FileBrowserActivity extends BaseActivity
-        implements TreeAdapter.OnFileActionListener {
+        implements TreeAdapter.OnFileActionListener, FileOpsHelper.Host {
 
     private static final String TAG = "FileBrowserActivity";
 
@@ -67,7 +64,7 @@ public class FileBrowserActivity extends BaseActivity
     private final SshManager sshManager = SshManager.getInstance();
     private String currentPath;
     private PreferenceManager prefManager;
-    private DirectoryPickerDialog dirPicker;
+    private FileOpsHelper fileOps;
 
     /** 多选模式底部操作栏（批量移动/权限/删除）。 */
     private View selectionBar;
@@ -88,6 +85,7 @@ public class FileBrowserActivity extends BaseActivity
         }
 
         prefManager = new PreferenceManager(this);
+        fileOps = new FileOpsHelper(this, this);
         initViews();
         loadFiles();
     }
@@ -165,9 +163,12 @@ public class FileBrowserActivity extends BaseActivity
         recyclerFiles.setAdapter(adapter);
 
         selectionBar = findViewById(R.id.layout_selection_bar);
-        findViewById(R.id.btn_select_move).setOnClickListener(v -> moveSelectedFiles());
-        findViewById(R.id.btn_select_chmod).setOnClickListener(v -> chmodSelectedFiles());
-        findViewById(R.id.btn_select_delete).setOnClickListener(v -> deleteSelectedFiles());
+        findViewById(R.id.btn_select_move).setOnClickListener(
+                v -> fileOps.moveSelectedFiles(adapter.getSelectedFiles()));
+        findViewById(R.id.btn_select_chmod).setOnClickListener(
+                v -> fileOps.chmodSelectedFiles(adapter.getSelectedFiles()));
+        findViewById(R.id.btn_select_delete).setOnClickListener(
+                v -> fileOps.deleteSelectedFiles(adapter.getSelectedFiles()));
 
         swipeRefresh.setColorSchemeColors(
                 getResources().getColor(R.color.md_theme_primary, getTheme()));
@@ -709,265 +710,16 @@ public class FileBrowserActivity extends BaseActivity
                     if (which == 0) {
                         adapter.enterSelectionMode(file);
                     } else if (which == 1) {
-                        moveFile(file);
+                        fileOps.moveFile(file);
                     } else if (which == 2) {
-                        copyFile(file);
+                        fileOps.copyFile(file);
                     } else if (which == 3) {
-                        renameFile(file);
+                        fileOps.renameFile(file);
                     } else if (which == 4) {
-                        showChmodDialog(file);
+                        fileOps.showChmodDialog(file);
                     } else if (which == 5) {
-                        confirmDeleteFile(file);
+                        fileOps.confirmDeleteFile(file);
                     }
-                });
-    }
-
-    /** 移动文件/目录到其他目录：弹目录选择器，确认后 JSch rename（跨目录=目标前缀不同）。 */
-    private void moveFile(RemoteFile file) {
-        dirPicker = DirectoryPickerDialog.show(this,
-                file.getPath(), file.getName(), file.isDirectory(),
-                targetDir -> sshManager.renameFile(
-                        file.getPath(),
-                        SshManager.buildMovePath(file.getPath(), targetDir),
-                        new SshManager.RenameFileCallback() {
-                            @Override
-                            public void onSuccess() {
-                                runOnUiThread(() -> {
-                                    if (isFinishing() || isDestroyed()) return;
-                                    UiUtils.showToast(FileBrowserActivity.this,
-                                            "已移动到 " + targetDir);
-                                    adapter.removeFile(file.getPath());
-                                });
-                            }
-
-                            @Override
-                            public void onError(String message) {
-                                runOnUiThread(() ->
-                                        UiUtils.showToast(FileBrowserActivity.this,
-                                                "移动失败: " + message));
-                            }
-                        }));
-    }
-
-    /** 复制文件到其他目录：弹目录选择器（复制模式），确认后先检查目标是否存在，存在则询问覆盖/跳过。 */
-    private void copyFile(RemoteFile file) {
-        dirPicker = DirectoryPickerDialog.show(this,
-                file.getPath(), file.getName(), file.isDirectory(), true,
-                targetDir -> {
-                    String dst = SshManager.buildCopyPath(file.getPath(), targetDir);
-                    sshManager.fileExists(dst, new SshManager.ExistsCallback() {
-                        @Override
-                        public void onResult(boolean exists) {
-                            runOnUiThread(() -> {
-                                if (isFinishing() || isDestroyed()) return;
-                                if (exists) {
-                                    confirmCopyOverwrite(file, dst);
-                                } else {
-                                    performCopy(file, dst);
-                                }
-                            });
-                        }
-
-                        @Override
-                        public void onError(String message) {
-                            runOnUiThread(() -> {
-                                if (isFinishing() || isDestroyed()) return;
-                                UiUtils.showToast(FileBrowserActivity.this,
-                                        "检查目标失败: " + message);
-                            });
-                        }
-                    });
-                });
-    }
-
-    private void confirmCopyOverwrite(RemoteFile file, String dst) {
-        DialogHelper.showConfirmDialog(this,
-                "目标已存在",
-                "目标位置已存在「" + file.getName() + "」，是否覆盖？",
-                "覆盖", "跳过",
-                d -> performCopy(file, dst),
-                d -> UiUtils.showToast(this, "已跳过复制"));
-    }
-
-    private void performCopy(RemoteFile file, String dst) {
-        sshManager.copyFile(file.getPath(), dst, new SshManager.CopyFileCallback() {
-            @Override
-            public void onSuccess() {
-                runOnUiThread(() -> {
-                    if (isFinishing() || isDestroyed()) return;
-                    UiUtils.showToast(FileBrowserActivity.this, "已复制到 " + dst);
-                    loadFiles();
-                });
-            }
-
-            @Override
-            public void onError(String message) {
-                runOnUiThread(() -> {
-                    if (isFinishing() || isDestroyed()) return;
-                    UiUtils.showToast(FileBrowserActivity.this, "复制失败: " + message);
-                });
-            }
-        });
-    }
-
-    /** 复制目录到其他目录：弹目录选择器（复制模式），确认后先检查目标目录是否存在，存在则提示合并语义。 */
-    private void copyDirectory(RemoteFile dir) {
-        dirPicker = DirectoryPickerDialog.show(this,
-                dir.getPath(), dir.getName(), true, true,
-                targetDir -> {
-                    String dst = SshManager.buildCopyPath(dir.getPath(), targetDir);
-                    sshManager.fileExists(dst, new SshManager.ExistsCallback() {
-                        @Override
-                        public void onResult(boolean exists) {
-                            runOnUiThread(() -> {
-                                if (isFinishing() || isDestroyed()) return;
-                                if (exists) {
-                                    confirmCopyDirectoryOverwrite(dir, dst);
-                                } else {
-                                    performCopyDirectory(dir, dst);
-                                }
-                            });
-                        }
-
-                        @Override
-                        public void onError(String message) {
-                            runOnUiThread(() -> {
-                                if (isFinishing() || isDestroyed()) return;
-                                UiUtils.showToast(FileBrowserActivity.this,
-                                        "检查目标失败: " + message);
-                            });
-                        }
-                    });
-                });
-    }
-
-    /** 目录级「覆盖」= 合并：目标目录已存在时确认继续合并（同名文件逐项覆盖），文案与文件版区分。 */
-    private void confirmCopyDirectoryOverwrite(RemoteFile dir, String dst) {
-        DialogHelper.showConfirmDialog(this,
-                "目标目录已存在",
-                "目标位置已存在目录「" + dir.getName() + "」，继续将合并两目录内容，同名文件将被覆盖。是否继续？",
-                "继续合并", "取消",
-                d -> performCopyDirectory(dir, dst),
-                d -> UiUtils.showToast(this, "已取消复制"));
-    }
-
-    private void performCopyDirectory(RemoteFile dir, String dst) {
-        sshManager.copyDirectory(dir.getPath(), dst, new SshManager.CopyFileCallback() {
-            @Override
-            public void onSuccess() {
-                runOnUiThread(() -> {
-                    if (isFinishing() || isDestroyed()) return;
-                    UiUtils.showToast(FileBrowserActivity.this, "已复制到 " + dst);
-                    loadFiles();
-                });
-            }
-
-            @Override
-            public void onError(String message) {
-                runOnUiThread(() -> {
-                    if (isFinishing() || isDestroyed()) return;
-                    UiUtils.showToast(FileBrowserActivity.this, "复制失败: " + message);
-                });
-            }
-        });
-    }
-
-    private void renameFile(RemoteFile file) {
-        DialogHelper.showInputDialog(this,
-                "重命名 " + file.getName(),
-                "输入新名称（不含 /）",
-                "重命名", "取消",
-                input -> {
-                    if (input.isEmpty()) {
-                        UiUtils.showToast(this, "名称不能为空");
-                        return;
-                    }
-                    if (input.equals(file.getName())) {
-                        UiUtils.showToast(this, "名称未改变");
-                        return;
-                    }
-                    if (input.contains("/")) {
-                        UiUtils.showToast(this, "名称不能包含 /");
-                        return;
-                    }
-                    String newPath = SshManager.buildRenamePath(file.getPath(), input);
-                    sshManager.renameFile(file.getPath(), newPath, new SshManager.RenameFileCallback() {
-                        @Override
-                        public void onSuccess() {
-                            runOnUiThread(() -> {
-                                UiUtils.showToast(FileBrowserActivity.this, "已重命名为 " + input);
-                                adapter.renameFile(file.getPath(), input);
-                            });
-                        }
-
-                        @Override
-                        public void onError(String message) {
-                            runOnUiThread(() ->
-                                    UiUtils.showToast(FileBrowserActivity.this, "重命名失败: " + message));
-                        }
-                    });
-                });
-    }
-
-    private void confirmDeleteFile(RemoteFile file) {
-        DialogHelper.showDangerConfirmDialog(this,
-                "删除文件",
-                "确定要删除 \"" + file.getName() + "\" 吗？此操作不可恢复。",
-                "删除", "取消",
-                d -> deleteRemoteFile(file),
-                d -> {});
-    }
-
-    private void deleteRemoteFile(RemoteFile file) {
-        sshManager.deleteFile(file.getPath(), new SshManager.DeleteFileCallback() {
-            @Override
-            public void onSuccess() {
-                runOnUiThread(() -> {
-                    UiUtils.showToast(FileBrowserActivity.this, "已删除 " + file.getName());
-                    adapter.removeFile(file.getPath());
-                });
-            }
-            @Override
-            public void onError(String message) {
-                runOnUiThread(() ->
-                        UiUtils.showToast(FileBrowserActivity.this, "删除失败: " + message));
-            }
-        });
-    }
-
-    /**
-     * 修改文件/目录权限：预填当前八进制权限（&amp; 0777 去掉文件类型位），
-     * 校验 3~4 位八进制后提交，成功刷新列表。
-     */
-    private void showChmodDialog(RemoteFile file) {
-        String current = Integer.toOctalString(file.getPermissions() & 0777);
-        DialogHelper.showInputDialog(this,
-                "权限 " + file.getName(),
-                "当前 " + current + "，输入 3~4 位八进制（如 644、755、1777）",
-                "确定", "取消",
-                InputType.TYPE_CLASS_NUMBER,
-                current,
-                input -> {
-                    int mode = SshManager.parseOctalMode(input);
-                    if (mode < 0) {
-                        UiUtils.showToast(this, "权限格式：3 或 4 位八进制（如 755）");
-                        return;
-                    }
-                    sshManager.chmodFile(file.getPath(), mode, new SshManager.ChmodCallback() {
-                        @Override
-                        public void onSuccess() {
-                            runOnUiThread(() -> {
-                                UiUtils.showToast(FileBrowserActivity.this, "已设置权限 " + input);
-                                loadFiles();
-                            });
-                        }
-
-                        @Override
-                        public void onError(String message) {
-                            runOnUiThread(() ->
-                                    UiUtils.showToast(FileBrowserActivity.this, "设置权限失败: " + message));
-                        }
-                    });
                 });
     }
 
@@ -990,99 +742,6 @@ public class FileBrowserActivity extends BaseActivity
                     : getString(R.string.title_files));
         }
         invalidateOptionsMenu();
-    }
-
-    /** 批量删除：危险确认（含目录递归），全部成功后从列表移除；部分失败则刷新真实状态。 */
-    private void deleteSelectedFiles() {
-        List<RemoteFile> files = adapter.getSelectedFiles();
-        if (files.isEmpty()) return;
-        List<String> paths = pathsOf(files);
-        DialogHelper.showDangerConfirmDialog(this,
-                "删除所选 " + files.size() + " 项",
-                "确定要删除选中的 " + files.size() + " 项（目录含全部内容）吗？此操作不可恢复。",
-                "删除", "取消",
-                d -> sshManager.batchDelete(paths, (ok, fail, first) -> runOnUiThread(() -> {
-                    if (isFinishing() || isDestroyed()) return;
-                    if (fail == 0) {
-                        UiUtils.showToast(FileBrowserActivity.this, "已删除 " + ok + " 项");
-                        adapter.removeFiles(paths);
-                        adapter.exitSelectionMode();
-                    } else {
-                        UiUtils.showToast(FileBrowserActivity.this,
-                                ok > 0 ? ("部分失败：成功 " + ok + " 项，失败 " + fail + " 项：" + first)
-                                       : ("删除失败：" + first));
-                        adapter.exitSelectionMode();
-                        loadFiles();
-                    }
-                })),
-                d -> {});
-    }
-
-    /** 批量权限：一个八进制值应用到所有选中项。 */
-    private void chmodSelectedFiles() {
-        List<RemoteFile> files = adapter.getSelectedFiles();
-        if (files.isEmpty()) return;
-        List<String> paths = pathsOf(files);
-        DialogHelper.showInputDialog(this,
-                "批量设置权限（" + files.size() + " 项）",
-                "输入 3~4 位八进制（如 755）",
-                "确定", "取消",
-                InputType.TYPE_CLASS_NUMBER,
-                null,
-                input -> {
-                    int mode = SshManager.parseOctalMode(input);
-                    if (mode < 0) {
-                        UiUtils.showToast(this, "权限格式：3 或 4 位八进制（如 755）");
-                        return;
-                    }
-                    sshManager.batchChmod(paths, mode, (ok, fail, first) -> runOnUiThread(() -> {
-                        if (isFinishing() || isDestroyed()) return;
-                        if (fail == 0) {
-                            UiUtils.showToast(FileBrowserActivity.this,
-                                    "已设置 " + ok + " 项权限为 " + input);
-                        } else {
-                            UiUtils.showToast(FileBrowserActivity.this,
-                                    ok > 0 ? ("部分失败：成功 " + ok + " 项，失败 " + fail + " 项：" + first)
-                                           : ("设置权限失败：" + first));
-                        }
-                        adapter.exitSelectionMode();
-                        loadFiles();
-                    }));
-                });
-    }
-
-    /** 批量移动：目录选择器（多源校验），确认后逐项 rename 到目标目录。 */
-    private void moveSelectedFiles() {
-        List<RemoteFile> files = adapter.getSelectedFiles();
-        if (files.isEmpty()) return;
-        List<String> paths = pathsOf(files);
-        Set<String> dirPaths = new HashSet<>();
-        for (RemoteFile f : files) {
-            if (f.isDirectory()) dirPaths.add(f.getPath());
-        }
-        dirPicker = DirectoryPickerDialog.show(this, paths, dirPaths,
-                targetDir -> sshManager.batchMove(paths, targetDir, (ok, fail, first) -> runOnUiThread(() -> {
-                    if (isFinishing() || isDestroyed()) return;
-                    if (fail == 0) {
-                        UiUtils.showToast(FileBrowserActivity.this,
-                                "已移动 " + ok + " 项到 " + targetDir);
-                    } else {
-                        UiUtils.showToast(FileBrowserActivity.this,
-                                ok > 0 ? ("部分失败：成功 " + ok + " 项，失败 " + fail + " 项：" + first)
-                                       : ("移动失败：" + first));
-                    }
-                    adapter.exitSelectionMode();
-                    loadFiles();
-                })));
-    }
-
-    /** 选中节点的路径列表（按选中顺序）。 */
-    private static List<String> pathsOf(List<RemoteFile> files) {
-        List<String> paths = new ArrayList<>(files.size());
-        for (RemoteFile f : files) {
-            paths.add(f.getPath());
-        }
-        return paths;
     }
 
     @Override
@@ -1109,15 +768,15 @@ public class FileBrowserActivity extends BaseActivity
                     if (which == 0) {
                         adapter.enterSelectionMode(dir);
                     } else if (which == 1) {
-                        moveFile(dir);
+                        fileOps.moveFile(dir);
                     } else if (which == 2) {
-                        copyDirectory(dir);
+                        fileOps.copyDirectory(dir);
                     } else if (which == 3) {
-                        renameFile(dir);
+                        fileOps.renameFile(dir);
                     } else if (which == 4) {
-                        showChmodDialog(dir);
+                        fileOps.showChmodDialog(dir);
                     } else if (which == 5) {
-                        confirmDeleteDirectory(dir);
+                        fileOps.confirmDeleteDirectory(dir);
                     } else if (which == 6) {
                         prefManager.updateRemotePath(
                                 config.getHost(), config.getPort(),
@@ -1127,31 +786,36 @@ public class FileBrowserActivity extends BaseActivity
                 });
     }
 
-    private void confirmDeleteDirectory(RemoteFile dir) {
-        DialogHelper.showDangerConfirmDialog(this,
-                "删除目录",
-                "确定要删除目录 \"" + dir.getName() + "\"（含全部内容）吗？此操作不可恢复。",
-                "删除", "取消",
-                d -> deleteRemoteDirectory(dir),
-                d -> {});
+    // ── FileOpsHelper.Host 回调实现 ────────────────────────────────────────
+
+    @Override
+    public boolean isAlive() {
+        return !isFinishing() && !isDestroyed();
     }
 
-    private void deleteRemoteDirectory(RemoteFile dir) {
-        sshManager.deleteDirectory(dir.getPath(), new SshManager.DeleteFileCallback() {
-            @Override
-            public void onSuccess() {
-                runOnUiThread(() -> {
-                    UiUtils.showToast(FileBrowserActivity.this, "已删除 " + dir.getName());
-                    adapter.removeFile(dir.getPath());
-                });
-            }
+    @Override
+    public void onFilesChanged() {
+        loadFiles();
+    }
 
-            @Override
-            public void onError(String message) {
-                runOnUiThread(() ->
-                        UiUtils.showToast(FileBrowserActivity.this, "删除失败: " + message));
-            }
-        });
+    @Override
+    public void onFileRemoved(String path) {
+        adapter.removeFile(path);
+    }
+
+    @Override
+    public void onFilesRemoved(List<String> paths) {
+        adapter.removeFiles(paths);
+    }
+
+    @Override
+    public void onFileRenamed(String path, String newName) {
+        adapter.renameFile(path, newName);
+    }
+
+    @Override
+    public void onSelectionExited() {
+        adapter.exitSelectionMode();
     }
 
     @Override
@@ -1168,10 +832,7 @@ public class FileBrowserActivity extends BaseActivity
     @Override
     protected void onDestroy() {
         super.onDestroy();
-        if (dirPicker != null) {
-            dirPicker.dismiss();
-            dirPicker = null;
-        }
+        fileOps.dismissActivePicker();
         if (isFinishing()) {
             sshManager.disconnect();
         }
