@@ -253,4 +253,98 @@ public class TreeAdapterTest {
         // 未加载目录的旧子序保留（其 children 本应在加载时排序）
         assertEquals(1, unloaded.getChildren().size());
     }
+
+    // ── 多选模式（实例级：RecyclerView.Adapter 不注册观察者时 notify 为空操作，无 framework 依赖） ──
+
+    @Test
+    public void enterSelectionMode_selectsSingleAndActivates() {
+        TreeAdapter adapter = noNotifyAdapter();
+        RemoteFile f1 = file("a.md", "/data/a.md");
+        RemoteFile f2 = file("b.md", "/data/b.md");
+        List<RemoteFile> files = new ArrayList<>();
+        files.add(f1);
+        files.add(f2);
+        adapter.setFiles(files);
+
+        adapter.enterSelectionMode(f1);
+
+        assertTrue(adapter.isSelectionMode());
+        assertEquals(1, adapter.getSelectedCount());
+        assertEquals("/data/a.md", adapter.getSelectedPaths().get(0));
+        assertEquals(1, adapter.getSelectedFiles().size());
+    }
+
+    @Test
+    public void toggleSelection_addsThenRemovesAndAutoExits() {
+        TreeAdapter adapter = noNotifyAdapter();
+        RemoteFile f1 = file("a.md", "/data/a.md");
+        RemoteFile f2 = file("b.md", "/data/b.md");
+        List<RemoteFile> files = new ArrayList<>();
+        files.add(f1);
+        files.add(f2);
+        adapter.setFiles(files);
+        adapter.enterSelectionMode(f1);
+
+        adapter.toggleSelection(f2);
+        assertEquals(2, adapter.getSelectedCount());
+
+        adapter.toggleSelection(f2);
+        assertEquals(1, adapter.getSelectedCount());
+        assertTrue(adapter.isSelectionMode());
+
+        // 取消最后一个选中项 → 自动退出多选模式
+        adapter.toggleSelection(f1);
+        assertFalse(adapter.isSelectionMode());
+        assertEquals(0, adapter.getSelectedCount());
+    }
+
+    @Test
+    public void selectAllVisible_coversExpandedTree() {
+        TreeAdapter adapter = noNotifyAdapter();
+        RemoteFile sub = dir("sub", "/data/a/sub", true, true);
+        sub.getChildren().add(file("x.txt", "/data/a/sub/x.txt"));
+        RemoteFile a = dir("a", "/data/a", true, true);
+        a.getChildren().add(sub);
+        List<RemoteFile> files = new ArrayList<>();
+        files.add(a);
+        files.add(file("top.md", "/data/top.md"));
+        adapter.setFiles(files);
+
+        // setFiles 会按新数据重置未匹配目录（清空 children）；模拟「曾加载过的已展开子树」重挂载
+        a.getChildren().add(sub);
+        a.setExpanded(true);
+
+        adapter.enterSelectionMode(a);
+        adapter.selectAllVisible();
+
+        // 可见列表 = a、sub、x.txt、top.md（共 4）
+        assertEquals(4, adapter.getSelectedCount());
+        assertTrue(adapter.getSelectedPaths().contains("/data/a/sub/x.txt"));
+    }
+
+    @Test
+    public void exitSelectionMode_clearsAll() {
+        TreeAdapter adapter = noNotifyAdapter();
+        RemoteFile f1 = file("a.md", "/data/a.md");
+        List<RemoteFile> files = new ArrayList<>();
+        files.add(f1);
+        adapter.setFiles(files);
+        adapter.enterSelectionMode(f1);
+
+        adapter.exitSelectionMode();
+
+        assertFalse(adapter.isSelectionMode());
+        assertEquals(0, adapter.getSelectedCount());
+    }
+
+    /** 覆写 notifyDataChanged 为 no-op 的实例（见 TreeAdapter.notifyDataChanged 注释：
+     *  mockable android.jar 下 RecyclerView.Adapter 空观察者字段为 null，直接通知会 NPE）。 */
+    private TreeAdapter noNotifyAdapter() {
+        return new TreeAdapter() {
+            @Override
+            void notifyDataChanged() {
+                // no-op：校验多选状态机，不关心视图刷新
+            }
+        };
+    }
 }

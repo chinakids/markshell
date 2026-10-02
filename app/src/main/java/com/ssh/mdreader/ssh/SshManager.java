@@ -439,6 +439,131 @@ public class SshManager {
         }
     }
 
+    /** 批量操作结果回调：succeededCount + failedCount == 请求项数；
+     *  firstErrorMessage 为第一条失败消息（全部成功时为 null）。回调在 worker 线程。 */
+    public interface BatchOperationCallback {
+        void onResult(int succeededCount, int failedCount, String firstErrorMessage);
+    }
+
+    /**
+     * 批量删除（文件与目录混合）。先按路径长度升序（祖先在前）执行：若同时选中了
+     * 目录与其中已展开的子项，删完祖先后再处理子项时 stat 已不存在（SSH_FX_NO_SUCH_FILE），
+     * 按「已随祖先删除」记为成功而非报错。单项失败记录第一条错误并继续其余项；
+     * 目录递归删除（deleteNodeSync）。写操作不重试（与 deleteFile 同口径）。
+     */
+    public void batchDelete(List<String> paths, BatchOperationCallback callback) {
+        sftpExecutor.execute(() -> runOp("批量删除", false, channel -> {
+            int ok = 0, fail = 0;
+            String first = null;
+            for (String p : sortByDepthShortestFirst(paths)) {
+                try {
+                    if (isPathMissingSync(channel, p)) {
+                        ok++; // 已被祖先目录级联删除（或本就不存在）
+                        continue;
+                    }
+                    if (channel.stat(p).isDir()) {
+                        deleteNodeSync(channel, p);
+                    } else {
+                        channel.rm(p);
+                    }
+                    ok++;
+                } catch (Exception e) {
+                    fail++;
+                    if (first == null) first = UiUtils.errorMessage(e);
+                }
+            }
+            callback.onResult(ok, fail, first);
+        }, err -> callback.onResult(0, paths.size(), err)));
+    }
+
+    /** 批量修改权限：同一八进制模式应用到所有路径，单项失败记录第一条错误并继续。 */
+    public void batchChmod(List<String> paths, int mode, BatchOperationCallback callback) {
+        sftpExecutor.execute(() -> runOp("批量修改权限", false, channel -> {
+            int ok = 0, fail = 0;
+            String first = null;
+            for (String p : paths) {
+                try {
+                    channel.chmod(mode, p);
+                    ok++;
+                } catch (Exception e) {
+                    fail++;
+                    if (first == null) first = UiUtils.errorMessage(e);
+                }
+            }
+            callback.onResult(ok, fail, first);
+        }, err -> callback.onResult(0, paths.size(), err)));
+    }
+
+    /**
+     * 批量移动到同一目标目录（JSch rename；源文件名不变）。调用方须先经
+     * {@link #validateBatchMove} 拦截同位置/自指/同名冲突；本方法只负责执行，
+     * 单项失败记录第一条错误并继续（目标已存在等服务器错误按失败项上报）。
+     */
+    public void batchMove(List<String> srcPaths, String targetDir, BatchOperationCallback callback) {
+        sftpExecutor.execute(() -> runOp("批量移动", false, channel -> {
+            int ok = 0, fail = 0;
+            String first = null;
+            for (String p : srcPaths) {
+                try {
+                    channel.rename(p, buildMovePath(p, targetDir));
+                    ok++;
+                } catch (Exception e) {
+                    fail++;
+                    if (first == null) first = UiUtils.errorMessage(e);
+                }
+            }
+            callback.onResult(ok, fail, first);
+        }, err -> callback.onResult(0, srcPaths.size(), err)));
+    }
+
+    /**
+     * 批量删除前的路径排序：短路径（祖先）在前、去除重复项，保证「目录先于其子项」。
+     * 纯函数，便于单测。
+     */
+    static List<String> sortByDepthShortestFirst(List<String> paths) {
+        List<String> sorted = new ArrayList<>(new java.util.LinkedHashSet<>(paths));
+        sorted.sort(java.util.Comparator.comparingInt(String::length));
+        return sorted;
+    }
+
+    /** stat 探测：路径不存在（SSH_FX_NO_SUCH_FILE）返回 true；其余异常抛出。仅限 worker 线程调用。 */
+    private static boolean isPathMissingSync(ChannelSftp channel, String path) throws Exception {
+        try {
+            channel.stat(path);
+            return false;
+        } catch (SftpException e) {
+            if (e.id == ChannelSftp.SSH_FX_NO_SUCH_FILE) return true;
+            throw e;
+        }
+    }
+
+    /**
+     * 批量移动校验（纯函数，便于单测）：任一源与目标同位置、目录源移入自身、
+     * 或两个源移到同一目标后同名时返回错误消息；全部通过返回 null。
+     * UI 层据此拦截并提示，不发起移动。
+     *
+     * @param dirSrcPaths 目录类型的源路径集合（用于自指校验；文件源不在其中）
+     */
+    public static String validateBatchMove(List<String> srcPaths, java.util.Set<String> dirSrcPaths,
+                                           String targetDir) {
+        if (srcPaths == null || srcPaths.isEmpty()) return "没有可移动的项目";
+        java.util.Set<String> targets = new java.util.HashSet<>();
+        for (String src : srcPaths) {
+            if (isMoveSameLocation(src, targetDir)) {
+                return "所选项目有与目标位置相同的项";
+            }
+            if (dirSrcPaths != null && dirSrcPaths.contains(src)
+                    && isMoveIntoItself(src, targetDir)) {
+                return "不能把目录移动到自身内部";
+            }
+            String dst = buildMovePath(src, targetDir);
+            if (!targets.add(dst)) {
+                return "移动后目标重名冲突: " + dst;
+            }
+        }
+        return null;
+    }
+
     public interface RenameFileCallback {
         void onSuccess();
         void onError(String message);

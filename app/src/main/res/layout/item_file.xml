@@ -53,4 +53,14 @@
 
     </LinearLayout>
 
+    <ImageView
+        android:id="@+id/iv_check"
+        android:layout_width="24dp"
+        android:layout_height="24dp"
+        android:layout_marginStart="12dp"
+        android:visibility="invisible"
+        android:src="@drawable/ic_check_circle"
+        android:tint="@color/md_theme_primary"
+        android:contentDescription="已选中" />
+
 </LinearLayout>

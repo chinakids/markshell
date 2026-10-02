@@ -1,5 +1,6 @@
 package com.ssh.mdreader.adapter;
 
+import android.graphics.drawable.Drawable;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
@@ -16,7 +17,9 @@ import com.ssh.mdreader.util.FileSortUtils;
 
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Set;
 
 public class TreeAdapter extends RecyclerView.Adapter<TreeAdapter.ViewHolder> {
 
@@ -27,6 +30,11 @@ public class TreeAdapter extends RecyclerView.Adapter<TreeAdapter.ViewHolder> {
         void onDirectoryLongClick(RemoteFile dir);
     }
 
+    /** 多选状态变化回调（选中项增删/模式进出）——主线程调用，UI 据此刷新标题与操作栏。 */
+    public interface OnSelectionListener {
+        void onSelectionChanged();
+    }
+
     public interface ExpandCallback {
         void onLoaded(List<RemoteFile> children);
         void onError(String message);
@@ -35,10 +43,110 @@ public class TreeAdapter extends RecyclerView.Adapter<TreeAdapter.ViewHolder> {
     private final List<RemoteFile> flatList = new ArrayList<>();
     private final List<RemoteFile> rootFiles = new ArrayList<>();
     private OnFileActionListener listener;
+    private OnSelectionListener selectionListener;
     private boolean showHidden = false;
+
+    /** 多选模式开关与已选路径集合（path 为键，节点重建后仍可匹配）。 */
+    private boolean selectionMode = false;
+    private final Set<String> selectedPaths = new LinkedHashSet<>();
 
     public void setOnFileActionListener(OnFileActionListener listener) {
         this.listener = listener;
+    }
+
+    public void setOnSelectionListener(OnSelectionListener listener) {
+        this.selectionListener = listener;
+    }
+
+    // ── 多选模式 ────────────────────────────────────────────────────────────
+
+    public boolean isSelectionMode() {
+        return selectionMode;
+    }
+
+    /** 进入多选模式并选中 {@code file}（首个选中项）。 */
+    public void enterSelectionMode(RemoteFile file) {
+        selectionMode = true;
+        selectedPaths.clear();
+        selectedPaths.add(file.getPath());
+        rebuildFlatList();
+        notifySelectionChanged();
+    }
+
+    /** 切换 {@code file} 的选中状态；最后一个选中项被取消时自动退出多选模式。 */
+    public void toggleSelection(RemoteFile file) {
+        if (!selectionMode) return;
+        if (selectedPaths.contains(file.getPath())) {
+            selectedPaths.remove(file.getPath());
+            if (selectedPaths.isEmpty()) {
+                selectionMode = false;
+            }
+        } else {
+            selectedPaths.add(file.getPath());
+        }
+        rebuildFlatList();
+        notifySelectionChanged();
+    }
+
+    /** 多选模式下选中当前可见列表的全部条目（含已展开子树）。 */
+    public void selectAllVisible() {
+        if (!selectionMode) return;
+        selectedPaths.clear();
+        for (RemoteFile f : flatList) {
+            selectedPaths.add(f.getPath());
+        }
+        rebuildFlatList();
+        notifySelectionChanged();
+    }
+
+    /** 退出多选模式并清空所有选中。 */
+    public void exitSelectionMode() {
+        if (!selectionMode && selectedPaths.isEmpty()) return;
+        selectionMode = false;
+        selectedPaths.clear();
+        rebuildFlatList();
+        notifySelectionChanged();
+    }
+
+    public int getSelectedCount() {
+        return selectedPaths.size();
+    }
+
+    public List<String> getSelectedPaths() {
+        return new ArrayList<>(selectedPaths);
+    }
+
+    /** 返回当前选中的节点列表（按选中顺序，可能含已隐藏之外的任意层节点）。 */
+    public List<RemoteFile> getSelectedFiles() {
+        List<RemoteFile> result = new ArrayList<>();
+        for (RemoteFile f : flatList) {
+            if (selectedPaths.contains(f.getPath())) {
+                result.add(f);
+            }
+        }
+        return result;
+    }
+
+    private void notifySelectionChanged() {
+        if (selectionListener != null) {
+            selectionListener.onSelectionChanged();
+        }
+    }
+
+    /**
+     * Removes several files (by path) from the internal tree at once and
+     * refreshes the list once. Works for files inside expanded subdirectories too.
+     */
+    public void removeFiles(List<String> paths) {
+        boolean changed = false;
+        for (String path : paths) {
+            if (removeFromList(rootFiles, path)) {
+                changed = true;
+            }
+        }
+        if (changed) {
+            rebuildFlatList();
+        }
     }
 
     /**
@@ -217,6 +325,15 @@ public class TreeAdapter extends RecyclerView.Adapter<TreeAdapter.ViewHolder> {
         for (RemoteFile root : rootFiles) {
             flattenNode(root);
         }
+        notifyDataChanged();
+    }
+
+    /**
+     * 转发 {@link #notifyDataSetChanged()}。包级可见以便单测子类覆写为 no-op：
+     * JVM 单测用的是 mockable android.jar，RecyclerView.Adapter 内部观察者字段为 null，
+     * 直接通知会 NPE；多选状态机测试不关心视图绘制，仅需验证状态。
+     */
+    void notifyDataChanged() {
         notifyDataSetChanged();
     }
 
@@ -245,6 +362,7 @@ public class TreeAdapter extends RecyclerView.Adapter<TreeAdapter.ViewHolder> {
     @Override
     public void onBindViewHolder(@NonNull ViewHolder holder, int position) {
         RemoteFile file = flatList.get(position);
+        boolean selected = selectionMode && selectedPaths.contains(file.getPath());
 
         int indentPx = (int) (file.getDepth() * 24 * holder.itemView.getResources()
                 .getDisplayMetrics().density);
@@ -257,10 +375,21 @@ public class TreeAdapter extends RecyclerView.Adapter<TreeAdapter.ViewHolder> {
 
         holder.tvName.setText(file.getName());
 
+        // 选中态视觉：整行高亮（主题 primary 约 15% 透明度）+ 勾选图标
+        if (selected) {
+            int base = holder.itemView.getContext().getColor(R.color.md_theme_primary);
+            holder.itemView.setBackgroundColor((base & 0x00FFFFFF) | 0x26000000);
+        } else {
+            holder.itemView.setBackground(holder.defaultBackground);
+        }
+        holder.ivCheck.setVisibility(selectionMode
+                ? (selected ? View.VISIBLE : View.INVISIBLE) : View.INVISIBLE);
+
         if (file.isDirectory()) {
             holder.ivIcon.setImageResource(R.drawable.ic_folder);
             holder.tvInfo.setText("文件夹");
-            holder.ivExpand.setVisibility(View.VISIBLE);
+            // 多选模式下点击=选中而非展开，隐藏展开箭头避免误导
+            holder.ivExpand.setVisibility(selectionMode ? View.INVISIBLE : View.VISIBLE);
 
             if (file.isExpanded()) {
                 holder.ivExpand.setImageResource(R.drawable.ic_expand_more);
@@ -268,8 +397,15 @@ public class TreeAdapter extends RecyclerView.Adapter<TreeAdapter.ViewHolder> {
                 holder.ivExpand.setImageResource(R.drawable.ic_chevron_right);
             }
 
-            holder.itemView.setOnClickListener(v -> toggleDirectory(file, holder));
+            holder.itemView.setOnClickListener(v -> {
+                if (selectionMode) {
+                    toggleSelection(file);
+                } else {
+                    toggleDirectory(file, holder);
+                }
+            });
             holder.itemView.setOnLongClickListener(v -> {
+                if (selectionMode) return true; // 多选模式下不弹长按菜单
                 if (listener != null) listener.onDirectoryLongClick(file);
                 return true;
             });
@@ -291,9 +427,14 @@ public class TreeAdapter extends RecyclerView.Adapter<TreeAdapter.ViewHolder> {
             holder.ivExpand.setVisibility(View.INVISIBLE);
 
             holder.itemView.setOnClickListener(v -> {
-                if (listener != null) listener.onFileClick(file);
+                if (selectionMode) {
+                    toggleSelection(file);
+                } else if (listener != null) {
+                    listener.onFileClick(file);
+                }
             });
             holder.itemView.setOnLongClickListener(v -> {
+                if (selectionMode) return true;
                 if (listener != null) listener.onFileLongClick(file);
                 return true;
             });
@@ -342,16 +483,21 @@ public class TreeAdapter extends RecyclerView.Adapter<TreeAdapter.ViewHolder> {
         final LinearLayout itemRoot;
         final ImageView ivExpand;
         final ImageView ivIcon;
+        final ImageView ivCheck;
         final TextView tvName;
         final TextView tvInfo;
+        /** 行默认背景（selectableItemBackground），取消选中时恢复。 */
+        final Drawable defaultBackground;
 
         ViewHolder(@NonNull View itemView) {
             super(itemView);
             itemRoot = itemView.findViewById(R.id.item_root);
             ivExpand = itemView.findViewById(R.id.iv_expand);
             ivIcon = itemView.findViewById(R.id.iv_icon);
+            ivCheck = itemView.findViewById(R.id.iv_check);
             tvName = itemView.findViewById(R.id.tv_name);
             tvInfo = itemView.findViewById(R.id.tv_info);
+            defaultBackground = itemView.getBackground();
         }
     }
 }

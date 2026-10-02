@@ -41,7 +41,9 @@ import com.ssh.mdreader.util.PreferenceManager;
 import com.ssh.mdreader.util.UiUtils;
 
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 
 import io.noties.markwon.Markwon;
 import io.noties.markwon.ext.tables.TablePlugin;
@@ -67,6 +69,9 @@ public class FileBrowserActivity extends BaseActivity
     private PreferenceManager prefManager;
     private DirectoryPickerDialog dirPicker;
 
+    /** 多选模式底部操作栏（批量移动/权限/删除）。 */
+    private View selectionBar;
+
     // ── Two-pane preview (layout-w600dp) ──────────────────────────────────────
     private FrameLayout previewContainer;
     private Markwon previewMarkwon;
@@ -89,6 +94,10 @@ public class FileBrowserActivity extends BaseActivity
 
     @Override
     public boolean onCreateOptionsMenu(Menu menu) {
+        if (adapter != null && adapter.isSelectionMode()) {
+            getMenuInflater().inflate(R.menu.menu_file_browser_selection, menu);
+            return true;
+        }
         getMenuInflater().inflate(R.menu.menu_file_browser, menu);
         // 恢复显隐状态
         boolean showHidden = prefManager.getShowHidden();
@@ -102,6 +111,14 @@ public class FileBrowserActivity extends BaseActivity
     @Override
     public boolean onOptionsItemSelected(MenuItem item) {
         int id = item.getItemId();
+        if (id == R.id.action_select_cancel) {
+            adapter.exitSelectionMode();
+            return true;
+        }
+        if (id == R.id.action_select_all) {
+            adapter.selectAllVisible();
+            return true;
+        }
         if (id == R.id.action_toggle_hidden) {
             boolean showHidden = !adapter.isShowHidden();
             adapter.setShowHidden(showHidden);
@@ -143,8 +160,14 @@ public class FileBrowserActivity extends BaseActivity
 
         adapter = new TreeAdapter();
         adapter.setOnFileActionListener(this);
+        adapter.setOnSelectionListener(this::refreshSelectionUi);
         recyclerFiles.setLayoutManager(new LinearLayoutManager(this));
         recyclerFiles.setAdapter(adapter);
+
+        selectionBar = findViewById(R.id.layout_selection_bar);
+        findViewById(R.id.btn_select_move).setOnClickListener(v -> moveSelectedFiles());
+        findViewById(R.id.btn_select_chmod).setOnClickListener(v -> chmodSelectedFiles());
+        findViewById(R.id.btn_select_delete).setOnClickListener(v -> deleteSelectedFiles());
 
         swipeRefresh.setColorSchemeColors(
                 getResources().getColor(R.color.md_theme_primary, getTheme()));
@@ -679,19 +702,21 @@ public class FileBrowserActivity extends BaseActivity
     public void onFileLongClick(RemoteFile file) {
         DialogHelper.showListDialog(this,
                 file.getName(),
-                new String[]{"移动", "复制", "重命名", "权限", "删除"},
-                new int[]{R.drawable.ic_move, R.drawable.ic_copy, R.drawable.ic_edit,
+                new String[]{"多选", "移动", "复制", "重命名", "权限", "删除"},
+                new int[]{0, R.drawable.ic_move, R.drawable.ic_copy, R.drawable.ic_edit,
                         R.drawable.ic_lock, R.drawable.ic_delete},
                 (dialog, which) -> {
                     if (which == 0) {
-                        moveFile(file);
+                        adapter.enterSelectionMode(file);
                     } else if (which == 1) {
-                        copyFile(file);
+                        moveFile(file);
                     } else if (which == 2) {
-                        renameFile(file);
+                        copyFile(file);
                     } else if (which == 3) {
-                        showChmodDialog(file);
+                        renameFile(file);
                     } else if (which == 4) {
+                        showChmodDialog(file);
+                    } else if (which == 5) {
                         confirmDeleteFile(file);
                     }
                 });
@@ -946,6 +971,120 @@ public class FileBrowserActivity extends BaseActivity
                 });
     }
 
+    // ── 多选模式 UI 与批量操作 ──────────────────────────────────────────────
+
+    /** 多选状态变化：刷新标题、底部操作栏显隐、列表底部留白与菜单。adapter 在主线程回调。 */
+    private void refreshSelectionUi() {
+        boolean on = adapter.isSelectionMode();
+        if (selectionBar != null) {
+            selectionBar.setVisibility(on ? View.VISIBLE : View.GONE);
+        }
+        recyclerFiles.setPadding(
+                recyclerFiles.getPaddingLeft(),
+                recyclerFiles.getPaddingTop(),
+                recyclerFiles.getPaddingRight(),
+                on ? (int) (72 * getResources().getDisplayMetrics().density)
+                   : (int) (8 * getResources().getDisplayMetrics().density));
+        if (toolbar != null) {
+            toolbar.setTitle(on ? ("已选 " + adapter.getSelectedCount() + " 项")
+                    : getString(R.string.title_files));
+        }
+        invalidateOptionsMenu();
+    }
+
+    /** 批量删除：危险确认（含目录递归），全部成功后从列表移除；部分失败则刷新真实状态。 */
+    private void deleteSelectedFiles() {
+        List<RemoteFile> files = adapter.getSelectedFiles();
+        if (files.isEmpty()) return;
+        List<String> paths = pathsOf(files);
+        DialogHelper.showDangerConfirmDialog(this,
+                "删除所选 " + files.size() + " 项",
+                "确定要删除选中的 " + files.size() + " 项（目录含全部内容）吗？此操作不可恢复。",
+                "删除", "取消",
+                d -> sshManager.batchDelete(paths, (ok, fail, first) -> runOnUiThread(() -> {
+                    if (isFinishing() || isDestroyed()) return;
+                    if (fail == 0) {
+                        UiUtils.showToast(FileBrowserActivity.this, "已删除 " + ok + " 项");
+                        adapter.removeFiles(paths);
+                        adapter.exitSelectionMode();
+                    } else {
+                        UiUtils.showToast(FileBrowserActivity.this,
+                                ok > 0 ? ("部分失败：成功 " + ok + " 项，失败 " + fail + " 项：" + first)
+                                       : ("删除失败：" + first));
+                        adapter.exitSelectionMode();
+                        loadFiles();
+                    }
+                })),
+                d -> {});
+    }
+
+    /** 批量权限：一个八进制值应用到所有选中项。 */
+    private void chmodSelectedFiles() {
+        List<RemoteFile> files = adapter.getSelectedFiles();
+        if (files.isEmpty()) return;
+        List<String> paths = pathsOf(files);
+        DialogHelper.showInputDialog(this,
+                "批量设置权限（" + files.size() + " 项）",
+                "输入 3~4 位八进制（如 755）",
+                "确定", "取消",
+                InputType.TYPE_CLASS_NUMBER,
+                null,
+                input -> {
+                    int mode = SshManager.parseOctalMode(input);
+                    if (mode < 0) {
+                        UiUtils.showToast(this, "权限格式：3 或 4 位八进制（如 755）");
+                        return;
+                    }
+                    sshManager.batchChmod(paths, mode, (ok, fail, first) -> runOnUiThread(() -> {
+                        if (isFinishing() || isDestroyed()) return;
+                        if (fail == 0) {
+                            UiUtils.showToast(FileBrowserActivity.this,
+                                    "已设置 " + ok + " 项权限为 " + input);
+                        } else {
+                            UiUtils.showToast(FileBrowserActivity.this,
+                                    ok > 0 ? ("部分失败：成功 " + ok + " 项，失败 " + fail + " 项：" + first)
+                                           : ("设置权限失败：" + first));
+                        }
+                        adapter.exitSelectionMode();
+                        loadFiles();
+                    }));
+                });
+    }
+
+    /** 批量移动：目录选择器（多源校验），确认后逐项 rename 到目标目录。 */
+    private void moveSelectedFiles() {
+        List<RemoteFile> files = adapter.getSelectedFiles();
+        if (files.isEmpty()) return;
+        List<String> paths = pathsOf(files);
+        Set<String> dirPaths = new HashSet<>();
+        for (RemoteFile f : files) {
+            if (f.isDirectory()) dirPaths.add(f.getPath());
+        }
+        dirPicker = DirectoryPickerDialog.show(this, paths, dirPaths,
+                targetDir -> sshManager.batchMove(paths, targetDir, (ok, fail, first) -> runOnUiThread(() -> {
+                    if (isFinishing() || isDestroyed()) return;
+                    if (fail == 0) {
+                        UiUtils.showToast(FileBrowserActivity.this,
+                                "已移动 " + ok + " 项到 " + targetDir);
+                    } else {
+                        UiUtils.showToast(FileBrowserActivity.this,
+                                ok > 0 ? ("部分失败：成功 " + ok + " 项，失败 " + fail + " 项：" + first)
+                                       : ("移动失败：" + first));
+                    }
+                    adapter.exitSelectionMode();
+                    loadFiles();
+                })));
+    }
+
+    /** 选中节点的路径列表（按选中顺序）。 */
+    private static List<String> pathsOf(List<RemoteFile> files) {
+        List<String> paths = new ArrayList<>(files.size());
+        for (RemoteFile f : files) {
+            paths.add(f.getPath());
+        }
+        return paths;
+    }
+
     @Override
     protected void onResume() {
         super.onResume();
@@ -963,21 +1102,23 @@ public class FileBrowserActivity extends BaseActivity
 
         DialogHelper.showListDialog(this,
                 dir.getName(),
-                new String[]{"移动", "复制", "重命名", "权限", "删除", "设为主目录"},
-                new int[]{R.drawable.ic_move, R.drawable.ic_copy, R.drawable.ic_edit,
+                new String[]{"多选", "移动", "复制", "重命名", "权限", "删除", "设为主目录"},
+                new int[]{0, R.drawable.ic_move, R.drawable.ic_copy, R.drawable.ic_edit,
                         R.drawable.ic_lock, R.drawable.ic_delete, R.drawable.ic_folder_set},
                 (dialog, which) -> {
                     if (which == 0) {
-                        moveFile(dir);
+                        adapter.enterSelectionMode(dir);
                     } else if (which == 1) {
-                        copyDirectory(dir);
+                        moveFile(dir);
                     } else if (which == 2) {
-                        renameFile(dir);
+                        copyDirectory(dir);
                     } else if (which == 3) {
-                        showChmodDialog(dir);
+                        renameFile(dir);
                     } else if (which == 4) {
-                        confirmDeleteDirectory(dir);
+                        showChmodDialog(dir);
                     } else if (which == 5) {
+                        confirmDeleteDirectory(dir);
+                    } else if (which == 6) {
                         prefManager.updateRemotePath(
                                 config.getHost(), config.getPort(),
                                 config.getUsername(), dir.getPath());
@@ -1015,6 +1156,11 @@ public class FileBrowserActivity extends BaseActivity
 
     @Override
     public void onBackPressed() {
+        // 多选模式下返回键 = 退出多选模式
+        if (adapter != null && adapter.isSelectionMode()) {
+            adapter.exitSelectionMode();
+            return;
+        }
         // 直接关闭，不再逐级返回上级目录
         super.onBackPressed();
     }

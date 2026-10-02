@@ -2,6 +2,8 @@ package com.ssh.mdreader.ssh;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertNotNull;
+import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
 
 import com.jcraft.jsch.SftpException;
@@ -10,6 +12,11 @@ import org.junit.Test;
 
 import java.io.IOException;
 import java.net.SocketException;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Set;
 
 /**
  * 断链判定逻辑单测：只读操作失败重试前先区分「链路已断」与
@@ -182,5 +189,60 @@ public class SshManagerTest {
         assertEquals("/x/b/sub/f.txt", SshManager.buildChildPath(dst, child));
         // 根目录目标：不产生双斜杠
         assertEquals("/b/f.txt", SshManager.buildChildPath("/b", "f.txt"));
+    }
+
+    @Test
+    public void sortByDepthShortestFirst_parentsBeforeDescendantsAndDedup() {
+        List<String> input = Arrays.asList("/a/b/c/x.txt", "/a", "/a/b", "/a/b/c/x.txt", "/m.md");
+        List<String> sorted = SshManager.sortByDepthShortestFirst(input);
+
+        assertEquals(4, sorted.size()); // 去重后 4 项
+        assertEquals("/a", sorted.get(0));       // 祖先在前
+        assertEquals("/a/b", sorted.get(1));
+        assertEquals("/m.md", sorted.get(2));    // 长度 5，先于更深的子项
+        assertEquals("/a/b/c/x.txt", sorted.get(3));
+    }
+
+    @Test
+    public void sortByDepthShortestFirst_stableShorterFirst() {
+        // 等长路径保持相对顺序稳定（LinkedHashSet）
+        List<String> input = Arrays.asList("/b/b.txt", "/a/a.txt");
+        List<String> sorted = SshManager.sortByDepthShortestFirst(input);
+        assertEquals(Arrays.asList("/b/b.txt", "/a/a.txt"), sorted);
+    }
+
+    @Test
+    public void validateBatchMove_okWhenAllValid() {
+        List<String> srcs = Arrays.asList("/a/x.txt", "/b/y.txt");
+        Set<String> dirs = new HashSet<>();
+        assertNull(SshManager.validateBatchMove(srcs, dirs, "/dest"));
+    }
+
+    @Test
+    public void validateBatchMove_rejectsSameLocation() {
+        List<String> srcs = Arrays.asList("/a/x.txt");
+        assertNotNull(SshManager.validateBatchMove(srcs, new HashSet<>(), "/a"));
+    }
+
+    @Test
+    public void validateBatchMove_rejectsMoveIntoItself() {
+        List<String> srcs = Arrays.asList("/a/b");
+        Set<String> dirs = new HashSet<>(Arrays.asList("/a/b"));
+        assertNotNull(SshManager.validateBatchMove(srcs, dirs, "/a/b/data"));
+        // 目录源未在 dirSrcPaths 中时不做自指判断（与单源语义一致，由调用方保证）
+        assertNull(SshManager.validateBatchMove(srcs, new HashSet<>(), "/a/b/data"));
+    }
+
+    @Test
+    public void validateBatchMove_rejectsTargetNameClash() {
+        // 两个不同父目录下的同名文件移到同一目标 → 冲突
+        List<String> srcs = Arrays.asList("/a/x.txt", "/b/x.txt");
+        assertNotNull(SshManager.validateBatchMove(srcs, new HashSet<>(), "/dest"));
+    }
+
+    @Test
+    public void validateBatchMove_rejectsEmpty() {
+        assertNotNull(SshManager.validateBatchMove(new ArrayList<>(), new HashSet<>(), "/dest"));
+        assertNotNull(SshManager.validateBatchMove(null, new HashSet<>(), "/dest"));
     }
 }
