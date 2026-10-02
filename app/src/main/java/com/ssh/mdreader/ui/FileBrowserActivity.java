@@ -679,16 +679,19 @@ public class FileBrowserActivity extends BaseActivity
     public void onFileLongClick(RemoteFile file) {
         DialogHelper.showListDialog(this,
                 file.getName(),
-                new String[]{"移动", "重命名", "权限", "删除"},
-                new int[]{R.drawable.ic_move, R.drawable.ic_edit, R.drawable.ic_lock, R.drawable.ic_delete},
+                new String[]{"移动", "复制", "重命名", "权限", "删除"},
+                new int[]{R.drawable.ic_move, R.drawable.ic_copy, R.drawable.ic_edit,
+                        R.drawable.ic_lock, R.drawable.ic_delete},
                 (dialog, which) -> {
                     if (which == 0) {
                         moveFile(file);
                     } else if (which == 1) {
-                        renameFile(file);
+                        copyFile(file);
                     } else if (which == 2) {
-                        showChmodDialog(file);
+                        renameFile(file);
                     } else if (which == 3) {
+                        showChmodDialog(file);
+                    } else if (which == 4) {
                         confirmDeleteFile(file);
                     }
                 });
@@ -719,6 +722,67 @@ public class FileBrowserActivity extends BaseActivity
                                                 "移动失败: " + message));
                             }
                         }));
+    }
+
+    /** 复制文件到其他目录：弹目录选择器（复制模式），确认后先检查目标是否存在，存在则询问覆盖/跳过。 */
+    private void copyFile(RemoteFile file) {
+        dirPicker = DirectoryPickerDialog.show(this,
+                file.getPath(), file.getName(), file.isDirectory(), true,
+                targetDir -> {
+                    String dst = SshManager.buildCopyPath(file.getPath(), targetDir);
+                    sshManager.fileExists(dst, new SshManager.ExistsCallback() {
+                        @Override
+                        public void onResult(boolean exists) {
+                            runOnUiThread(() -> {
+                                if (isFinishing() || isDestroyed()) return;
+                                if (exists) {
+                                    confirmCopyOverwrite(file, dst);
+                                } else {
+                                    performCopy(file, dst);
+                                }
+                            });
+                        }
+
+                        @Override
+                        public void onError(String message) {
+                            runOnUiThread(() -> {
+                                if (isFinishing() || isDestroyed()) return;
+                                UiUtils.showToast(FileBrowserActivity.this,
+                                        "检查目标失败: " + message);
+                            });
+                        }
+                    });
+                });
+    }
+
+    private void confirmCopyOverwrite(RemoteFile file, String dst) {
+        DialogHelper.showConfirmDialog(this,
+                "目标已存在",
+                "目标位置已存在「" + file.getName() + "」，是否覆盖？",
+                "覆盖", "跳过",
+                d -> performCopy(file, dst),
+                d -> UiUtils.showToast(this, "已跳过复制"));
+    }
+
+    private void performCopy(RemoteFile file, String dst) {
+        sshManager.copyFile(file.getPath(), dst, new SshManager.CopyFileCallback() {
+            @Override
+            public void onSuccess() {
+                runOnUiThread(() -> {
+                    if (isFinishing() || isDestroyed()) return;
+                    UiUtils.showToast(FileBrowserActivity.this, "已复制到 " + dst);
+                    loadFiles();
+                });
+            }
+
+            @Override
+            public void onError(String message) {
+                runOnUiThread(() -> {
+                    if (isFinishing() || isDestroyed()) return;
+                    UiUtils.showToast(FileBrowserActivity.this, "复制失败: " + message);
+                });
+            }
+        });
     }
 
     private void renameFile(RemoteFile file) {

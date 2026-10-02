@@ -126,6 +126,17 @@ public class SshManagerTest {
     }
 
     @Test
+    public void buildCopyPath_joinsTargetDirAndName() {
+        // 与 buildMovePath 同语义（委托复用）：源名不变拼到目标目录
+        assertEquals("/a/b/note.md", SshManager.buildCopyPath("/a/c/note.md", "/a/b"));
+        assertEquals("/a/b/note.md", SshManager.buildCopyPath("/a/c/note.md", "/a/b/"));
+        // 根目录目标：只保留一个前导斜杠
+        assertEquals("/note.md", SshManager.buildCopyPath("/a/c/note.md", "/"));
+        // 根目录下的源（无父目录前缀）
+        assertEquals("/b/note.md", SshManager.buildCopyPath("/note.md", "/b"));
+    }
+
+    @Test
     public void isMoveSameLocation_targetEqualsSourceParent() {
         assertTrue(SshManager.isMoveSameLocation("/a/b/note.md", "/a/b"));
         assertTrue(SshManager.isMoveSameLocation("/a/b/note.md", "/a/b/")); // 结尾斜杠等价

@@ -451,6 +451,50 @@ public class SshManager {
         }, callback::onError));
     }
 
+    public interface ExistsCallback {
+        void onResult(boolean exists);
+        void onError(String message);
+    }
+
+    /**
+     * 检查远端路径是否存在：stat 探测，{@link ChannelSftp#SSH_FX_NO_SUCH_FILE} 视为不存在（false），
+     * 其余异常经 onError 上报。只读类操作，疑似断线时重连重试一次（与 listFiles/readFile 同口径）。
+     */
+    public void fileExists(String path, ExistsCallback callback) {
+        sftpExecutor.execute(() -> runOp("检查路径", true, channel -> {
+            try {
+                channel.stat(path);
+                callback.onResult(true);
+            } catch (SftpException e) {
+                if (e.id == ChannelSftp.SSH_FX_NO_SUCH_FILE) {
+                    callback.onResult(false);
+                } else {
+                    throw e;
+                }
+            }
+        }, callback::onError));
+    }
+
+    public interface CopyFileCallback {
+        void onSuccess();
+        void onError(String message);
+    }
+
+    /**
+     * 复制文件：get（远端读）→ InputStream 流式 put（远端写，OVERWRITE）。
+     * SFTP 无服务器端 copy 原语，复制 = 两次远端传输；写操作不重试（runOp retryable=false），
+     * 与 writeFile/renameFile 同口径，避免部分写入后被重试造成重复数据。
+     * 目标已存在时由调用方先经 {@link #fileExists} 提示覆盖/跳过，本方法只负责写（总是覆盖）。
+     */
+    public void copyFile(String srcPath, String dstPath, CopyFileCallback callback) {
+        sftpExecutor.execute(() -> runOp("复制文件", false, channel -> {
+            try (InputStream is = channel.get(srcPath)) {
+                channel.put(is, dstPath, ChannelSftp.OVERWRITE);
+            }
+            callback.onSuccess();
+        }, callback::onError));
+    }
+
     public interface ChmodCallback {
         void onSuccess();
         void onError(String message);
@@ -510,6 +554,14 @@ public class SshManager {
         String base = targetDir.endsWith("/")
                 ? targetDir.substring(0, targetDir.length() - 1) : targetDir;
         return base + "/" + name;
+    }
+
+    /**
+     * 构造「复制到目标目录」的完整目标路径（纯函数，便于单测）。
+     * 与 {@link #buildMovePath} 语义一致（源文件名不变拼到 targetDir），故直接委托，避免两份逻辑漂移。
+     */
+    public static String buildCopyPath(String srcPath, String targetDir) {
+        return buildMovePath(srcPath, targetDir);
     }
 
     /** 目录部分（不含末级名称），根目录返回 "/"；无斜杠时返回 ""。 */
