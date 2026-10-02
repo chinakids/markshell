@@ -6,7 +6,10 @@ import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
 
+import com.jcraft.jsch.ChannelSftp;
+import com.jcraft.jsch.LsTestFactory;
 import com.jcraft.jsch.SftpException;
+import com.ssh.mdreader.model.RemoteFile;
 
 import org.junit.Test;
 
@@ -244,5 +247,61 @@ public class SshManagerTest {
     public void validateBatchMove_rejectsEmpty() {
         assertNotNull(SshManager.validateBatchMove(new ArrayList<>(), new HashSet<>(), "/dest"));
         assertNotNull(SshManager.validateBatchMove(null, new HashSet<>(), "/dest"));
+    }
+
+    // ---- listFiles 解析：toRemoteFile（单条 LsEntry → RemoteFile 纯函数，无需真实 SFTP 连接） ----
+
+    @Test
+    public void toRemoteFile_directoryEntry_mapsAttrsAndPath() {
+        ChannelSftp.LsEntry entry = LsTestFactory.entry("conf", 0x41ED, 4096, 1_700_000_000);
+        RemoteFile f = SshManager.toRemoteFile("/home/u", entry);
+        assertEquals("conf", f.getName());
+        assertEquals("/home/u/conf", f.getPath());
+        assertTrue(f.isDirectory());
+        assertEquals(4096, f.getSize());
+        assertEquals(0x41ED, f.getPermissions());
+        assertEquals(1_700_000_000L, f.getMtime());
+    }
+
+    @Test
+    public void toRemoteFile_fileEntry_isNotDirectory() {
+        ChannelSftp.LsEntry entry = LsTestFactory.entry("notes.md", 0x81A4, 12345, 1_700_000_001);
+        RemoteFile f = SshManager.toRemoteFile("/home/u/docs", entry);
+        assertEquals("notes.md", f.getName());
+        assertEquals("/home/u/docs/notes.md", f.getPath());
+        assertFalse(f.isDirectory());
+        assertEquals(12345, f.getSize());
+    }
+
+    @Test
+    public void toRemoteFile_rootParent_noDoubleSlash() {
+        ChannelSftp.LsEntry entry = LsTestFactory.entry("etc", 0x41ED, 4096, 1_700_000_000);
+        RemoteFile f = SshManager.toRemoteFile("/", entry);
+        assertEquals("/etc", f.getPath());
+    }
+
+    @Test
+    public void toRemoteFile_trailingSlashParent_joinsOnce() {
+        ChannelSftp.LsEntry entry = LsTestFactory.entry("a.txt", 0x81A4, 7, 1_700_000_000);
+        RemoteFile f = SshManager.toRemoteFile("/home/u/", entry);
+        assertEquals("/home/u/a.txt", f.getPath());
+    }
+
+    @Test
+    public void toRemoteFile_symlink_isTreatedAsFile() {
+        // S_IFLNK(0xA000)|0777：类型位非目录 → 按普通文件处理（与 listFiles 既有行为一致）
+        ChannelSftp.LsEntry entry = LsTestFactory.entry("link.md", 0xA1FF, 0, 1_700_000_000);
+        RemoteFile f = SshManager.toRemoteFile("/home/u", entry);
+        assertFalse(f.isDirectory());
+        assertEquals("link.md", f.getName());
+    }
+
+    @Test
+    public void toRemoteFile_plainPermsPreserved() {
+        ChannelSftp.LsEntry entry = LsTestFactory.entry("x.txt", 0x1A4, 42, 1_700_000_000);
+        RemoteFile f = SshManager.toRemoteFile("/home/u", entry);
+        assertEquals(0x1A4, f.getPermissions());
+        assertEquals(42, f.getSize());
+        assertEquals(1_700_000_000L, f.getMtime());
     }
 }

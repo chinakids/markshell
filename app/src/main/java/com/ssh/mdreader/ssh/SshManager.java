@@ -326,23 +326,31 @@ public class SshManager {
                 String name = entry.getFilename();
                 if (name.equals(".") || name.equals("..")) continue;
 
-                SftpATTRS attrs = entry.getAttrs();
-                String fullPath = buildChildPath(path, name);
-
-                files.add(new RemoteFile(
-                        name,
-                        fullPath,
-                        attrs.isDir(),
-                        attrs.getSize(),
-                        attrs.getPermissions(),
-                        attrs.getMTime()
-                ));
+                files.add(toRemoteFile(path, entry));
             }
 
             // SFTP 返回顺序不定，API 兜底固定为名称序；UI 层可按偏好再排。
             List<RemoteFile> sorted = FileSortUtils.sort(files, FileSortUtils.SORT_NAME);
             callback.onSuccess(sorted);
         }, callback::onError));
+    }
+
+    /**
+     * Converts one {@link ChannelSftp.LsEntry} into a {@link RemoteFile}.
+     * Pure function (no instance state) so the ls-output parsing can be unit
+     * tested without a live SFTP connection.  Package-private for unit tests.
+     */
+    static RemoteFile toRemoteFile(String parentPath, ChannelSftp.LsEntry entry) {
+        String name = entry.getFilename();
+        SftpATTRS attrs = entry.getAttrs();
+        return new RemoteFile(
+                name,
+                buildChildPath(parentPath, name),
+                attrs.isDir(),
+                attrs.getSize(),
+                attrs.getPermissions(),
+                attrs.getMTime()
+        );
     }
 
     public void readFile(String path, FileContentCallback callback) {
