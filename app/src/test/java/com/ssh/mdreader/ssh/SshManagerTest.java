@@ -155,4 +155,32 @@ public class SshManagerTest {
         assertFalse(SshManager.isMoveIntoItself("/a/b", "/a/bc"));      // 前缀相似≠子孙
         assertFalse(SshManager.isMoveIntoItself("/a/b", null));
     }
+
+    @Test
+    public void isSpecialEntry_dotEntries() {
+        assertTrue(SshManager.isSpecialEntry("."));
+        assertTrue(SshManager.isSpecialEntry(".."));
+    }
+
+    @Test
+    public void isSpecialEntry_normalNames() {
+        assertFalse(SshManager.isSpecialEntry("a"));
+        assertFalse(SshManager.isSpecialEntry(".hidden"));   // 点开头≠特殊条目
+        assertFalse(SshManager.isSpecialEntry("..hidden"));
+        assertFalse(SshManager.isSpecialEntry("a."));
+        assertFalse(SshManager.isSpecialEntry(""));
+        assertFalse(SshManager.isSpecialEntry(null));
+    }
+
+    @Test
+    public void copyNodeRecursivePaths_keepSrcDstInParallel() {
+        // 目录复制递归时源与目标按同名子项并行前进（copyNodeSync 的路径拼装）
+        String src = "/a/b";
+        String dst = "/x/b";
+        String child = "sub/f.txt";
+        assertEquals("/a/b/sub/f.txt", SshManager.buildChildPath(src, child));
+        assertEquals("/x/b/sub/f.txt", SshManager.buildChildPath(dst, child));
+        // 根目录目标：不产生双斜杠
+        assertEquals("/b/f.txt", SshManager.buildChildPath("/b", "f.txt"));
+    }
 }

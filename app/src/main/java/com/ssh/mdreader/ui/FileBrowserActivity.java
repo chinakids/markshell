@@ -785,6 +785,68 @@ public class FileBrowserActivity extends BaseActivity
         });
     }
 
+    /** 复制目录到其他目录：弹目录选择器（复制模式），确认后先检查目标目录是否存在，存在则提示合并语义。 */
+    private void copyDirectory(RemoteFile dir) {
+        dirPicker = DirectoryPickerDialog.show(this,
+                dir.getPath(), dir.getName(), true, true,
+                targetDir -> {
+                    String dst = SshManager.buildCopyPath(dir.getPath(), targetDir);
+                    sshManager.fileExists(dst, new SshManager.ExistsCallback() {
+                        @Override
+                        public void onResult(boolean exists) {
+                            runOnUiThread(() -> {
+                                if (isFinishing() || isDestroyed()) return;
+                                if (exists) {
+                                    confirmCopyDirectoryOverwrite(dir, dst);
+                                } else {
+                                    performCopyDirectory(dir, dst);
+                                }
+                            });
+                        }
+
+                        @Override
+                        public void onError(String message) {
+                            runOnUiThread(() -> {
+                                if (isFinishing() || isDestroyed()) return;
+                                UiUtils.showToast(FileBrowserActivity.this,
+                                        "检查目标失败: " + message);
+                            });
+                        }
+                    });
+                });
+    }
+
+    /** 目录级「覆盖」= 合并：目标目录已存在时确认继续合并（同名文件逐项覆盖），文案与文件版区分。 */
+    private void confirmCopyDirectoryOverwrite(RemoteFile dir, String dst) {
+        DialogHelper.showConfirmDialog(this,
+                "目标目录已存在",
+                "目标位置已存在目录「" + dir.getName() + "」，继续将合并两目录内容，同名文件将被覆盖。是否继续？",
+                "继续合并", "取消",
+                d -> performCopyDirectory(dir, dst),
+                d -> UiUtils.showToast(this, "已取消复制"));
+    }
+
+    private void performCopyDirectory(RemoteFile dir, String dst) {
+        sshManager.copyDirectory(dir.getPath(), dst, new SshManager.CopyFileCallback() {
+            @Override
+            public void onSuccess() {
+                runOnUiThread(() -> {
+                    if (isFinishing() || isDestroyed()) return;
+                    UiUtils.showToast(FileBrowserActivity.this, "已复制到 " + dst);
+                    loadFiles();
+                });
+            }
+
+            @Override
+            public void onError(String message) {
+                runOnUiThread(() -> {
+                    if (isFinishing() || isDestroyed()) return;
+                    UiUtils.showToast(FileBrowserActivity.this, "复制失败: " + message);
+                });
+            }
+        });
+    }
+
     private void renameFile(RemoteFile file) {
         DialogHelper.showInputDialog(this,
                 "重命名 " + file.getName(),
@@ -901,19 +963,21 @@ public class FileBrowserActivity extends BaseActivity
 
         DialogHelper.showListDialog(this,
                 dir.getName(),
-                new String[]{"移动", "重命名", "权限", "删除", "设为主目录"},
-                new int[]{R.drawable.ic_move, R.drawable.ic_edit, R.drawable.ic_lock,
-                        R.drawable.ic_delete, R.drawable.ic_folder_set},
+                new String[]{"移动", "复制", "重命名", "权限", "删除", "设为主目录"},
+                new int[]{R.drawable.ic_move, R.drawable.ic_copy, R.drawable.ic_edit,
+                        R.drawable.ic_lock, R.drawable.ic_delete, R.drawable.ic_folder_set},
                 (dialog, which) -> {
                     if (which == 0) {
                         moveFile(dir);
                     } else if (which == 1) {
-                        renameFile(dir);
+                        copyDirectory(dir);
                     } else if (which == 2) {
-                        showChmodDialog(dir);
+                        renameFile(dir);
                     } else if (which == 3) {
-                        confirmDeleteDirectory(dir);
+                        showChmodDialog(dir);
                     } else if (which == 4) {
+                        confirmDeleteDirectory(dir);
+                    } else if (which == 5) {
                         prefManager.updateRemotePath(
                                 config.getHost(), config.getPort(),
                                 config.getUsername(), dir.getPath());

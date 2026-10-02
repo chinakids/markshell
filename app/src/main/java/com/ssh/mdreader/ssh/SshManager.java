@@ -430,7 +430,7 @@ public class SshManager {
             Vector<ChannelSftp.LsEntry> entries = channel.ls(path);
             for (ChannelSftp.LsEntry entry : entries) {
                 String name = entry.getFilename();
-                if (name.equals(".") || name.equals("..")) continue;
+                if (isSpecialEntry(name)) continue;
                 deleteNodeSync(channel, buildChildPath(path, name));
             }
             channel.rmdir(path);
@@ -495,6 +495,46 @@ public class SshManager {
         }, callback::onError));
     }
 
+    /**
+     * 递归复制目录（含全部内容）到目标路径：目标目录不存在则 mkdir，已存在则按
+     * 「合并」语义直接递归进入（同名文件逐项 put OVERWRITE），与 deleteDirectory 递归对称。
+     * 整个复制在单个 sftpExecutor 任务内完成；写操作不重试（与 copyFile 同口径），
+     * 中途失败会残留部分已复制内容（与所有递归复制工具一致，无原子回滚，确认文案已注明合并语义）。
+     */
+    public void copyDirectory(String srcPath, String dstPath, CopyFileCallback callback) {
+        sftpExecutor.execute(() -> runOp("复制目录", false, channel -> {
+            copyNodeSync(channel, srcPath, dstPath);
+            callback.onSuccess();
+        }, callback::onError));
+    }
+
+    /** 递归复制单个节点（仅限 worker 线程调用）：文件→get 流式 put OVERWRITE；目录→目标不存在则 mkdir，
+     *  已存在（合并语义）则直接递归进入；目标路径已存在但是文件时视为冲突抛错。 */
+    private void copyNodeSync(ChannelSftp channel, String src, String dst) throws Exception {
+        if (channel.stat(src).isDir()) {
+            try {
+                SftpATTRS dstAttrs = channel.stat(dst);
+                if (!dstAttrs.isDir()) {
+                    throw new SftpException(ChannelSftp.SSH_FX_FAILURE,
+                            "目标路径已存在且是文件: " + dst);
+                }
+            } catch (SftpException e) {
+                if (e.id != ChannelSftp.SSH_FX_NO_SUCH_FILE) throw e;
+                channel.mkdir(dst);
+            }
+            Vector<ChannelSftp.LsEntry> entries = channel.ls(src);
+            for (ChannelSftp.LsEntry entry : entries) {
+                String name = entry.getFilename();
+                if (isSpecialEntry(name)) continue;
+                copyNodeSync(channel, buildChildPath(src, name), buildChildPath(dst, name));
+            }
+        } else {
+            try (InputStream is = channel.get(src)) {
+                channel.put(is, dst, ChannelSftp.OVERWRITE);
+            }
+        }
+    }
+
     public interface ChmodCallback {
         void onSuccess();
         void onError(String message);
@@ -541,6 +581,14 @@ public class SshManager {
      */
     public static String buildChildPath(String parentPath, String name) {
         return parentPath.endsWith("/") ? parentPath + name : parentPath + "/" + name;
+    }
+
+    /**
+     * SFTP 目录列表中的特殊条目（"." / ".."），递归遍历时须跳过（纯函数，便于单测）。
+     * 以点开头但不等于上述两者（如 ".hidden"）是普通条目，须照常处理。
+     */
+    public static boolean isSpecialEntry(String name) {
+        return ".".equals(name) || "..".equals(name);
     }
 
     /**
