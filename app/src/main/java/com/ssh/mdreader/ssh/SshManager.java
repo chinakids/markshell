@@ -327,7 +327,7 @@ public class SshManager {
                 if (name.equals(".") || name.equals("..")) continue;
 
                 SftpATTRS attrs = entry.getAttrs();
-                String fullPath = path.endsWith("/") ? path + name : path + "/" + name;
+                String fullPath = buildChildPath(path, name);
 
                 files.add(new RemoteFile(
                         name,
@@ -405,6 +405,40 @@ public class SshManager {
         }, callback::onError));
     }
 
+    /**
+     * 递归删除目录（含全部内容）。JSch 的 {@code rm} 只删文件、{@code rmdir} 只删空目录，
+     * 故非空目录先递归清空子项再 rmdir。与 deleteFile 同为写操作不重试；
+     * 与服务器交互在单个 sftpExecutor 任务内完成，中途失败会报错（可能残留部分子项，
+     * 与所有递归删除工具一致，无原子回滚，确认文案已注明不可恢复）。
+     */
+    public void deleteDirectory(String path, DeleteFileCallback callback) {
+        sftpExecutor.execute(() -> runOp("删除目录", false, channel -> {
+            deleteNodeSync(channel, path);
+            callback.onSuccess();
+        }, callback::onError));
+    }
+
+    /** 递归删除单个节点（仅限 worker 线程调用）：文件→rm；空目录→rmdir；非空目录→清空后 rmdir。 */
+    private void deleteNodeSync(ChannelSftp channel, String path) throws Exception {
+        if (channel.stat(path).isDir()) {
+            try {
+                channel.rmdir(path); // 空目录直接成功
+                return;
+            } catch (SftpException ignored) {
+                // 非空目录（或服务器对非空目录返回 SSH_FX_FAILURE）：走递归清空
+            }
+            Vector<ChannelSftp.LsEntry> entries = channel.ls(path);
+            for (ChannelSftp.LsEntry entry : entries) {
+                String name = entry.getFilename();
+                if (name.equals(".") || name.equals("..")) continue;
+                deleteNodeSync(channel, buildChildPath(path, name));
+            }
+            channel.rmdir(path);
+        } else {
+            channel.rm(path);
+        }
+    }
+
     public interface RenameFileCallback {
         void onSuccess();
         void onError(String message);
@@ -455,6 +489,14 @@ public class SshManager {
         int idx = oldPath.lastIndexOf('/');
         if (idx < 0) return newName;
         return oldPath.substring(0, idx + 1) + newName;
+    }
+
+    /**
+     * 拼接父目录与子项名为完整路径（纯函数，便于单测）：父目录以 '/' 结尾时直接拼接，
+     * 否则补一个 '/'；根目录传入 "/" 亦正确（结果 "/name"）。
+     */
+    public static String buildChildPath(String parentPath, String name) {
+        return parentPath.endsWith("/") ? parentPath + name : parentPath + "/" + name;
     }
 
     /**

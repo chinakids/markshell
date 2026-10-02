@@ -837,8 +837,9 @@ public class FileBrowserActivity extends BaseActivity
 
         DialogHelper.showListDialog(this,
                 dir.getName(),
-                new String[]{"移动", "重命名", "权限", "设为主目录"},
-                new int[]{R.drawable.ic_move, R.drawable.ic_edit, R.drawable.ic_lock, R.drawable.ic_folder_set},
+                new String[]{"移动", "重命名", "权限", "删除", "设为主目录"},
+                new int[]{R.drawable.ic_move, R.drawable.ic_edit, R.drawable.ic_lock,
+                        R.drawable.ic_delete, R.drawable.ic_folder_set},
                 (dialog, which) -> {
                     if (which == 0) {
                         moveFile(dir);
@@ -847,12 +848,41 @@ public class FileBrowserActivity extends BaseActivity
                     } else if (which == 2) {
                         showChmodDialog(dir);
                     } else if (which == 3) {
+                        confirmDeleteDirectory(dir);
+                    } else if (which == 4) {
                         prefManager.updateRemotePath(
                                 config.getHost(), config.getPort(),
                                 config.getUsername(), dir.getPath());
                         UiUtils.showToast(this, "已设为主目录");
                     }
                 });
+    }
+
+    private void confirmDeleteDirectory(RemoteFile dir) {
+        DialogHelper.showDangerConfirmDialog(this,
+                "删除目录",
+                "确定要删除目录 \"" + dir.getName() + "\"（含全部内容）吗？此操作不可恢复。",
+                "删除", "取消",
+                d -> deleteRemoteDirectory(dir),
+                d -> {});
+    }
+
+    private void deleteRemoteDirectory(RemoteFile dir) {
+        sshManager.deleteDirectory(dir.getPath(), new SshManager.DeleteFileCallback() {
+            @Override
+            public void onSuccess() {
+                runOnUiThread(() -> {
+                    UiUtils.showToast(FileBrowserActivity.this, "已删除 " + dir.getName());
+                    adapter.removeFile(dir.getPath());
+                });
+            }
+
+            @Override
+            public void onError(String message) {
+                runOnUiThread(() ->
+                        UiUtils.showToast(FileBrowserActivity.this, "删除失败: " + message));
+            }
+        });
     }
 
     @Override

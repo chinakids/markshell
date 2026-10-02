@@ -55,6 +55,15 @@ public class SshManagerTest {
     }
 
     @Test
+    public void buildChildPath_joinsParentAndName() {
+        assertEquals("/a/b/name.txt", SshManager.buildChildPath("/a/b", "name.txt"));
+        assertEquals("/a/b/name.txt", SshManager.buildChildPath("/a/b/", "name.txt"));
+        // 根目录：不产生双斜杠
+        assertEquals("/name.txt", SshManager.buildChildPath("/", "name.txt"));
+        assertEquals("sub/x", SshManager.buildChildPath("sub", "x"));
+    }
+
+    @Test
     public void sanitizeHeartbeat_rejectsOutOfRange() {
         assertEquals(SshManager.DEFAULT_HEARTBEAT_MS, SshManager.sanitizeHeartbeat(0));
         assertEquals(SshManager.DEFAULT_HEARTBEAT_MS, SshManager.sanitizeHeartbeat(999));
