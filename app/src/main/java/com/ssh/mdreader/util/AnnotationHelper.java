@@ -156,6 +156,8 @@ public class AnnotationHelper {
      * 单条批注能否在给定渲染文本中按 {@link AnnotationEntry#occurrenceIndex}
      * 精确定位。语义与 {@link AnnotationOverlayHelper#applyAnnotationSpans()}
      * 的跳过条件完全一致（原文为空 / 找不到指定次数出现 / 区间越界 → 不可定位）。
+     * 单条查询用；批量路径（{@link #countNonFindable} / {@link #nonFindableIds} /
+     * {@link #drawerStatuses}）走一次扫描索引 {@link #buildLocator}，避免每条目整文重扫。
      *
      * @return true = 可定位；false = 失效（未找到原文）
      */
@@ -174,8 +176,9 @@ public class AnnotationHelper {
                                        @Nullable String plainText) {
         if (annotations == null || annotations.isEmpty()) return 0;
         int count = 0;
+        AnnotationOccurrenceIndex.Locator locator = buildLocator(annotations, plainText);
         for (AnnotationEntry e : annotations) {
-            if (!isFindable(e, plainText)) count++;
+            if (e == null || !isFindable(e, locator)) count++;
         }
         return count;
     }
@@ -184,15 +187,13 @@ public class AnnotationHelper {
     @NonNull
     public static Set<String> nonFindableIds(@Nullable List<AnnotationEntry> annotations,
                                              @Nullable String plainText) {
-        Set<String> ids = new HashSet<>();
-        if (annotations == null) return ids;
-        for (AnnotationEntry e : annotations) {
-            if (e != null && !isFindable(e, plainText)) ids.add(e.id);
-        }
-        return ids;
+        if (annotations == null) return new HashSet<>();
+        return nonFindableIds(annotations, buildLocator(annotations, plainText));
     }
 
-    /** 抽屉条目的定位标注状态。 */
+    /**
+     * 抽屉条目的定位标注状态。
+     */
     public enum AnnotationStatus {
         /** 可定位（正常显示）。 */
         OK,
@@ -208,9 +209,64 @@ public class AnnotationHelper {
     @NonNull
     public static List<AnnotationStatus> drawerStatuses(
             @Nullable List<AnnotationEntry> annotations, @Nullable String plainText) {
+        if (annotations == null) return new ArrayList<>();
+        return drawerStatuses(annotations, buildLocator(annotations, plainText));
+    }
+
+    // ── Occurrence index（专项 B3：O(N×M) → 一次扫描 O(M+命中数)；文本须与索引同源）──────────
+
+    /**
+     * 由批注列表构建「一次扫描」定位器（Aho–Corasick 多模式，见 {@link AnnotationOccurrenceIndex}）。
+     * 只索引非空原文（null/空跳过=永不匹配），重复原文去重（共享结果）。
+     * {@code plainText} 为 null 时按空文本处理（全部不可定位，与字符串版
+     * {@link #isFindable(AnnotationEntry, String)} 的 null/空文本分支语义一致）。
+     * <b>结果只对本次文本有效</b>：每次调用方基于最新渲染文本重建（一次构建全程复用）。
+     */
+    @NonNull
+    public static AnnotationOccurrenceIndex.Locator buildLocator(
+            @Nullable List<AnnotationEntry> annotations, @Nullable String plainText) {
+        List<String> needles = new ArrayList<>();
+        if (annotations != null) {
+            for (AnnotationEntry e : annotations) {
+                if (e != null && e.originalText != null && !e.originalText.isEmpty()) {
+                    needles.add(e.originalText);
+                }
+            }
+        }
+        return AnnotationOccurrenceIndex.build(plainText == null ? "" : plainText, needles);
+    }
+
+    /** 与 {@link #isFindable(AnnotationEntry, String)} 语义逐条一致，但查询走一次扫描索引（O(1)）。 */
+    public static boolean isFindable(@Nullable AnnotationEntry entry,
+                                     @NonNull AnnotationOccurrenceIndex.Locator locator) {
+        if (entry == null) return false;
+        if (entry.originalText == null || entry.originalText.isEmpty()) return false;
+        int start = locator.occurrenceStart(entry.originalText, entry.occurrenceIndex);
+        if (start < 0) return false;
+        // 防御：与字符串版越界检查保持一致（索引实现在文本内找到，理论不越界）
+        return start + entry.originalText.length() <= locator.textLength();
+    }
+
+    /** locator 版：一次构建复用（{@link AnnotationOverlayHelper#applyAnnotationSpans()} 等热点路径）。 */
+    @NonNull
+    public static Set<String> nonFindableIds(@Nullable List<AnnotationEntry> annotations,
+                                             @NonNull AnnotationOccurrenceIndex.Locator locator) {
+        Set<String> ids = new HashSet<>();
+        if (annotations == null) return ids;
+        for (AnnotationEntry e : annotations) {
+            if (e != null && !isFindable(e, locator)) ids.add(e.id);
+        }
+        return ids;
+    }
+
+    /** locator 版：与本类字符串版语义一致，索引一次构建复用。 */
+    @NonNull
+    public static List<AnnotationStatus> drawerStatuses(
+            @Nullable List<AnnotationEntry> annotations,
+            @NonNull AnnotationOccurrenceIndex.Locator locator) {
         List<AnnotationStatus> result = new ArrayList<>();
         if (annotations == null) return result;
-        Set<String> failed = nonFindableIds(annotations, plainText);
+        Set<String> failed = nonFindableIds(annotations, locator);
         for (AnnotationEntry e : annotations) {
             result.add(e != null && failed.contains(e.id)
                     ? AnnotationStatus.FAILED : AnnotationStatus.OK);

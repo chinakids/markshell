@@ -55,6 +55,8 @@ public final class AnnotationNavigator {
     /**
      * 由批注列表 + 渲染后的正文纯文本计算文档顺序的可导航序列（升序、稳定）。
      * 跳过语义与 span 覆盖一致：原文为空／按 occurrenceIndex 定位失败／越界。
+     * 定位走一次扫描索引（{@link AnnotationHelper#buildLocator}），每条目查询 O(1)，
+     * 语义与 {@link AnnotationHelper#findNthOccurrence} 对拍一致（专项 B3）。
      */
     @NonNull
     public static List<NavigableAnnotation> buildNavigable(
@@ -64,13 +66,14 @@ public final class AnnotationNavigator {
                 || plainText == null || plainText.isEmpty()) {
             return result;
         }
+        AnnotationOccurrenceIndex.Locator locator =
+                AnnotationHelper.buildLocator(annotations, plainText);
         for (AnnotationEntry e : annotations) {
             if (e == null || e.originalText == null || e.originalText.isEmpty()) continue;
-            int start = AnnotationHelper.findNthOccurrence(
-                    plainText, e.originalText, e.occurrenceIndex);
+            int start = locator.occurrenceStart(e.originalText, e.occurrenceIndex);
             if (start < 0) continue;
             int end = start + e.originalText.length();
-            if (end > plainText.length()) continue; // 防御：findNthOccurrence 理论不越界
+            if (end > plainText.length()) continue; // 防御：理论不越界
             result.add(new NavigableAnnotation(e, start, end));
         }
         Collections.sort(result, (a, b) -> Integer.compare(a.start, b.start));

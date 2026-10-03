@@ -349,7 +349,7 @@ public class AnnotationHelperTest {
     @Test
     public void isFindableNullEntryOrNullText() {
         assertFalse(AnnotationHelper.isFindable(null, TEXT));
-        assertFalse(AnnotationHelper.isFindable(entry("a1", "aaa", 0), null));
+        assertFalse(AnnotationHelper.isFindable(entry("a1", "aaa", 0), (String) null));
         assertFalse(AnnotationHelper.isFindable(entry("a1", "aaa", 0), ""));
     }
 
@@ -442,5 +442,48 @@ public class AnnotationHelperTest {
         assertTrue(AnnotationHelper.drawerStatuses(null, TEXT).isEmpty());
         assertTrue(AnnotationHelper.drawerStatuses(
                 new java.util.ArrayList<>(), TEXT).isEmpty());
+    }
+
+    // ── Occurrence index（专项 B3：索引版与字符串版语义逐条一致）────────────────────
+
+    @Test
+    public void locatorIsFindableMatchesStringVersion() {
+        List<AnnotationEntry> entries = new java.util.ArrayList<>();
+        entries.add(entry("a1", "aaa", 0));
+        entries.add(entry("a3", "aaa", 2));   // 失效
+        entries.add(entry("a5", "", 0));      // 原文空 → 失效
+        entries.add(entry("a4", "zzz", 0));   // 不存在 → 失效
+        AnnotationOccurrenceIndex.Locator loc = AnnotationHelper.buildLocator(entries, TEXT);
+        for (AnnotationEntry e : entries) {
+            assertEquals("id=" + e.id,
+                    AnnotationHelper.isFindable(e, TEXT),
+                    AnnotationHelper.isFindable(e, loc));
+        }
+    }
+
+    @Test
+    public void locatorNonFindableIdsMatchesStringVersion() {
+        List<AnnotationEntry> entries = new java.util.ArrayList<>();
+        entries.add(entry("a1", "aaa", 0));
+        entries.add(entry("a3", "aaa", 2));
+        entries.add(entry("a2", "bbb", 0));
+        AnnotationOccurrenceIndex.Locator loc = AnnotationHelper.buildLocator(entries, TEXT);
+        assertEquals(AnnotationHelper.nonFindableIds(entries, TEXT),
+                AnnotationHelper.nonFindableIds(entries, loc));
+        assertEquals(AnnotationHelper.drawerStatuses(entries, TEXT),
+                AnnotationHelper.drawerStatuses(entries, loc));
+    }
+
+    @Test
+    public void buildLocatorNullInputsTreatAsEmpty() {
+        AnnotationOccurrenceIndex.Locator loc = AnnotationHelper.buildLocator(null, null);
+        assertEquals(0, loc.textLength());
+        assertEquals(-1, loc.occurrenceStart("aaa", 0));
+        assertTrue(AnnotationHelper.nonFindableIds(null, loc).isEmpty());
+        AnnotationOccurrenceIndex.Locator empty =
+                AnnotationHelper.buildLocator(new java.util.ArrayList<>(), "");
+        assertEquals(0, empty.textLength());
+        assertTrue(AnnotationHelper.drawerStatuses(
+                new java.util.ArrayList<>(), empty).isEmpty());
     }
 }

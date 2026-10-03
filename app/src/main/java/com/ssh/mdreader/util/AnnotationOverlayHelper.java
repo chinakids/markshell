@@ -240,27 +240,30 @@ public class AnnotationOverlayHelper {
     /**
      * Overlays {@link AnnotationSpan} objects on the rendered text.
      *
-     * <p>For each annotation, {@link AnnotationHelper#findNthOccurrence} locates
-     * the exact occurrence recorded by {@link AnnotationEntry#occurrenceIndex},
-     * so duplicate text is handled correctly without any source-file modification.</p>
+     * <p>For each annotation, {@link AnnotationHelper#buildLocator} builds a
+     * single-pass occurrence index over the rendered text once; each entry's
+     * occurrence is then resolved in O(1), so total cost is O(M + hits) instead
+     * of O(N×M) repeated whole-text scans (专项 B3). The located start matches
+     * {@link AnnotationHelper#findNthOccurrence} character-for-character, so the
+     * rendered output is byte-identical to the pre-B3 behaviour.</p>
      */
     public void applyAnnotationSpans() {
         // 每次重定位都基于「当前渲染文本」重算失效集合——失效是相对文本的派生状态，
         // 不落盘：文本变化/新增删除批注后重新计算即自然清除或更新。
         failedIds.clear();
-        failedIds.addAll(AnnotationHelper.nonFindableIds(
-                annotations, tvContent.getText().toString()));
+        String plain = tvContent.getText().toString();
+        AnnotationOccurrenceIndex.Locator locator = AnnotationHelper.buildLocator(annotations, plain);
+        failedIds.addAll(AnnotationHelper.nonFindableIds(annotations, locator));
         if (annotations.isEmpty()) return;
 
         CharSequence current = tvContent.getText();
         SpannableStringBuilder ssb = new SpannableStringBuilder(current);
-        String plain = ssb.toString();
 
         for (AnnotationEntry entry : annotations) {
             if (entry.originalText == null || entry.originalText.isEmpty()) continue;
 
-            int spanStart = AnnotationHelper.findNthOccurrence(
-                    plain, entry.originalText, entry.occurrenceIndex);
+            int spanStart = locator.occurrenceStart(
+                    entry.originalText, entry.occurrenceIndex);
             if (spanStart < 0) continue;
 
             int spanEnd = spanStart + entry.originalText.length();
