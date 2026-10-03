@@ -8,6 +8,7 @@ import static org.junit.Assert.assertTrue;
 
 import com.jcraft.jsch.ChannelSftp;
 import com.jcraft.jsch.LsTestFactory;
+import com.jcraft.jsch.SftpATTRS;
 import com.jcraft.jsch.SftpException;
 import com.ssh.mdreader.model.RemoteFile;
 import com.ssh.mdreader.model.SshConfig;
@@ -330,6 +331,24 @@ public class SshManagerTest {
         assertEquals(0x1A4, f.getPermissions());
         assertEquals(42, f.getSize());
         assertEquals(1_700_000_000L, f.getMtime());
+    }
+
+    // ── attrs 位语义探针：递归搜索依赖 isDir/isLink 判定（LsTestFactory 构造的 attrs） ──
+
+    @Test
+    public void attrsProbe_directoryPerms_isDirTrue_notLink() {
+        SftpATTRS attrs = LsTestFactory.entry("dir", 0x41ED, 4096, 0).getAttrs();
+        assertTrue(attrs.isDir());
+        assertFalse(attrs.isLink());
+    }
+
+    @Test
+    public void attrsProbe_symlinkPerms_isDirFalse_linkTrue() {
+        // S_IFLNK 类型位（0xA000）：ls 不跟随符号链接 → 链接按「非目录」处理，
+        // 递归搜索据此不入栈（防链接循环），同时按普通文件参与名称匹配。
+        SftpATTRS attrs = LsTestFactory.entry("link", 0xA1FF, 0, 0).getAttrs();
+        assertFalse(attrs.isDir());
+        assertTrue(attrs.isLink());
     }
 
     // ── 连接复用资格判定（reuseEligible = SshConnectionHelper 谓词 + 心跳一致性） ──

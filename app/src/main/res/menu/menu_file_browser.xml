@@ -15,6 +15,11 @@
         app:showAsAction="ifRoom" />
 
     <item
+        android:id="@+id/action_search_files"
+        android:title="全局搜索…"
+        app:showAsAction="never" />
+
+    <item
         android:id="@+id/action_sort"
         android:title="排序"
         app:showAsAction="never" />

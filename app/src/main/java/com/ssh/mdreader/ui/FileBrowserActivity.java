@@ -24,6 +24,7 @@ import com.ssh.mdreader.R;
 import com.ssh.mdreader.adapter.TreeAdapter;
 import com.ssh.mdreader.model.RemoteFile;
 import com.ssh.mdreader.model.RecentFileEntry;
+import com.ssh.mdreader.model.SearchResult;
 import com.ssh.mdreader.model.SshConfig;
 import com.ssh.mdreader.ssh.SshManager;
 import com.ssh.mdreader.util.BookmarkHelper;
@@ -37,6 +38,7 @@ import com.ssh.mdreader.util.NewFileHelper;
 import com.ssh.mdreader.util.OpenFileHelper;
 import com.ssh.mdreader.util.PreferenceManager;
 import com.ssh.mdreader.util.PreviewPaneHelper;
+import com.ssh.mdreader.util.RecursiveSearchHelper;
 import com.ssh.mdreader.util.SshConnectionHelper;
 import com.ssh.mdreader.util.UiUtils;
 
@@ -56,6 +58,8 @@ public class FileBrowserActivity extends BaseActivity
 
     private final SshManager sshManager = SshManager.getInstance();
     private String currentPath;
+    /** 全局递归搜索进行中标志（SshManager 单 worker 串行，防重复触发）。 */
+    private boolean isSearching;
     /** 服务器主目录（连接配置远程路径或 home，「回到主目录」入口用）。 */
     private String homePath;
     private PreferenceManager prefManager;
@@ -194,6 +198,10 @@ public class FileBrowserActivity extends BaseActivity
         }
         if (id == R.id.action_filter) {
             toggleFilterBar();
+            return true;
+        }
+        if (id == R.id.action_search_files) {
+            showGlobalSearchDialog();
             return true;
         }
         if (id == R.id.action_bookmarks) {
@@ -444,6 +452,97 @@ public class FileBrowserActivity extends BaseActivity
         }
         tvEmpty.setText(adapter.isFilterActive() && !lastListEmpty ? "没有匹配的文件" : "空目录");
         tvEmpty.setVisibility(View.VISIBLE);
+    }
+
+    // ── 全局递归搜索（第十六轮能力发现 #12；markor recursive_search_in_location 对标） ──
+
+    /** 顶部更多菜单「全局搜索…」：输入查询关键词（按名称、大小写不敏感）。 */
+    private void showGlobalSearchDialog() {
+        if (isFinishing() || isDestroyed()) return;
+        if (currentPath == null || currentPath.isEmpty()) {
+            UiUtils.showToast(this, "当前目录未知，无法搜索");
+            return;
+        }
+        DialogHelper.showInputDialog(this, "全局搜索",
+                "在 " + currentPath + " 下按名称查找（忽略 .git/node_modules 等）",
+                "搜索", "取消", query -> {
+                    if (query == null || query.isEmpty()) {
+                        UiUtils.showToast(this, "请输入搜索内容");
+                        return;
+                    }
+                    showSearchDepthDialog(query);
+                });
+    }
+
+    /** 搜索深度选择（markor max_search_depth 同型选项；0=无限制）。 */
+    private void showSearchDepthDialog(String query) {
+        String[] labels = {"3 层（默认）", "5 层", "10 层", "无限制"};
+        int[] depths = {3, 5, 10, 0};
+        DialogHelper.showListDialog(this, "搜索深度（最大子目录层数）", labels, null,
+                (dialog, which) -> doRecursiveSearch(query, depths[which]));
+    }
+
+    /** 执行搜索：SshManager 工作线程遍历，回调回主线程更新 UI（既有回调纪律）。 */
+    private void doRecursiveSearch(String query, int depthOption) {
+        if (isSearching) {
+            UiUtils.showToast(this, "搜索正在进行中，请稍候");
+            return;
+        }
+        isSearching = true;
+        progressBar.setVisibility(View.VISIBLE);
+        final String root = currentPath;
+        sshManager.searchFiles(root, query, RecursiveSearchHelper.resolveMaxDepth(depthOption),
+                new SshManager.SearchCallback() {
+                    @Override
+                    public void onSuccess(List<SearchResult> results) {
+                        runOnUiThread(() -> {
+                            isSearching = false;
+                            if (isFinishing() || isDestroyed()) return;
+                            progressBar.setVisibility(View.GONE);
+                            if (results.isEmpty()) {
+                                UiUtils.showToast(FileBrowserActivity.this,
+                                        "未找到匹配「" + query + "」的文件或目录");
+                            } else {
+                                showSearchResults(query, results);
+                            }
+                        });
+                    }
+
+                    @Override
+                    public void onError(String message) {
+                        runOnUiThread(() -> {
+                            isSearching = false;
+                            if (isFinishing() || isDestroyed()) return;
+                            progressBar.setVisibility(View.GONE);
+                            UiUtils.showToast(FileBrowserActivity.this, "搜索失败：" + message);
+                        });
+                    }
+                });
+    }
+
+    /** 结果列表：相对路径展示，目录带「（目录）」标注（目录恒前排序见纯函数层）。 */
+    private void showSearchResults(String query, List<SearchResult> results) {
+        String[] labels = new String[results.size()];
+        for (int i = 0; i < results.size(); i++) {
+            SearchResult r = results.get(i);
+            labels[i] = r.getRelativePath() + (r.isDirectory() ? "  （目录）" : "");
+        }
+        DialogHelper.showListDialog(this,
+                "找到 " + results.size() + " 个「" + query + "」结果", labels, null,
+                (dialog, which) -> openSearchResult(results.get(which)));
+    }
+
+    /** 点结果：目录 → 直接跳转并加载；文件 → 复用 onFileClick（单一语义源）。 */
+    private void openSearchResult(SearchResult result) {
+        if (isFinishing() || isDestroyed()) return;
+        if (result.isDirectory()) {
+            currentPath = result.getPath();
+            updateToolbarSubtitle();
+            loadFiles();
+            UiUtils.showToast(this, "已跳转到 " + result.getPath());
+        } else {
+            onFileClick(new RemoteFile(result.getName(), result.getPath(), false, 0, 0, 0));
+        }
     }
 
     private void initViews() {

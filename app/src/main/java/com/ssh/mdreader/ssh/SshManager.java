@@ -10,17 +10,21 @@ import com.jcraft.jsch.SftpATTRS;
 import com.jcraft.jsch.SftpException;
 import com.ssh.mdreader.model.PortForwardRule;
 import com.ssh.mdreader.model.RemoteFile;
+import com.ssh.mdreader.model.SearchResult;
 import com.ssh.mdreader.model.SshConfig;
+import com.ssh.mdreader.util.FileFilterHelper;
 import com.ssh.mdreader.util.FileSortUtils;
 import com.ssh.mdreader.util.HostKeyHelper;
 import com.ssh.mdreader.util.HostKeyStore;
 import com.ssh.mdreader.util.PortForwardHelper;
+import com.ssh.mdreader.util.RecursiveSearchHelper;
 import com.ssh.mdreader.util.SshConnectionHelper;
 import com.ssh.mdreader.util.UiUtils;
 
 import java.io.ByteArrayOutputStream;
 import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
+import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
@@ -99,6 +103,11 @@ public class SshManager {
 
     public interface FileListCallback {
         void onSuccess(List<RemoteFile> files);
+        void onError(String message);
+    }
+
+    public interface SearchCallback {
+        void onSuccess(List<SearchResult> results);
         void onError(String message);
     }
 
@@ -610,6 +619,78 @@ public class SshManager {
                 attrs.getPermissions(),
                 attrs.getMTime()
         );
+    }
+
+    /** 递归搜索的待处理目录（path + 0 基深度）。 */
+    private static final class SearchDir {
+        final String path;
+        final int depth;
+
+        SearchDir(String path, int depth) {
+            this.path = path;
+            this.depth = depth;
+        }
+    }
+
+    /**
+     * 按名称在远端目录树中递归搜索（第十六轮能力发现 #12；markor
+     * {@code recursive_search_in_location} 同型语义，见
+     * {@link RecursiveSearchHelper} 文档）。
+     *
+     * <p>工作线程 BFS：深度限制（{@code maxDepth=0} 无限）与忽略目录/符号链接
+     * 判定复用 {@link RecursiveSearchHelper}；名称匹配复用
+     * {@link FileFilterHelper#matchesName}（与当前目录筛选同一语义源）。不可读
+     * 目录（权限/断链）记录日志后<b>跳过继续</b>（markor {@code dir.canRead()}
+     * 同型），不整体失败；根目录不存在/非目录 → onError。</p>
+     *
+     * <p>回调在 sftp worker 线程（纪律：UI 层必须 runOnUiThread）。</p>
+     */
+    public void searchFiles(String rootPath, String query, int maxDepth, SearchCallback callback) {
+        sftpExecutor.execute(() -> runOp("递归搜索", true, channel -> {
+            SftpATTRS rootAttrs;
+            try {
+                rootAttrs = channel.stat(rootPath);
+            } catch (SftpException e) {
+                throw new SftpException(e.id, "目录不存在: " + rootPath);
+            }
+            if (rootAttrs == null || !rootAttrs.isDir()) {
+                throw new SftpException(ChannelSftp.SSH_FX_NO_SUCH_FILE,
+                        "搜索起点不是目录: " + rootPath);
+            }
+
+            List<SearchResult> results = new ArrayList<>();
+            ArrayDeque<SearchDir> pending = new ArrayDeque<>();
+            pending.add(new SearchDir(rootPath, 0));
+
+            while (!pending.isEmpty()) {
+                SearchDir current = pending.poll();
+                if (!RecursiveSearchHelper.shouldDescend(current.depth, maxDepth)) {
+                    continue;
+                }
+                Vector<ChannelSftp.LsEntry> entries;
+                try {
+                    entries = channel.ls(current.path);
+                } catch (SftpException e) {
+                    Log.w(TAG, "递归搜索跳过目录（不可读/断链）: " + current.path, e);
+                    continue;
+                }
+                for (ChannelSftp.LsEntry entry : entries) {
+                    String name = entry.getFilename();
+                    if (name.equals(".") || name.equals("..")) continue;
+                    SftpATTRS attrs = entry.getAttrs();
+                    boolean isDir = attrs.isDir();
+                    String childPath = buildChildPath(current.path, name);
+                    if (isDir && !attrs.isLink() && !RecursiveSearchHelper.isIgnoredDir(name)) {
+                        pending.add(new SearchDir(childPath, current.depth + 1));
+                    }
+                    if (FileFilterHelper.matchesName(name, query)) {
+                        results.add(new SearchResult(name, childPath,
+                                RecursiveSearchHelper.relativePath(rootPath, childPath), isDir));
+                    }
+                }
+            }
+            callback.onSuccess(RecursiveSearchHelper.sortResults(results));
+        }, callback::onError));
     }
 
     public void readFile(String path, FileContentCallback callback) {
