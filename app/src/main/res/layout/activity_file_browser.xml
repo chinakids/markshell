@@ -22,7 +22,43 @@
             app:navigationIcon="?attr/homeAsUpIndicator"
             app:navigationIconTint="@color/md_theme_on_surface" />
 
-    </com.google.android.material.appbar.AppBarLayout>
+            <!-- 文件名称筛选栏（第三轮能力发现，默认隐藏） -->
+            <LinearLayout
+                android:id="@+id/filter_bar"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="horizontal"
+                android:gravity="center_vertical"
+                android:paddingStart="16dp"
+                android:paddingEnd="8dp"
+                android:background="@color/md_theme_surface"
+                android:visibility="gone">
+
+                <EditText
+                    android:id="@+id/et_filter_query"
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:background="@null"
+                    android:hint="筛选文件名…"
+                    android:imeOptions="actionDone"
+                    android:inputType="text"
+                    android:maxLines="1"
+                    android:textColor="@color/text_primary"
+                    android:textColorHint="#888888"
+                    android:textSize="15sp" />
+
+                <ImageButton
+                    android:id="@+id/btn_filter_close"
+                    android:layout_width="44dp"
+                    android:layout_height="44dp"
+                    android:background="?attr/selectableItemBackgroundBorderless"
+                    android:contentDescription="关闭筛选"
+                    android:src="@drawable/ic_close" />
+
+            </LinearLayout>
+
+        </com.google.android.material.appbar.AppBarLayout>
 
     <androidx.swiperefreshlayout.widget.SwipeRefreshLayout
         android:id="@+id/swipe_refresh"

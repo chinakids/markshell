@@ -337,6 +337,137 @@ public class TreeAdapterTest {
         assertEquals(0, adapter.getSelectedCount());
     }
 
+    // ── 名称过滤（第三轮能力发现） ────────────────────────────────────────────
+
+    @Test
+    public void setFilterQuery_filtersByNameCaseInsensitive() {
+        TreeAdapter adapter = noNotifyAdapter();
+        List<RemoteFile> files = new ArrayList<>();
+        files.add(file("README.md", "/data/README.md"));
+        files.add(file("notes.txt", "/data/notes.txt"));
+        files.add(dir("assets", "/data/assets", false, false));
+        adapter.setFiles(files);
+
+        adapter.setFilterQuery("md");
+
+        assertEquals(1, adapter.getItemCount());
+        assertTrue(adapter.isFilterActive());
+        assertEquals("README.md", adapter.getFile(0).getName());
+    }
+
+    @Test
+    public void setFilterQuery_emptyClearsFilter() {
+        TreeAdapter adapter = noNotifyAdapter();
+        List<RemoteFile> files = new ArrayList<>();
+        files.add(file("README.md", "/data/README.md"));
+        files.add(file("notes.txt", "/data/notes.txt"));
+        adapter.setFiles(files);
+        adapter.setFilterQuery("md");
+        assertEquals(1, adapter.getItemCount());
+
+        adapter.setFilterQuery("");
+
+        assertFalse(adapter.isFilterActive());
+        assertEquals(2, adapter.getItemCount());
+    }
+
+    @Test
+    public void setFilterQuery_nullClearsFilter() {
+        TreeAdapter adapter = noNotifyAdapter();
+        List<RemoteFile> files = new ArrayList<>();
+        files.add(file("README.md", "/data/README.md"));
+        adapter.setFiles(files);
+        adapter.setFilterQuery("readme");
+        adapter.setFilterQuery(null);
+
+        assertFalse(adapter.isFilterActive());
+        assertEquals(1, adapter.getItemCount());
+    }
+
+    @Test
+    public void setFilterQuery_activeExitsSelectionMode() {
+        TreeAdapter adapter = noNotifyAdapter();
+        RemoteFile f1 = file("a.md", "/data/a.md");
+        List<RemoteFile> files = new ArrayList<>();
+        files.add(f1);
+        files.add(file("b.md", "/data/b.md"));
+        adapter.setFiles(files);
+        adapter.enterSelectionMode(f1);
+        assertTrue(adapter.isSelectionMode());
+        assertEquals(1, adapter.getSelectedCount());
+
+        adapter.setFilterQuery("b");
+
+        assertFalse(adapter.isSelectionMode());
+        assertEquals(0, adapter.getSelectedCount());
+        // 过滤后的可见项
+        assertEquals(1, adapter.getItemCount());
+        assertEquals("b.md", adapter.getFile(0).getName());
+    }
+
+    @Test
+    public void setFilterQuery_noHitSelectionStillExits() {
+        TreeAdapter adapter = noNotifyAdapter();
+        RemoteFile f1 = file("a.md", "/data/a.md");
+        adapter.setFiles(files(f1));
+        adapter.enterSelectionMode(f1);
+
+        adapter.setFilterQuery("zzz");
+
+        assertFalse(adapter.isSelectionMode());
+        assertEquals(0, adapter.getSelectedCount());
+        assertEquals(0, adapter.getItemCount());
+    }
+
+    @Test
+    public void setFilterQuery_dirShownByOwnNameChildrenFiltered() {
+        TreeAdapter adapter = noNotifyAdapter();
+        RemoteFile sub = dir("docs", "/data/docs", true, true);
+        sub.getChildren().add(file("y.md", "/data/docs/y.md"));
+        sub.getChildren().add(file("z.txt", "/data/docs/z.txt"));
+        List<RemoteFile> root = new ArrayList<>();
+        root.add(sub);
+        adapter.setFiles(root);
+        // setFiles 会按新数据重置未匹配目录；模拟已加载子树重挂载
+        sub.getChildren().clear();
+        sub.getChildren().add(file("y.md", "/data/docs/y.md"));
+        sub.getChildren().add(file("z.txt", "/data/docs/z.txt"));
+        sub.setExpanded(true);
+
+        adapter.setFilterQuery("docs");
+
+        // 目录按自身名字匹配 → 保留；其子项按各自名字过滤 → 只留 y.md
+        assertEquals(1, adapter.getItemCount());
+        assertEquals("docs", adapter.getFile(0).getName());
+        assertTrue(adapter.getSelectedPaths().isEmpty());
+    }
+
+    @Test
+    public void setFilterQuery_dirNameNoMatchHidesSubtree() {
+        TreeAdapter adapter = noNotifyAdapter();
+        RemoteFile sub = dir("docs", "/data/docs", true, true);
+        sub.getChildren().add(file("y.md", "/data/docs/y.md"));
+        List<RemoteFile> root = new ArrayList<>();
+        root.add(sub);
+        adapter.setFiles(root);
+        sub.getChildren().clear();
+        sub.getChildren().add(file("y.md", "/data/docs/y.md"));
+        sub.setExpanded(true);
+
+        adapter.setFilterQuery("y");
+
+        // 子文件命中但父目录名不命中 → 子树整体不可见（文档化语义：无 SFTP 遍历）
+        assertEquals(0, adapter.getItemCount());
+    }
+
+    private static List<RemoteFile> files(RemoteFile... items) {
+        List<RemoteFile> list = new ArrayList<>();
+        for (RemoteFile r : items) {
+            list.add(r);
+        }
+        return list;
+    }
+
     /** 覆写 notifyDataChanged 为 no-op 的实例（见 TreeAdapter.notifyDataChanged 注释：
      *  mockable android.jar 下 RecyclerView.Adapter 空观察者字段为 null，直接通知会 NPE）。 */
     private TreeAdapter noNotifyAdapter() {

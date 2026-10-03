@@ -2,10 +2,15 @@ package com.ssh.mdreader.ui;
 
 import android.content.Intent;
 import android.os.Bundle;
+import android.text.Editable;
+import android.text.TextWatcher;
 import android.view.Menu;
 import android.view.MenuItem;
 import android.view.View;
+import android.view.inputmethod.InputMethodManager;
+import android.widget.EditText;
 import android.widget.FrameLayout;
+import android.widget.ImageButton;
 import android.widget.LinearLayout;
 import android.widget.ProgressBar;
 import android.widget.TextView;
@@ -51,6 +56,17 @@ public class FileBrowserActivity extends BaseActivity
 
     /** 多选模式底部操作栏（批量移动/权限/删除）。 */
     private View selectionBar;
+
+    // ── 文件名称筛选（第三轮能力发现） ─────────────────────────────────────────
+    private View filterBar;
+    private EditText etFilterQuery;
+    private ImageButton btnFilterClose;
+
+    /** 过滤生效时的来源目录（目录切换后自动清除过滤）。 */
+    private String filterPath = null;
+
+    /** 最近一次加载的原始列表是否为空（空态文案区分「空目录/没有匹配」）。 */
+    private boolean lastListEmpty = false;
 
     // ── Two-pane preview (layout-w600dp) ──────────────────────────────────────
     private FrameLayout previewContainer;
@@ -112,6 +128,10 @@ public class FileBrowserActivity extends BaseActivity
             showSortDialog();
             return true;
         }
+        if (id == R.id.action_filter) {
+            toggleFilterBar();
+            return true;
+        }
         if (id == R.id.action_bookmarks) {
             showBookmarksDialog();
             return true;
@@ -167,6 +187,46 @@ public class FileBrowserActivity extends BaseActivity
                 });
     }
 
+    // ── 文件名称筛选（第三轮能力发现） ────────────────────────────────────────
+
+    private void toggleFilterBar() {
+        if (filterBar.getVisibility() == View.VISIBLE) {
+            hideFilterBar();
+        } else {
+            showFilterBar();
+        }
+    }
+
+    private void showFilterBar() {
+        filterBar.setVisibility(View.VISIBLE);
+        etFilterQuery.requestFocus();
+        InputMethodManager imm = (InputMethodManager) getSystemService(INPUT_METHOD_SERVICE);
+        if (imm != null) {
+            imm.showSoftInput(etFilterQuery, InputMethodManager.SHOW_IMPLICIT);
+        }
+    }
+
+    private void hideFilterBar() {
+        // 清空（触达 watcher → adapter.setFilterQuery("")），再收起栏与键盘
+        etFilterQuery.setText("");
+        filterBar.setVisibility(View.GONE);
+        filterPath = null;
+        InputMethodManager imm = (InputMethodManager) getSystemService(INPUT_METHOD_SERVICE);
+        if (imm != null) {
+            imm.hideSoftInputFromWindow(etFilterQuery.getWindowToken(), 0);
+        }
+    }
+
+    /** 空态统一处理：过滤生效且原始列表非空 →「没有匹配的文件」，否则「空目录」。 */
+    private void updateEmptyState() {
+        if (adapter.getItemCount() > 0) {
+            tvEmpty.setVisibility(View.GONE);
+            return;
+        }
+        tvEmpty.setText(adapter.isFilterActive() && !lastListEmpty ? "没有匹配的文件" : "空目录");
+        tvEmpty.setVisibility(View.VISIBLE);
+    }
+
     private void initViews() {
         recyclerFiles = findViewById(R.id.recycler_files);
         swipeRefresh = findViewById(R.id.swipe_refresh);
@@ -193,6 +253,29 @@ public class FileBrowserActivity extends BaseActivity
         swipeRefresh.setColorSchemeColors(
                 getResources().getColor(R.color.md_theme_primary, getTheme()));
         swipeRefresh.setOnRefreshListener(this::loadFiles);
+
+        // ── 文件名称筛选栏（第三轮能力发现） ──────────────────────────────────
+        filterBar = findViewById(R.id.filter_bar);
+        etFilterQuery = findViewById(R.id.et_filter_query);
+        btnFilterClose = findViewById(R.id.btn_filter_close);
+        etFilterQuery.addTextChangedListener(new TextWatcher() {
+            @Override
+            public void beforeTextChanged(CharSequence s, int start, int count, int after) {
+            }
+
+            @Override
+            public void onTextChanged(CharSequence s, int start, int before, int count) {
+            }
+
+            @Override
+            public void afterTextChanged(Editable s) {
+                String query = s.toString();
+                adapter.setFilterQuery(query);
+                filterPath = query.isEmpty() ? null : currentPath;
+                updateEmptyState();
+            }
+        });
+        btnFilterClose.setOnClickListener(v -> hideFilterBar());
 
         btnRetry.setOnClickListener(v -> {
             // isConnectionAlive() is a blocking SFTP round-trip; never on main thread.
@@ -226,6 +309,13 @@ public class FileBrowserActivity extends BaseActivity
     }
 
     private void loadFiles() {
+        // 目录已切换（如书签跳转）：过滤只作用于来源目录，自动清除
+        if (filterPath != null && !currentPath.equals(filterPath)) {
+            etFilterQuery.setText("");
+            filterBar.setVisibility(View.GONE);
+            filterPath = null;
+        }
+
         // Save scroll position before refresh
         final int[] savedScrollY = {-1};
         if (recyclerFiles.getLayoutManager() instanceof LinearLayoutManager) {
@@ -246,13 +336,10 @@ public class FileBrowserActivity extends BaseActivity
                     progressBar.setVisibility(View.GONE);
                     swipeRefresh.setRefreshing(false);
 
-                    if (files.isEmpty()) {
-                        tvEmpty.setVisibility(View.VISIBLE);
-                    } else {
-                        tvEmpty.setVisibility(View.GONE);
-                    }
+                    lastListEmpty = files.isEmpty();
                     int sortMode = prefManager.getFileSortMode();
                     adapter.setFiles(FileSortUtils.sort(files, sortMode), sortMode);
+                    updateEmptyState();
 
                     // Restore scroll position
                     if (savedScrollY[0] >= 0 && savedScrollY[0] < adapter.getItemCount()) {

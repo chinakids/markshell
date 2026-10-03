@@ -13,6 +13,7 @@ import androidx.recyclerview.widget.RecyclerView;
 
 import com.ssh.mdreader.R;
 import com.ssh.mdreader.model.RemoteFile;
+import com.ssh.mdreader.util.FileFilterHelper;
 import com.ssh.mdreader.util.FileSortUtils;
 
 import java.util.ArrayList;
@@ -45,6 +46,9 @@ public class TreeAdapter extends RecyclerView.Adapter<TreeAdapter.ViewHolder> {
     private OnFileActionListener listener;
     private OnSelectionListener selectionListener;
     private boolean showHidden = false;
+
+    /** 名称过滤查询串（null/空=不过滤）——覆盖根列表与已展开子树。 */
+    private String filterQuery = "";
 
     /** 多选模式开关与已选路径集合（path 为键，节点重建后仍可匹配）。 */
     private boolean selectionMode = false;
@@ -230,6 +234,29 @@ public class TreeAdapter extends RecyclerView.Adapter<TreeAdapter.ViewHolder> {
         return false;
     }
 
+    // ── 名称过滤（第三轮能力发现） ─────────────────────────────────────────────
+
+    /**
+     * 设置名称过滤查询串（null/空=清除过滤）。仅作用于内存中已加载的树
+     * （根列表+已展开子目录），不触发 SFTP。生效中若正处于多选模式则自动退出
+     * 多选——避免「已选文件被过滤隐藏后批量操作漏项」的语义陷阱
+     * （{@link #getSelectedFiles()} 只返回当前可见节点）。
+     */
+    public void setFilterQuery(String query) {
+        this.filterQuery = FileFilterHelper.normalize(query);
+        if (isFilterActive() && selectionMode) {
+            selectionMode = false;
+            selectedPaths.clear();
+            notifySelectionChanged();
+        }
+        rebuildFlatList();
+    }
+
+    /** 是否有生效中的过滤。 */
+    public boolean isFilterActive() {
+        return FileFilterHelper.active(filterQuery);
+    }
+
     public void setShowHidden(boolean showHidden) {
         this.showHidden = showHidden;
         rebuildFlatList();
@@ -339,6 +366,7 @@ public class TreeAdapter extends RecyclerView.Adapter<TreeAdapter.ViewHolder> {
 
     private void flattenNode(RemoteFile node) {
         if (!showHidden && isHidden(node)) return;
+        if (isFilterActive() && !FileFilterHelper.matchesName(node.getName(), filterQuery)) return;
         flatList.add(node);
         if (node.isDirectory() && node.isExpanded()) {
             for (RemoteFile child : node.getChildren()) {
@@ -477,6 +505,12 @@ public class TreeAdapter extends RecyclerView.Adapter<TreeAdapter.ViewHolder> {
     @Override
     public int getItemCount() {
         return flatList.size();
+    }
+
+    /** 当前可见列表第 {@code position} 项（含过滤/隐藏语义）；越界返回 null。 */
+    public RemoteFile getFile(int position) {
+        if (position < 0 || position >= flatList.size()) return null;
+        return flatList.get(position);
     }
 
     static class ViewHolder extends RecyclerView.ViewHolder {

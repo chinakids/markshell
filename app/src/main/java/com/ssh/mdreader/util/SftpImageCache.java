@@ -12,6 +12,13 @@ import java.util.LinkedHashMap;
  * （解码动作留给 handler 每次执行，Bitmap 生命周期不与缓存绑定，避免 Drawable
  * 复用/泄露；解码在后台线程，成本远低于网络往返）。</p>
  *
+ * <p><b>线程安全</b>（第三轮走查修正）：Markwon loader 使用
+ * {@code Executors.newCachedThreadPool()}——同文档多图<b>并发</b>加载，且阅读器与
+ * 两栏预览各有一个 loader（共享本缓存），本类所有公共方法因此<b>全量 synchronized</b>。
+ * 规格：单次 {@code get} 失败后的并发重复加载允许发生（无 in-flight 去重，属性能优化
+ * 而非正确性）；任何时刻不得抛 {@code ConcurrentModificationException} 且
+ * {@code totalBytes} 记账必须与实际条目一致。</p>
+ *
  * <p><b>容量策略</b>（文档化）：</p>
  * <ul>
  *   <li>单图超过 {@link #MAX_SINGLE_BYTES}（4MB）→ <b>不入缓存</b>（超大图应
@@ -49,16 +56,16 @@ public final class SftpImageCache {
         this.maxEntries = maxEntries;
     }
 
-    /** 命中返回字节并刷新访问序；未命中返回 null。 */
-    public byte[] get(String path) {
+    /** 命中返回字节并刷新访问序；未命中返回 null。线程安全。 */
+    public synchronized byte[] get(String path) {
         return entries.get(path);
     }
 
     /**
      * 存入（单图超限/空字节/不允许时直接忽略）。超预算时逐出最久未用条目，
-     * 直至总字节与条目数都在限内。返回是否实际缓存。
+     * 直至总字节与条目数都在限内。返回是否实际缓存。线程安全。
      */
-    public boolean put(String path, byte[] bytes) {
+    public synchronized boolean put(String path, byte[] bytes) {
         if (path == null || bytes == null || bytes.length == 0) return false;
         if (bytes.length > MAX_SINGLE_BYTES) return false;
         byte[] prev = entries.remove(path);
@@ -78,18 +85,18 @@ public final class SftpImageCache {
         }
     }
 
-    /** 当前缓存条目数。 */
-    public int size() {
+    /** 当前缓存条目数。线程安全。 */
+    public synchronized int size() {
         return entries.size();
     }
 
-    /** 当前缓存总字节数。 */
-    public int totalBytes() {
+    /** 当前缓存总字节数。线程安全。 */
+    public synchronized int totalBytes() {
         return totalBytes;
     }
 
-    /** 清空。 */
-    public void clear() {
+    /** 清空。线程安全。 */
+    public synchronized void clear() {
         entries.clear();
         totalBytes = 0;
     }

@@ -100,4 +100,56 @@ public class SftpImageCacheTest {
         assertEquals(0, cache.size());
         assertEquals(0, cache.totalBytes());
     }
+
+    /**
+     * 线程安全回归（第三轮走查发现）：Markwon loader 为多线程并发加载，共享缓存
+     * 必须不抛 CME 且记账一致。多线程混合 get/put/clear 压测后检查不变量。
+     */
+    @Test
+    public void concurrentMix_noCorruption() throws Exception {
+        final SftpImageCache cache = new SftpImageCache(64, 8);
+        final int threads = 8;
+        final int iters = 2000;
+        final Throwable[] failure = {null};
+
+        Thread[] workers = new Thread[threads];
+        for (int t = 0; t < threads; t++) {
+            final int seed = t;
+            workers[t] = new Thread(() -> {
+                try {
+                    for (int i = 0; i < iters; i++) {
+                        int k = (seed * iters + i) % 40;
+                        String path = "/img_" + k + ".png";
+                        if ((i & 1) == 0) {
+                            byte[] data = new byte[1 + (i % 5)];
+                            for (int j = 0; j < data.length; j++) data[j] = (byte) (k + j);
+                            cache.put(path, data);
+                            if ((i & 0xFF) == 0) cache.clear();
+                        } else {
+                            cache.get(path);
+                        }
+                        if ((i & 1) == 0) {
+                            int s = cache.size();
+                            int tb = cache.totalBytes();
+                            if (s < 0 || tb < 0 || tb > 64) {
+                                throw new IllegalStateException("不变量破坏: size=" + s + " total=" + tb);
+                            }
+                        }
+                    }
+                } catch (Throwable e) {
+                    failure[0] = e;
+                }
+            });
+            workers[t].start();
+        }
+        for (Thread w : workers) {
+            w.join();
+        }
+        if (failure[0] != null) {
+            throw new AssertionError("并发访问出错", failure[0]);
+        }
+        // 收敛后仍保持预算内
+        assertTrue(cache.size() <= 8);
+        assertTrue(cache.totalBytes() <= 64);
+    }
 }
