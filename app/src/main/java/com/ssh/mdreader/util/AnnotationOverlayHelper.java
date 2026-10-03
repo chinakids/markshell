@@ -366,19 +366,9 @@ public class AnnotationOverlayHelper {
         scrollToOffset(charOffset);
     }
 
-    /** 平滑滚动到指定字符偏移所在行（居中对齐）。 */
+    /** 平滑滚动到指定字符偏移所在行（居中对齐）——交由 UiUtils 共用算法（查看器查找同款）。 */
     private void scrollToOffset(int charOffset) {
-        final int finalOffset = charOffset;
-        tvContent.post(() -> {
-            Layout layout = tvContent.getLayout();
-            if (layout == null) return;
-
-            int line    = layout.getLineForOffset(finalOffset);
-            int lineTop = layout.getLineTop(line);
-            int paddingTop = (int) (16 * context.getResources().getDisplayMetrics().density);
-            int scrollY    = Math.max(0, lineTop + paddingTop - scrollView.getHeight() / 2);
-            scrollView.smoothScrollTo(0, scrollY);
-        });
+        UiUtils.scrollToOffsetCenter(scrollView, tvContent, charOffset);
     }
 
     // ── 连续导航（上一处/下一处）─────────────────────────────────────────────

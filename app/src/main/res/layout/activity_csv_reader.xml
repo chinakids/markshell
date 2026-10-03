@@ -1,39 +1,64 @@
 <?xml version="1.0" encoding="utf-8"?>
-<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
+    android:orientation="vertical"
     android:background="@color/md_theme_background">
 
-    <ScrollView
-        android:id="@+id/scroll_view"
+    <com.google.android.material.appbar.AppBarLayout
         android:layout_width="match_parent"
-        android:layout_height="match_parent"
-        android:fillViewport="true"
-        android:padding="8dp">
+        android:layout_height="wrap_content"
+        android:background="#1E1E1E">
 
-        <HorizontalScrollView
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:fillViewport="true">
+        <androidx.appcompat.widget.Toolbar
+            android:id="@+id/toolbar"
+            android:layout_width="match_parent"
+            android:layout_height="?attr/actionBarSize"
+            android:theme="@style/ThemeOverlay.AppCompat.Dark.ActionBar" />
 
-            <TableLayout
-                android:id="@+id/table_layout"
+        <!-- 查看器查找栏（路线图 #21，默认隐藏） -->
+        <include layout="@layout/find_bar_viewer" />
+
+    </com.google.android.material.appbar.AppBarLayout>
+
+    <FrameLayout
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_weight="1">
+
+        <ScrollView
+            android:id="@+id/scroll_view"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:fillViewport="true"
+            android:padding="8dp">
+
+            <HorizontalScrollView
+                android:id="@+id/horizontal_scroll_view"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:stretchColumns="*" />
+                android:fillViewport="true">
 
-        </HorizontalScrollView>
+                <TableLayout
+                    android:id="@+id/table_layout"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:stretchColumns="*" />
 
-    </ScrollView>
+            </HorizontalScrollView>
 
-    <ProgressBar
-        android:id="@+id/progress_bar"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:layout_gravity="center"
-        android:indeterminateTint="@color/md_theme_primary"
-        android:visibility="gone" />
+        </ScrollView>
 
-    <include layout="@layout/loading_overlay" />
+        <ProgressBar
+            android:id="@+id/progress_bar"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_gravity="center"
+            android:indeterminateTint="@color/md_theme_primary"
+            android:visibility="gone" />
 
-</FrameLayout>
+        <include layout="@layout/loading_overlay" />
+
+    </FrameLayout>
+
+</LinearLayout>

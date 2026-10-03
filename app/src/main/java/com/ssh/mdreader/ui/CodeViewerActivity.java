@@ -8,6 +8,7 @@ import android.view.MenuItem;
 import android.view.MotionEvent;
 import android.view.ScaleGestureDetector;
 import android.view.View;
+import android.widget.HorizontalScrollView;
 import android.widget.ScrollView;
 import android.widget.TextView;
 
@@ -18,6 +19,7 @@ import com.ssh.mdreader.R;
 import com.ssh.mdreader.ssh.SshManager;
 import com.ssh.mdreader.util.CodeHighlighter;
 import com.ssh.mdreader.util.UiUtils;
+import com.ssh.mdreader.util.ViewerFindBar;
 
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -27,11 +29,14 @@ public class CodeViewerActivity extends BaseActivity {
     private static final String TAG = "CodeViewerActivity";
     private static final String KEY_SCROLL_Y = "scroll_y";
     private static final int MENU_COPY_PATH_ID = 0xA2001;
+    private static final int MENU_FIND_ID = 0xA2002;
 
     private TextView textLineNumbers;
     private TextView textCodeContent;
     private View loadingOverlay;
     private ScrollView scrollView;
+    private HorizontalScrollView horizontalScrollView;
+    private ViewerFindBar viewerFindBar;
     private int restoredScrollY;
     private float currentTextSize = 14f;
     private static final float MIN_TEXT_SIZE = 8f;
@@ -60,6 +65,11 @@ public class CodeViewerActivity extends BaseActivity {
         textCodeContent = findViewById(R.id.text_code_content);
         loadingOverlay = findViewById(R.id.loading_overlay);
         scrollView = findViewById(R.id.scroll_view);
+        horizontalScrollView = findViewById(R.id.horizontal_scroll_view);
+        viewerFindBar = new ViewerFindBar(this, textCodeContent, scrollView, horizontalScrollView,
+                findViewById(R.id.viewer_find_bar),
+                findViewById(R.id.viewer_find_query),
+                findViewById(R.id.viewer_find_status));
         if (savedInstanceState != null) {
             restoredScrollY = savedInstanceState.getInt(KEY_SCROLL_Y, 0);
         }
@@ -99,6 +109,9 @@ public class CodeViewerActivity extends BaseActivity {
     @Override
     public boolean onCreateOptionsMenu(Menu menu) {
         if (currentFilePath == null) return super.onCreateOptionsMenu(menu);
+        menu.add(Menu.NONE, MENU_FIND_ID, Menu.NONE, "查找")
+                .setIcon(R.drawable.ic_search)
+                .setShowAsAction(MenuItem.SHOW_AS_ACTION_IF_ROOM);
         menu.add(Menu.NONE, MENU_COPY_PATH_ID, Menu.NONE, "复制路径")
                 .setIcon(R.drawable.ic_content_copy)
                 .setShowAsAction(MenuItem.SHOW_AS_ACTION_IF_ROOM);
@@ -109,6 +122,10 @@ public class CodeViewerActivity extends BaseActivity {
     public boolean onOptionsItemSelected(MenuItem item) {
         if (item.getItemId() == MENU_COPY_PATH_ID) {
             UiUtils.copyRemotePath(this, currentFilePath);
+            return true;
+        }
+        if (item.getItemId() == MENU_FIND_ID) {
+            viewerFindBar.show();
             return true;
         }
         return super.onOptionsItemSelected(item);
@@ -150,6 +167,7 @@ public class CodeViewerActivity extends BaseActivity {
             final SpannableStringBuilder highlighted = result;
             runOnUiThread(() -> {
                 textCodeContent.setText(highlighted);
+                viewerFindBar.onContentChanged();
                 if (loadingOverlay != null) {
                     loadingOverlay.setVisibility(View.GONE);
                 }

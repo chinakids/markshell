@@ -20,6 +20,9 @@
                 android:layout_height="?attr/actionBarSize"
                 android:theme="@style/ThemeOverlay.AppCompat.Dark.ActionBar" />
 
+            <!-- 查看器查找栏（路线图 #21，默认隐藏） -->
+            <include layout="@layout/find_bar_viewer" />
+
         </com.google.android.material.appbar.AppBarLayout>
 
         <ScrollView

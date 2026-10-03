@@ -15,15 +15,18 @@ import androidx.annotation.NonNull;
 import com.ssh.mdreader.R;
 import com.ssh.mdreader.ssh.SshManager;
 import com.ssh.mdreader.util.UiUtils;
+import com.ssh.mdreader.util.ViewerFindBar;
 
 public class TextViewerActivity extends BaseActivity {
 
     private static final String KEY_SCROLL_Y = "scroll_y";
     private static final int MENU_COPY_PATH_ID = 0xA2001;
+    private static final int MENU_FIND_ID = 0xA2002;
 
     private TextView textContent;
     private View loadingOverlay;
     private ScrollView scrollView;
+    private ViewerFindBar viewerFindBar;
     private int restoredScrollY;
     private float currentTextSize = 14f;
     private static final float MIN_TEXT_SIZE = 8f;
@@ -48,6 +51,10 @@ public class TextViewerActivity extends BaseActivity {
         textContent = findViewById(R.id.text_content);
         loadingOverlay = findViewById(R.id.loading_overlay);
         scrollView = findViewById(R.id.scroll_view);
+        viewerFindBar = new ViewerFindBar(this, textContent, scrollView, null,
+                findViewById(R.id.viewer_find_bar),
+                findViewById(R.id.viewer_find_query),
+                findViewById(R.id.viewer_find_status));
         if (savedInstanceState != null) {
             restoredScrollY = savedInstanceState.getInt(KEY_SCROLL_Y, 0);
         }
@@ -85,6 +92,9 @@ public class TextViewerActivity extends BaseActivity {
     @Override
     public boolean onCreateOptionsMenu(Menu menu) {
         if (currentFilePath == null) return super.onCreateOptionsMenu(menu);
+        menu.add(Menu.NONE, MENU_FIND_ID, Menu.NONE, "查找")
+                .setIcon(R.drawable.ic_search)
+                .setShowAsAction(MenuItem.SHOW_AS_ACTION_IF_ROOM);
         menu.add(Menu.NONE, MENU_COPY_PATH_ID, Menu.NONE, "复制路径")
                 .setIcon(R.drawable.ic_content_copy)
                 .setShowAsAction(MenuItem.SHOW_AS_ACTION_IF_ROOM);
@@ -97,6 +107,10 @@ public class TextViewerActivity extends BaseActivity {
             UiUtils.copyRemotePath(this, currentFilePath);
             return true;
         }
+        if (item.getItemId() == MENU_FIND_ID) {
+            viewerFindBar.show();
+            return true;
+        }
         return super.onOptionsItemSelected(item);
     }
 
@@ -106,6 +120,7 @@ public class TextViewerActivity extends BaseActivity {
             public void onSuccess(String content) {
                 runOnUiThread(() -> {
                     textContent.setText(content);
+                    viewerFindBar.onContentChanged();
                     if (loadingOverlay != null) {
                         loadingOverlay.setVisibility(View.GONE);
                     }

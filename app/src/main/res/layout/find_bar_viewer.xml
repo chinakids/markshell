@@ -1,0 +1,61 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 查看器（Text/Code/CSV）查找栏（路线图 #21，默认隐藏）：
+     样式与 MarkdownReader 查找行对齐（深色 surface + text_primary，无替换行）。 -->
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/viewer_find_bar"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:orientation="horizontal"
+    android:background="@color/md_theme_surface"
+    android:gravity="center_vertical"
+    android:paddingStart="16dp"
+    android:paddingEnd="8dp"
+    android:visibility="gone">
+
+    <EditText
+        android:id="@+id/viewer_find_query"
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:layout_weight="1"
+        android:background="@null"
+        android:hint="查找…"
+        android:imeOptions="actionSearch"
+        android:inputType="text"
+        android:maxLines="1"
+        android:textColor="@color/text_primary"
+        android:textColorHint="#888888"
+        android:textSize="15sp" />
+
+    <TextView
+        android:id="@+id/viewer_find_status"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginStart="4dp"
+        android:textColor="#BB86FC"
+        android:textSize="13sp" />
+
+    <ImageButton
+        android:id="@+id/viewer_btn_find_prev"
+        android:layout_width="44dp"
+        android:layout_height="44dp"
+        android:background="?attr/selectableItemBackgroundBorderless"
+        android:contentDescription="上一处"
+        android:src="@drawable/ic_annotation_prev" />
+
+    <ImageButton
+        android:id="@+id/viewer_btn_find_next"
+        android:layout_width="44dp"
+        android:layout_height="44dp"
+        android:background="?attr/selectableItemBackgroundBorderless"
+        android:contentDescription="下一处"
+        android:src="@drawable/ic_annotation_next" />
+
+    <ImageButton
+        android:id="@+id/viewer_btn_find_close"
+        android:layout_width="44dp"
+        android:layout_height="44dp"
+        android:background="?attr/selectableItemBackgroundBorderless"
+        android:contentDescription="关闭查找"
+        android:src="@drawable/ic_close" />
+
+</LinearLayout>
