@@ -8,7 +8,9 @@ import androidx.annotation.Nullable;
 import com.ssh.mdreader.model.AnnotationEntry;
 
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 
 /**
  * Helpers for the annotation system.
@@ -146,6 +148,74 @@ public class AnnotationHelper {
     @NonNull
     public static String generateId() {
         return Long.toString(System.currentTimeMillis(), 36);
+    }
+
+    // ── Locatability（编辑后批注重定位：失效判定，与 applyAnnotationSpans 跳过语义一致）──
+
+    /**
+     * 单条批注能否在给定渲染文本中按 {@link AnnotationEntry#occurrenceIndex}
+     * 精确定位。语义与 {@link AnnotationOverlayHelper#applyAnnotationSpans()}
+     * 的跳过条件完全一致（原文为空 / 找不到指定次数出现 / 区间越界 → 不可定位）。
+     *
+     * @return true = 可定位；false = 失效（未找到原文）
+     */
+    public static boolean isFindable(@Nullable AnnotationEntry entry, @Nullable String plainText) {
+        if (entry == null) return false;
+        if (entry.originalText == null || entry.originalText.isEmpty()) return false;
+        if (plainText == null || plainText.isEmpty()) return false;
+        int start = findNthOccurrence(plainText, entry.originalText, entry.occurrenceIndex);
+        if (start < 0) return false;
+        // 防御：findNthOccurrence 理论不越界；与 span 覆盖的越界检查保持一致
+        return start + entry.originalText.length() <= plainText.length();
+    }
+
+    /** 无法定位（失效）的批注条数。 */
+    public static int countNonFindable(@Nullable List<AnnotationEntry> annotations,
+                                       @Nullable String plainText) {
+        if (annotations == null || annotations.isEmpty()) return 0;
+        int count = 0;
+        for (AnnotationEntry e : annotations) {
+            if (!isFindable(e, plainText)) count++;
+        }
+        return count;
+    }
+
+    /** 无法定位（失效）条目的 id 集合（提示/抽屉标注用）。 */
+    @NonNull
+    public static Set<String> nonFindableIds(@Nullable List<AnnotationEntry> annotations,
+                                             @Nullable String plainText) {
+        Set<String> ids = new HashSet<>();
+        if (annotations == null) return ids;
+        for (AnnotationEntry e : annotations) {
+            if (e != null && !isFindable(e, plainText)) ids.add(e.id);
+        }
+        return ids;
+    }
+
+    /** 抽屉条目的定位标注状态。 */
+    public enum AnnotationStatus {
+        /** 可定位（正常显示）。 */
+        OK,
+        /** 无法定位（未找到原文，可能因编辑改动失效）。 */
+        FAILED
+    }
+
+    /**
+     * 抽屉列表每条目的定位状态（与 {@code annotations} 同序）——UI 据此标注
+     * 「未找到原文」等；判定语义与 {@link #isFindable} 一致（即与
+     * {@link AnnotationOverlayHelper#applyAnnotationSpans()} 跳过语义一致）。
+     */
+    @NonNull
+    public static List<AnnotationStatus> drawerStatuses(
+            @Nullable List<AnnotationEntry> annotations, @Nullable String plainText) {
+        List<AnnotationStatus> result = new ArrayList<>();
+        if (annotations == null) return result;
+        Set<String> failed = nonFindableIds(annotations, plainText);
+        for (AnnotationEntry e : annotations) {
+            result.add(e != null && failed.contains(e.id)
+                    ? AnnotationStatus.FAILED : AnnotationStatus.OK);
+        }
+        return result;
     }
 
     // ── Export ────────────────────────────────────────────────────────────────

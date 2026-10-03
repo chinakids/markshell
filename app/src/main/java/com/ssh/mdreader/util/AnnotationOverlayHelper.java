@@ -37,7 +37,9 @@ import com.ssh.mdreader.ssh.SshManager;
 import com.ssh.mdreader.ui.span.AnnotationSpan;
 
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 
 /**
  * MarkdownReaderActivity 的批注功能层：CSV 持久化、内联 span 覆盖、抽屉列表、
@@ -66,6 +68,13 @@ public class AnnotationOverlayHelper {
 
         /** 等价 deleteAnnotation 非空分支的 markwon.setMarkdown + setTextIsSelectable（不动字号/滚动）。 */
         void refreshMarkdownText();
+
+        /**
+         * 批注列表重新读取 CSV 并重定位（{@link AnnotationOverlayHelper#applyAnnotationSpans()}）
+         * 完成后回调失效批注 id 集合——供宿主在「编辑保存后」路径提示失效批注。
+         * 默认空实现（非编辑保存路径无副作用）；宿主如需提示应覆盖并在消费后复位。
+         */
+        default void onAnnotationsRelocated(@NonNull Set<String> failedIds) {}
     }
 
     /** 与拆分前一致的 logcat tag（原 MarkdownReaderActivity）。 */
@@ -95,6 +104,10 @@ public class AnnotationOverlayHelper {
     private int lastVisitedStart = -1;
     /** 当前高亮的批注区间（导航目标）；重新渲染/再次导航时替换。 */
     private BackgroundColorSpan activeHighlight;
+
+    // ── 批注重定位失效状态（编辑保存后未找到原文的条目）─────────────────────
+    /** 当前渲染文本下无法定位（失效）的批注 id 集合——每次重定位（applyAnnotationSpans）重算。 */
+    private final Set<String> failedIds = new HashSet<>();
 
     public AnnotationOverlayHelper(Context context, Host host,
                                    TextView tvContent, ScrollView scrollView,
@@ -215,6 +228,8 @@ public class AnnotationOverlayHelper {
                             annotations.addAll(AnnotationHelper.parseAnnotationFile(content));
                             lastVisitedStart = -1;   // 内容重载，访问游标失效
                             applyAnnotationSpans();
+                            // 重定位完成：通知宿主失效集合（编辑保存后提示路径；默认空实现）
+                            host.onAnnotationsRelocated(getFailedIds());
                         });
                     }
                     @Override
@@ -230,6 +245,11 @@ public class AnnotationOverlayHelper {
      * so duplicate text is handled correctly without any source-file modification.</p>
      */
     public void applyAnnotationSpans() {
+        // 每次重定位都基于「当前渲染文本」重算失效集合——失效是相对文本的派生状态，
+        // 不落盘：文本变化/新增删除批注后重新计算即自然清除或更新。
+        failedIds.clear();
+        failedIds.addAll(AnnotationHelper.nonFindableIds(
+                annotations, tvContent.getText().toString()));
         if (annotations.isEmpty()) return;
 
         CharSequence current = tvContent.getText();
@@ -258,7 +278,9 @@ public class AnnotationOverlayHelper {
 
     /** 刷新抽屉列表与空态（菜单打开前调用）。 */
     public void refreshAnnotationDrawer() {
-        annotationListAdapter.setData(annotations);
+        List<AnnotationHelper.AnnotationStatus> statuses =
+                AnnotationHelper.drawerStatuses(annotations, tvContent.getText().toString());
+        annotationListAdapter.setData(annotations, statuses);
         if (annotations.isEmpty()) {
             rvAnnotationList.setVisibility(View.GONE);
             layoutEmptyAnnotations.setVisibility(View.VISIBLE);
@@ -273,6 +295,12 @@ public class AnnotationOverlayHelper {
     /** 关闭并清空当前弹窗（onPause 时调用）。 */
     public void dismissActivePopup() {
         if (activePopup != null) { activePopup.dismiss(); activePopup = null; }
+    }
+
+    /** 当前失效批注 id 集合（只读使用，调用方不得修改）。 */
+    @NonNull
+    public Set<String> getFailedIds() {
+        return failedIds;
     }
 
     /**
@@ -291,7 +319,10 @@ public class AnnotationOverlayHelper {
             }
         }
 
-        if (charOffset < 0) return;
+        if (charOffset < 0) {
+            UiUtils.showToast(context, "该批注未找到原文（可能已被编辑修改）");
+            return;
+        }
         lastVisitedStart = charOffset;   // 抽屉跳转亦属于导航，同步访问游标防重复命中
         scrollToOffset(charOffset);
     }

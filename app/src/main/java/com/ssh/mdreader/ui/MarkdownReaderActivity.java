@@ -29,6 +29,8 @@ import io.noties.markwon.ext.tables.TablePlugin;
 import io.noties.markwon.ext.tasklist.TaskListPlugin;
 import io.noties.markwon.image.ImagesPlugin;
 
+import java.util.Set;
+
 public class MarkdownReaderActivity extends BaseActivity implements AnnotationOverlayHelper.Host {
 
     private static final int FONT_SIZE_MIN     = 12;
@@ -72,6 +74,8 @@ public class MarkdownReaderActivity extends BaseActivity implements AnnotationOv
 
     // ── Annotation feature (批注功能层，含抽屉/span/弹窗/CSV 持久化) ──────────
     private AnnotationOverlayHelper annotationOverlay;
+    /** 编辑保存成功后置位：下一次批注重定位完成时提示失效批注（一次性消费）。 */
+    private boolean pendingFailureNotice;
 
     // ─────────────────────────────────────────────────────────────────────────
     @Override
@@ -220,6 +224,7 @@ public class MarkdownReaderActivity extends BaseActivity implements AnnotationOv
                         runOnUiThread(() -> {
                             saving = false;
                             UiUtils.showToast(MarkdownReaderActivity.this, "已保存");
+                            pendingFailureNotice = true;   // 保存成功：重定位后提示失效批注
                             exitEditMode(true);
                         });
                     }
@@ -390,6 +395,17 @@ public class MarkdownReaderActivity extends BaseActivity implements AnnotationOv
     public void refreshMarkdownText() {
         markwon.setMarkdown(tvContent, markdownContent);
         tvContent.setTextIsSelectable(true);
+    }
+
+    @Override
+    public void onAnnotationsRelocated(@NonNull Set<String> failedIds) {
+        // 仅「编辑保存后」路径消费一次；其余重定位（初次加载/增删批注）不提示
+        if (!pendingFailureNotice) return;
+        pendingFailureNotice = false;
+        int n = failedIds.size();
+        if (n > 0) {
+            UiUtils.showToast(this, n + " 条批注因编辑未找到原文，已从渲染中移除");
+        }
     }
 
     // ── Lifecycle ─────────────────────────────────────────────────────────────

@@ -1,6 +1,7 @@
 package com.ssh.mdreader.util;
 
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 
 import com.ssh.mdreader.model.AnnotationEntry;
@@ -312,5 +313,134 @@ public class AnnotationHelperTest {
                 entries, AnnotationHelper.ExportFormat.MARKDOWN);
 
         assertEquals("> **批注**：原文「原文1」 → 批注「批注1」\n", out);
+    }
+
+    // ── Locatability（编辑后批注重定位：失效判定）──────────────────────────────
+    // 素材：TEXT 中 "aaa" 出现于 0、8 两处，"bbb" 于 4，"ccc" 于 12。
+
+    private static final String TEXT = "aaa bbb aaa ccc";
+
+    private static AnnotationEntry entry(String id, String orig, int occurrence) {
+        return new AnnotationEntry(id, "注释", orig, occurrence);
+    }
+
+    @Test
+    public void isFindableExactHit() {
+        assertTrue(AnnotationHelper.isFindable(entry("a1", "aaa", 0), TEXT));
+        assertTrue(AnnotationHelper.isFindable(entry("a2", "bbb", 0), TEXT));
+    }
+
+    @Test
+    public void isFindableOccurrenceIndexOutOfRange() {
+        // "aaa" 仅出现 2 次（index 0/1），request occurrence 2 定位不到
+        assertFalse(AnnotationHelper.isFindable(entry("a3", "aaa", 2), TEXT));
+    }
+
+    @Test
+    public void isFindableNotFound() {
+        assertFalse(AnnotationHelper.isFindable(entry("a4", "zzz", 0), TEXT));
+    }
+
+    @Test
+    public void isFindableEmptyOriginal() {
+        assertFalse(AnnotationHelper.isFindable(entry("a5", "", 0), TEXT));
+    }
+
+    @Test
+    public void isFindableNullEntryOrNullText() {
+        assertFalse(AnnotationHelper.isFindable(null, TEXT));
+        assertFalse(AnnotationHelper.isFindable(entry("a1", "aaa", 0), null));
+        assertFalse(AnnotationHelper.isFindable(entry("a1", "aaa", 0), ""));
+    }
+
+    @Test
+    public void isFindableWholeText() {
+        // 原文等于整个文本（恰好落在末尾）→ 可定位
+        assertTrue(AnnotationHelper.isFindable(entry("a6", TEXT, 0), TEXT));
+    }
+
+    @Test
+    public void countNonFindableSome() {
+        List<AnnotationEntry> entries = new java.util.ArrayList<>();
+        entries.add(entry("a1", "aaa", 0));
+        entries.add(entry("a3", "aaa", 2));   // 失效
+        entries.add(entry("a2", "bbb", 0));
+        assertEquals(1, AnnotationHelper.countNonFindable(entries, TEXT));
+    }
+
+    @Test
+    public void countNonFindableNone() {
+        List<AnnotationEntry> entries = new java.util.ArrayList<>();
+        entries.add(entry("a1", "aaa", 0));
+        entries.add(entry("a2", "bbb", 0));
+        assertEquals(0, AnnotationHelper.countNonFindable(entries, TEXT));
+    }
+
+    @Test
+    public void countNonFindableNullInputs() {
+        assertEquals(0, AnnotationHelper.countNonFindable(null, TEXT));
+        assertEquals(0, AnnotationHelper.countNonFindable(
+                new java.util.ArrayList<>(), TEXT));
+        assertEquals(0, AnnotationHelper.countNonFindable(
+                new java.util.ArrayList<>(), null));
+    }
+
+    @Test
+    public void nonFindableIdsCollectsOnlyFailed() {
+        List<AnnotationEntry> entries = new java.util.ArrayList<>();
+        entries.add(entry("a1", "aaa", 0));
+        entries.add(entry("a3", "aaa", 2));   // 失效
+        entries.add(entry("a2", "bbb", 0));
+        java.util.Set<String> failed = AnnotationHelper.nonFindableIds(entries, TEXT);
+        assertEquals(1, failed.size());
+        assertTrue(failed.contains("a3"));
+        assertFalse(failed.contains("a1"));
+        assertFalse(failed.contains("a2"));
+    }
+
+    @Test
+    public void nonFindableIdsEmptyWhenAllFindable() {
+        List<AnnotationEntry> entries = new java.util.ArrayList<>();
+        entries.add(entry("a1", "aaa", 0));
+        entries.add(entry("a2", "bbb", 0));
+        assertTrue(AnnotationHelper.nonFindableIds(entries, TEXT).isEmpty());
+        assertTrue(AnnotationHelper.nonFindableIds(null, TEXT).isEmpty());
+    }
+
+    @Test
+    public void drawerStatusesSameOrderMarksFailed() {
+        List<AnnotationEntry> entries = new java.util.ArrayList<>();
+        entries.add(entry("a1", "aaa", 0));
+        entries.add(entry("a3", "aaa", 2));   // 失效
+        entries.add(entry("a2", "bbb", 0));
+        entries.add(entry("a4", "ccc", 0));
+
+        List<AnnotationHelper.AnnotationStatus> statuses =
+                AnnotationHelper.drawerStatuses(entries, TEXT);
+
+        assertEquals(4, statuses.size());
+        assertEquals(AnnotationHelper.AnnotationStatus.OK, statuses.get(0));
+        assertEquals(AnnotationHelper.AnnotationStatus.FAILED, statuses.get(1));
+        assertEquals(AnnotationHelper.AnnotationStatus.OK, statuses.get(2));
+        assertEquals(AnnotationHelper.AnnotationStatus.OK, statuses.get(3));
+    }
+
+    @Test
+    public void drawerStatusesEmptyOriginalAsFailed() {
+        List<AnnotationEntry> entries = new java.util.ArrayList<>();
+        entries.add(entry("a5", "", 0));
+
+        List<AnnotationHelper.AnnotationStatus> statuses =
+                AnnotationHelper.drawerStatuses(entries, TEXT);
+
+        assertEquals(1, statuses.size());
+        assertEquals(AnnotationHelper.AnnotationStatus.FAILED, statuses.get(0));
+    }
+
+    @Test
+    public void drawerStatusesEmptyAndNullInputs() {
+        assertTrue(AnnotationHelper.drawerStatuses(null, TEXT).isEmpty());
+        assertTrue(AnnotationHelper.drawerStatuses(
+                new java.util.ArrayList<>(), TEXT).isEmpty());
     }
 }
