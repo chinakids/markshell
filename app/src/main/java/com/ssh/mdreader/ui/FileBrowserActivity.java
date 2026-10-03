@@ -110,7 +110,44 @@ public class FileBrowserActivity extends BaseActivity
             showSortDialog();
             return true;
         }
+        if (id == R.id.action_bookmarks) {
+            showBookmarksDialog();
+            return true;
+        }
         return super.onOptionsItemSelected(item);
+    }
+
+    // ── 目录书签快捷访问 ────────────────────────────────────────────────────
+
+    /** 顶部「书签」入口：列出当前服务器已收藏目录，点击跳转。 */
+    private void showBookmarksDialog() {
+        SshConfig config = sshManager.getConfig();
+        if (config == null) return;
+        List<String> bookmarks = prefManager.getBookmarkedPaths(
+                config.getHost(), config.getPort(), config.getUsername());
+        if (bookmarks.isEmpty()) {
+            UiUtils.showToast(this, "还没有书签，长按目录即可收藏");
+            return;
+        }
+        String[] items = new String[bookmarks.size()];
+        int[] icons = new int[bookmarks.size()];
+        for (int i = 0; i < bookmarks.size(); i++) {
+            items[i] = bookmarks.get(i);
+            icons[i] = R.drawable.ic_bookmark;
+        }
+        DialogHelper.showListDialog(this,
+                "书签目录（" + bookmarks.size() + "）",
+                items, icons,
+                (dialog, which) -> jumpToBookmark(bookmarks.get(which)));
+    }
+
+    /** 跳转到书签目录：重设当前根路径并重新加载列表。 */
+    private void jumpToBookmark(String path) {
+        if (isFinishing() || isDestroyed()) return;
+        currentPath = path;
+        updateToolbarSubtitle();
+        loadFiles();
+        UiUtils.showToast(this, "已跳转到 " + path);
     }
 
     private void showSortDialog() {
@@ -411,11 +448,16 @@ public class FileBrowserActivity extends BaseActivity
         SshConfig config = sshManager.getConfig();
         if (config == null) return;
 
+        boolean bookmarked = prefManager.isBookmarked(
+                config.getHost(), config.getPort(),
+                config.getUsername(), dir.getPath());
         DialogHelper.showListDialog(this,
                 dir.getName(),
-                new String[]{"多选", "移动", "复制", "重命名", "权限", "删除", "设为主目录"},
+                new String[]{"多选", "移动", "复制", "重命名", "权限", "删除", "设为主目录",
+                        bookmarked ? "取消收藏" : "收藏"},
                 new int[]{0, R.drawable.ic_move, R.drawable.ic_copy, R.drawable.ic_edit,
-                        R.drawable.ic_lock, R.drawable.ic_delete, R.drawable.ic_folder_set},
+                        R.drawable.ic_lock, R.drawable.ic_delete, R.drawable.ic_folder_set,
+                        bookmarked ? R.drawable.ic_bookmark : R.drawable.ic_bookmark_border},
                 (dialog, which) -> {
                     if (which == 0) {
                         adapter.enterSelectionMode(dir);
@@ -434,8 +476,26 @@ public class FileBrowserActivity extends BaseActivity
                                 config.getHost(), config.getPort(),
                                 config.getUsername(), dir.getPath());
                         UiUtils.showToast(this, "已设为主目录");
+                    } else if (which == 7) {
+                        toggleBookmark(config, dir);
                     }
                 });
+    }
+
+    /** 收藏/取消收藏当前目录，立即持久化（书签按服务器隔离）。 */
+    private void toggleBookmark(SshConfig config, RemoteFile dir) {
+        boolean bookmarked = prefManager.isBookmarked(
+                config.getHost(), config.getPort(),
+                config.getUsername(), dir.getPath());
+        if (bookmarked) {
+            prefManager.removeBookmark(config.getHost(), config.getPort(),
+                    config.getUsername(), dir.getPath());
+            UiUtils.showToast(this, "已取消收藏");
+        } else {
+            prefManager.addBookmark(config.getHost(), config.getPort(),
+                    config.getUsername(), dir.getPath());
+            UiUtils.showToast(this, "已收藏 " + dir.getName());
+        }
     }
 
     // ── FileOpsHelper.Host 回调实现 ────────────────────────────────────────

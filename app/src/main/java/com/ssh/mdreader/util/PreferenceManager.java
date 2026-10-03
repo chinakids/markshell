@@ -21,6 +21,7 @@ public class PreferenceManager {
     private static final String KEY_SHOW_HIDDEN = "show_hidden";
     private static final String KEY_HEARTBEAT_MS = "heartbeat_interval_ms";
     private static final String KEY_FILE_SORT_MODE = "file_sort_mode";
+    private static final String KEY_BOOKMARKS = "bookmarked_dirs";
     /** 与 SshManager.DEFAULT_HEARTBEAT_MS 保持一致。 */
     private static final int DEFAULT_HEARTBEAT_MS = 5_000;
 
@@ -148,5 +149,118 @@ public class PreferenceManager {
 
     public int getFileSortMode() {
         return prefs.getInt(KEY_FILE_SORT_MODE, 0);
+    }
+
+    // ── 目录书签（按服务器 host+port+username 隔离）─────────────────────────
+
+    /**
+     * 读取指定服务器已收藏的目录路径列表（按「新收藏在前」）。
+     * JSON 结构：{@code [{"host":..,"port":..,"username":..,"paths":["/a",..]},..]}。
+     */
+    public List<String> getBookmarkedPaths(String host, int port, String username) {
+        JSONArray arr = readBookmarks();
+        for (int i = 0; i < arr.length(); i++) {
+            JSONObject obj = arr.optJSONObject(i);
+            if (obj != null && matchesServer(obj, host, port, username)) {
+                return pathsFrom(obj.optJSONArray("paths"));
+            }
+        }
+        return new ArrayList<>();
+    }
+
+    /** 收藏目录（规范化后置顶、去重、上限 {@link BookmarkHelper#MAX_BOOKMARKS}），立即持久化。 */
+    public void addBookmark(String host, int port, String username, String path) {
+        if (host == null || username == null) return;
+        String normalized = BookmarkHelper.normalizePath(path);
+        if (normalized.isEmpty()) return;
+        JSONArray arr = readBookmarks();
+        for (int i = 0; i < arr.length(); i++) {
+            JSONObject obj = arr.optJSONObject(i);
+            if (obj != null && matchesServer(obj, host, port, username)) {
+                List<String> paths = BookmarkHelper.addBookmark(
+                        pathsFrom(obj.optJSONArray("paths")), normalized);
+                if (putPaths(obj, paths)) writeBookmarks(arr);
+                return;
+            }
+        }
+        // 该服务器尚无书签记录：新建条目
+        JSONObject obj = new JSONObject();
+        try {
+            obj.put("host", host)
+                    .put("port", port)
+                    .put("username", username);
+            obj.put("paths", new JSONArray(
+                    BookmarkHelper.addBookmark(null, normalized)));
+            arr.put(obj);
+            writeBookmarks(arr);
+        } catch (JSONException e) {
+            Log.w(TAG, "保存书签失败", e);
+        }
+    }
+
+    /** 取消收藏（移除全部规范化匹配项）；该服务器书签清空后删除整条记录。 */
+    public void removeBookmark(String host, int port, String username, String path) {
+        JSONArray arr = readBookmarks();
+        for (int i = 0; i < arr.length(); i++) {
+            JSONObject obj = arr.optJSONObject(i);
+            if (obj == null || !matchesServer(obj, host, port, username)) continue;
+            List<String> updated = BookmarkHelper.removeBookmark(
+                    pathsFrom(obj.optJSONArray("paths")), path);
+            if (updated.isEmpty()) {
+                arr.remove(i);
+            } else if (!putPaths(obj, updated)) {
+                return;
+            }
+            writeBookmarks(arr);
+            return;
+        }
+    }
+
+    /** 目录是否已收藏（按规范化后比较）。 */
+    public boolean isBookmarked(String host, int port, String username, String path) {
+        return BookmarkHelper.isBookmarked(
+                getBookmarkedPaths(host, port, username), path);
+    }
+
+    private JSONArray readBookmarks() {
+        String json = prefs.getString(KEY_BOOKMARKS, "");
+        if (json.isEmpty()) return new JSONArray();
+        try {
+            return new JSONArray(json);
+        } catch (JSONException e) {
+            Log.w(TAG, "读取书签失败，已忽略损坏的数据", e);
+            return new JSONArray();
+        }
+    }
+
+    private void writeBookmarks(JSONArray arr) {
+        prefs.edit().putString(KEY_BOOKMARKS, arr.toString()).apply();
+    }
+
+    private static boolean matchesServer(JSONObject obj, String host, int port, String username) {
+        return obj.optString("host", "").equals(host)
+                && obj.optInt("port", 0) == port
+                && obj.optString("username", "").equals(username);
+    }
+
+    private static List<String> pathsFrom(JSONArray paths) {
+        List<String> list = new ArrayList<>();
+        if (paths != null) {
+            for (int i = 0; i < paths.length(); i++) {
+                String p = paths.optString(i);
+                if (!p.isEmpty()) list.add(p);
+            }
+        }
+        return list;
+    }
+
+    private static boolean putPaths(JSONObject obj, List<String> paths) {
+        try {
+            obj.put("paths", new JSONArray(paths));
+            return true;
+        } catch (JSONException e) {
+            Log.w(TAG, "序列化书签失败", e);
+            return false;
+        }
     }
 }
