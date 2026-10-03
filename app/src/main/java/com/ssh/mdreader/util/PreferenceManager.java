@@ -26,9 +26,43 @@ public class PreferenceManager {
     private static final int DEFAULT_HEARTBEAT_MS = 5_000;
 
     private final SharedPreferences prefs;
+    /** Keystore 密钥（懒加载）。null=Keystore 不可用，降级明文（保持功能可用）。 */
+    private javax.crypto.SecretKey credentialKey;
 
     public PreferenceManager(Context context) {
         prefs = context.getSharedPreferences(PREF_NAME, Context.MODE_PRIVATE);
+    }
+
+    /** 懒加载 Keystore 密钥（仅加密/解密连接密码用）。 */
+    private javax.crypto.SecretKey credentialKey() {
+        if (credentialKey == null) {
+            credentialKey = CredentialKeystore.loadOrCreate();
+        }
+        return credentialKey;
+    }
+
+    /** 加密密码后再写盘；密钥不可用时降级明文（并记日志，不阻塞保存）。 */
+    private String encryptPassword(String password) {
+        if (password == null || password.isEmpty()) return password;
+        javax.crypto.SecretKey key = credentialKey();
+        if (key == null) {
+            Log.w(TAG, "无可用加密密钥，本条目密码以明文落盘");
+            return password;
+        }
+        try {
+            return CredentialCrypto.encrypt(password, key);
+        } catch (java.security.GeneralSecurityException e) {
+            Log.w(TAG, "密码加密失败，本条目以明文落盘", e);
+            return password;
+        }
+    }
+
+    /** 解密读取；旧明文透传；损坏密文返回 null（调用方按无密码处理，用户需重输）。 */
+    private String decryptPassword(String stored) {
+        javax.crypto.SecretKey key = credentialKey();
+        // Keystore 不可用时不抛错：透传原始值（旧行为）
+        if (key == null) return stored;
+        return CredentialCrypto.decrypt(stored, key);
     }
 
     public void saveConnection(SshConfig config) {
@@ -50,6 +84,7 @@ public class PreferenceManager {
         String json = prefs.getString(KEY_SAVED_CONNECTIONS, "");
         List<SshConfig> list = new ArrayList<>();
         if (json.isEmpty()) return list;
+        boolean needsMigrate = false;
         try {
             JSONArray arr = new JSONArray(json);
             for (int i = 0; i < arr.length(); i++) {
@@ -59,14 +94,38 @@ public class PreferenceManager {
                 config.setHost(obj.optString("host", ""));
                 config.setPort(obj.optInt("port", 22));
                 config.setUsername(obj.optString("username", ""));
-                config.setPassword(obj.optString("password", ""));
+                config.setPassword(readDecryptedPassword(obj, config));
+                if (hasLegacyPlainPassword(obj)) needsMigrate = true;
                 config.setRemotePath(obj.optString("remotePath", "/"));
                 list.add(config);
             }
         } catch (JSONException e) {
             Log.w(TAG, "读取已保存连接失败，已忽略损坏的配置", e);
         }
+        // 一次性迁移：旧明文密码读出来后立即重写为加密存储（saveConnectionList 负责加密）
+        if (needsMigrate) {
+            Log.i(TAG, "检测到旧明文连接密码，正在迁移为加密存储");
+            saveConnectionList(list);
+        }
         return list;
+    }
+
+    /** 读取并解密密码；损坏密文按无密码处理（用户重输），并保留原值待下次覆盖。 */
+    private String readDecryptedPassword(JSONObject obj, SshConfig config) {
+        String raw = obj.optString("password", "");
+        if (raw.isEmpty()) return "";
+        String plain = decryptPassword(raw);
+        if (plain == null) {
+            Log.w(TAG, "连接「" + config.getHost() + "」密码解密失败（密钥变更或数据损坏），请重新输入");
+            return "";
+        }
+        return plain;
+    }
+
+    /** 是否残留旧明文密码（无前缀且非空），供一次性迁移判定。 */
+    private static boolean hasLegacyPlainPassword(JSONObject obj) {
+        String raw = obj.optString("password", "");
+        return !raw.isEmpty() && !CredentialCrypto.isEncrypted(raw);
     }
 
     public void deleteConnection(int index) {
@@ -107,7 +166,7 @@ public class PreferenceManager {
                 obj.put("host", c.getHost());
                 obj.put("port", c.getPort());
                 obj.put("username", c.getUsername());
-                obj.put("password", c.getPassword());
+                obj.put("password", encryptPassword(c.getPassword()));
                 obj.put("remotePath", c.getRemotePath());
                 arr.put(obj);
             } catch (JSONException e) {
