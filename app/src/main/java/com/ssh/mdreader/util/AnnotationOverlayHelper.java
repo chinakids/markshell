@@ -455,6 +455,21 @@ public class AnnotationOverlayHelper {
         scrollToOffset(start);
     }
 
+    /**
+     * 清除当前导航高亮（查找栏关闭时调用，批注/大纲导航高亮语义不受影响）。
+     * 无高亮时为空操作。
+     */
+    public void clearActiveHighlight() {
+        CharSequence current = tvContent.getText();
+        if (current == null || !(current instanceof Spanned)) return;
+        if (activeHighlight == null) return;
+        SpannableStringBuilder ssb = new SpannableStringBuilder(current);
+        ssb.removeSpan(activeHighlight);
+        activeHighlight = null;
+        tvContent.setText(ssb);
+        tvContent.setTextIsSelectable(true);
+    }
+
     /** 视口顶部所在行的行首字符偏移（导航「当前阅读位置」）；布局未就绪时返回 -1。 */
     private int viewportTopOffset() {
         Layout layout = tvContent.getLayout();

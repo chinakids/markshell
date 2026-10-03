@@ -4,7 +4,9 @@ import android.os.Bundle;
 import android.content.Intent;
 import android.graphics.Typeface;
 import android.net.Uri;
+import android.text.Editable;
 import android.text.Spanned;
+import android.text.TextWatcher;
 import android.text.method.ScrollingMovementMethod;
 import android.text.style.URLSpan;
 import android.util.TypedValue;
@@ -12,6 +14,7 @@ import android.view.Menu;
 import android.view.MenuItem;
 import android.view.View;
 import android.view.ScaleGestureDetector;
+import android.view.inputmethod.EditorInfo;
 import android.view.inputmethod.InputMethodManager;
 import android.widget.EditText;
 import android.widget.ProgressBar;
@@ -29,6 +32,7 @@ import com.ssh.mdreader.ssh.SshManager;
 import com.ssh.mdreader.util.AnnotationHelper;
 import com.ssh.mdreader.util.AnnotationOverlayHelper;
 import com.ssh.mdreader.util.DialogHelper;
+import com.ssh.mdreader.util.FindHelper;
 import com.ssh.mdreader.util.LinkTargetHelper;
 import com.ssh.mdreader.util.OpenFileHelper;
 import com.ssh.mdreader.util.PreferenceManager;
@@ -60,6 +64,7 @@ public class MarkdownReaderActivity extends BaseActivity implements AnnotationOv
     private static final int MENU_ABORT_ID        = 0xA1014;
     private static final int MENU_ANNOTATION_PREV_ID = 0xA1015;
     private static final int MENU_ANNOTATION_NEXT_ID = 0xA1016;
+    private static final int MENU_FIND_ID            = 0xA1017;
     private static final String KEY_SCROLL_Y   = "scroll_y";
     private static final String KEY_EDIT_MODE  = "edit_mode";
     private static final String KEY_EDIT_DRAFT = "edit_draft";
@@ -99,6 +104,16 @@ public class MarkdownReaderActivity extends BaseActivity implements AnnotationOv
     private TextView tvTabAnnotations;
     private TextView tvTabToc;
 
+    // ── 文档内文本查找（路线图 #8）────────────────────────────────────────────
+    /** 查找栏（默认隐藏；仅阅读态可见可用，编辑模式守卫）。 */
+    private View findBar;
+    private EditText etFindQuery;
+    private TextView tvFindStatus;
+    /** 当前查询词在渲染文本上的全部匹配（文档序，FindHelper.scanAll 产出）。 */
+    private List<FindHelper.Match> findMatches = Collections.emptyList();
+    /** 当前高亮匹配下标（-1=无）。 */
+    private int findCurrentIndex = -1;
+
     // ── Editing (编辑模式：远程文件在线编辑，保存经 SshManager.writeFile 覆盖写回) ──
     private String  currentFilePath;
     private String  pageTitle;
@@ -128,6 +143,7 @@ public class MarkdownReaderActivity extends BaseActivity implements AnnotationOv
         currentFontSize = prefManager.getFontSize(FONT_SIZE_DEFAULT);
 
         initViews();
+        initFindBar();
 
         String annotationFilePath = (filePath != null)
                 ? AnnotationHelper.buildAnnotationFilePath(filePath) : null;
@@ -174,6 +190,9 @@ public class MarkdownReaderActivity extends BaseActivity implements AnnotationOv
         menu.add(Menu.NONE, MENU_ANNOTATION_NEXT_ID, Menu.NONE, "下一处")
                 .setIcon(R.drawable.ic_annotation_next)
                 .setShowAsAction(MenuItem.SHOW_AS_ACTION_IF_ROOM);
+        menu.add(Menu.NONE, MENU_FIND_ID, Menu.NONE, "查找")
+                .setIcon(R.drawable.ic_search)
+                .setShowAsAction(MenuItem.SHOW_AS_ACTION_IF_ROOM);
         menu.add(Menu.NONE, MENU_DRAWER_ID, Menu.NONE, "批注列表")
                 .setIcon(R.drawable.ic_annotation_drawer)
                 .setShowAsAction(MenuItem.SHOW_AS_ACTION_IF_ROOM);
@@ -191,6 +210,9 @@ public class MarkdownReaderActivity extends BaseActivity implements AnnotationOv
                 return true;
             case MENU_ANNOTATION_NEXT_ID:
                 annotationOverlay.navigateAnnotations(1);
+                return true;
+            case MENU_FIND_ID:
+                showFindBar();
                 return true;
             case MENU_DRAWER_ID:
                 if (drawerLayout.isDrawerOpen(drawerView)) {
@@ -223,6 +245,7 @@ public class MarkdownReaderActivity extends BaseActivity implements AnnotationOv
     /** 进入编辑模式；draft 为默认内容（通常=当前文件内容，旋转恢复时=未保存草稿）。 */
     private void enterEditModeWithDraft(String draft) {
         if (editMode) return;
+        hideFindBar();          // 查找栏仅阅读态可用
         editMode = true;
         saving = false;
         originalContent = markdownContent;
@@ -497,6 +520,7 @@ public class MarkdownReaderActivity extends BaseActivity implements AnnotationOv
 
         annotationOverlay.applyAnnotationSpans();
         rebuildHeadingRenderRanges();
+        rebuildFind(true);          // 渲染文本已变：查找结果若打开则重算（保持当前序号）
 
         if (savedScrollY > 0) {
             scrollView.post(() -> scrollView.scrollTo(0, savedScrollY));
@@ -528,6 +552,7 @@ public class MarkdownReaderActivity extends BaseActivity implements AnnotationOv
         markwon.setMarkdown(tvContent, prepared.text);
         tvContent.setTextIsSelectable(true);
         rebuildHeadingRenderRanges();
+        rebuildFind(true);
     }
 
     @Override
@@ -687,6 +712,108 @@ public class MarkdownReaderActivity extends BaseActivity implements AnnotationOv
             return;
         }
         annotationOverlay.jumpToCharOffset(range[0], range[1]);
+    }
+
+    // ── 文档内文本查找（路线图 #8）─────────────────────────────────────────────
+
+    /** 初始化查找栏：输入监听（变化即重算并跳第一处）、上一处/下一处/关闭按钮、键盘搜索键。 */
+    private void initFindBar() {
+        findBar = findViewById(R.id.find_bar);
+        etFindQuery = findViewById(R.id.et_find_query);
+        tvFindStatus = findViewById(R.id.tv_find_status);
+        etFindQuery.addTextChangedListener(new TextWatcher() {
+            @Override
+            public void beforeTextChanged(CharSequence s, int st, int c, int a) { }
+
+            @Override
+            public void onTextChanged(CharSequence s, int st, int b, int c) {
+                rebuildFind(false);   // 输入变化：重算并跳到第一处
+            }
+
+            @Override
+            public void afterTextChanged(Editable s) { }
+        });
+        findViewById(R.id.btn_find_prev).setOnClickListener(v -> findStep(-1));
+        findViewById(R.id.btn_find_next).setOnClickListener(v -> findStep(1));
+        findViewById(R.id.btn_find_close).setOnClickListener(v -> hideFindBar());
+        etFindQuery.setOnEditorActionListener((v, actionId, event) -> {
+            if (actionId == EditorInfo.IME_ACTION_SEARCH) {
+                findStep(1);   // 键盘搜索键 = 下一处（循环）
+                return true;
+            }
+            return false;
+        });
+    }
+
+    /** 打开查找栏（仅阅读态；聚焦输入并弹键盘；不预填/保留上次查询词）。 */
+    private void showFindBar() {
+        if (editMode) return;
+        findBar.setVisibility(View.VISIBLE);
+        etFindQuery.requestFocus();
+        etFindQuery.post(() -> {
+            InputMethodManager imm = (InputMethodManager) getSystemService(INPUT_METHOD_SERVICE);
+            if (imm != null) {
+                imm.showSoftInput(etFindQuery, InputMethodManager.SHOW_IMPLICIT);
+            }
+        });
+        rebuildFind(false);
+    }
+
+    /** 关闭查找栏：清除查找态与导航高亮（批注/大纲导航高亮各自管理，不受影响）。 */
+    private void hideFindBar() {
+        findBar.setVisibility(View.GONE);
+        InputMethodManager imm = (InputMethodManager) getSystemService(INPUT_METHOD_SERVICE);
+        if (imm != null) {
+            imm.hideSoftInputFromWindow(etFindQuery.getWindowToken(), 0);
+        }
+        findMatches = Collections.emptyList();
+        findCurrentIndex = -1;
+        tvFindStatus.setText("");
+        annotationOverlay.clearActiveHighlight();
+    }
+
+    /**
+     * 重建当前查询词的全部匹配（在<b>渲染后文本</b>上扫描，见 {@link FindHelper}）。
+     * {@code preserve=true}：保持当前序号（不跳转，内容重渲染后调用——避免打断阅读位置）；
+     * {@code preserve=false}：跳到第一处（输入变化/打开查找栏时）。查找栏隐藏时为空操作。
+     */
+    private void rebuildFind(boolean preserve) {
+        if (findBar.getVisibility() != View.VISIBLE) return;
+        String query = etFindQuery.getText().toString();
+        int prev = findCurrentIndex;
+        findMatches = FindHelper.scanAll(tvContent.getText(), query, true);
+        if (findMatches.isEmpty()) {
+            findCurrentIndex = -1;
+            tvFindStatus.setText(query.isEmpty() ? "" : "未找到");
+            return;
+        }
+        if (preserve && prev >= 0 && prev < findMatches.size()) {
+            findCurrentIndex = prev;
+            tvFindStatus.setText((findCurrentIndex + 1) + "/" + findMatches.size());
+            return;
+        }
+        findCurrentIndex = 0;
+        jumpToFindMatch();
+    }
+
+    /** 上一处/下一处（循环）；结果为空时先防御性重算（内容可能已变），仍无则提示。 */
+    private void findStep(int direction) {
+        if (editMode) return;
+        if (findMatches.isEmpty()) rebuildFind(false);
+        if (findMatches.isEmpty()) {
+            tvFindStatus.setText("未找到");
+            return;
+        }
+        findCurrentIndex = FindHelper.advance(findMatches, findCurrentIndex, direction);
+        jumpToFindMatch();
+    }
+
+    /** 跳转到当前匹配：更新计数状态并复用批注导航落点（关抽屉+高亮+平滑滚动居中）。 */
+    private void jumpToFindMatch() {
+        if (findCurrentIndex < 0 || findCurrentIndex >= findMatches.size()) return;
+        FindHelper.Match m = findMatches.get(findCurrentIndex);
+        tvFindStatus.setText((findCurrentIndex + 1) + "/" + findMatches.size());
+        annotationOverlay.jumpToCharOffset(m.start, m.end);
     }
 
     // ── Lifecycle ─────────────────────────────────────────────────────────────
