@@ -48,4 +48,9 @@
         android:title="主目录"
         app:showAsAction="never" />
 
+    <item
+        android:id="@+id/action_goto_path"
+        android:title="前往路径…"
+        app:showAsAction="never" />
+
 </menu>

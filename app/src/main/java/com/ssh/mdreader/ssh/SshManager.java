@@ -980,6 +980,34 @@ public class SshManager {
         }, callback::onError));
     }
 
+    /**
+     * 探测远端路径类型：stat 丢失不返回（与 {@link #fileExists} 两个渠道同口径），
+     * 存在→{@link StatCallback#onResult(boolean)}（true=目录/false=文件），
+     * 不存在→{@link StatCallback#onNotFound()}，其余异常经 onError 上报。
+     * 只读类操作，疑似断线时重连重试一次（与 fileExists/listFiles 同口径）。
+     */
+    public void statPath(String path, StatCallback callback) {
+        sftpExecutor.execute(() -> runOp("检查路径", true, channel -> {
+            try {
+                callback.onResult(channel.stat(path).isDir());
+            } catch (SftpException e) {
+                if (e.id == ChannelSftp.SSH_FX_NO_SUCH_FILE) {
+                    callback.onNotFound();
+                } else {
+                    throw e;
+                }
+            }
+        }, callback::onError));
+    }
+
+    public interface StatCallback {
+        /** 路径存在：true=目录，false=文件。 */
+        void onResult(boolean isDirectory);
+        /** 路径不存在（SSH_FX_NO_SUCH_FILE）。 */
+        void onNotFound();
+        void onError(String message);
+    }
+
     public interface CopyFileCallback {
         void onSuccess();
         void onError(String message);

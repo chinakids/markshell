@@ -33,6 +33,7 @@ import com.ssh.mdreader.util.FileMetaHelper;
 import com.ssh.mdreader.util.FileOpsHelper;
 import com.ssh.mdreader.util.FilePropsHelper;
 import com.ssh.mdreader.util.FileSortUtils;
+import com.ssh.mdreader.util.GoToPathHelper;
 import com.ssh.mdreader.util.LastBrowseHelper;
 import com.ssh.mdreader.util.NewFileHelper;
 import com.ssh.mdreader.util.OpenFileHelper;
@@ -218,6 +219,10 @@ public class FileBrowserActivity extends BaseActivity
         }
         if (id == R.id.action_home) {
             navigateToHome();
+            return true;
+        }
+        if (id == R.id.action_goto_path) {
+            showGotoPathDialog();
             return true;
         }
         return super.onOptionsItemSelected(item);
@@ -543,6 +548,65 @@ public class FileBrowserActivity extends BaseActivity
         } else {
             onFileClick(new RemoteFile(result.getName(), result.getPath(), false, 0, 0, 0));
         }
+    }
+
+    // ── 前往路径（第十七轮能力发现 #25；Material Files navigate_to 对标） ────
+
+    /** 顶部更多菜单「前往路径…」：输入远端路径（绝对/相对当前目录），直达目录或打开文件。 */
+    private void showGotoPathDialog() {
+        if (isFinishing() || isDestroyed()) return;
+        if (currentPath == null || currentPath.isEmpty()) {
+            UiUtils.showToast(this, "当前目录未知，无法前往");
+            return;
+        }
+        DialogHelper.showInputDialog(this, "前往路径",
+                "输入远端路径（绝对路径如 /var/log；相对路径基于当前目录）",
+                "前往", "取消", input -> {
+                    String target = GoToPathHelper.resolve(currentPath, input);
+                    if (target == null) {
+                        UiUtils.showToast(this, "请输入路径");
+                        return;
+                    }
+                    gotoPath(target);
+                });
+    }
+
+    /** 执行前往：先 stat 判定类型（目录→跳转加载；文件→复用 onFileClick 单一语义源）。 */
+    private void gotoPath(final String target) {
+        if (isFinishing() || isDestroyed()) return;
+        sshManager.statPath(target, new SshManager.StatCallback() {
+            @Override
+            public void onResult(boolean isDirectory) {
+                runOnUiThread(() -> {
+                    if (isFinishing() || isDestroyed()) return;
+                    if (isDirectory) {
+                        currentPath = target;
+                        updateToolbarSubtitle();
+                        loadFiles();
+                        UiUtils.showToast(FileBrowserActivity.this, "已跳转到 " + target);
+                    } else {
+                        onFileClick(new RemoteFile(
+                                GoToPathHelper.fileName(target), target, false, 0, 0, 0));
+                    }
+                });
+            }
+
+            @Override
+            public void onNotFound() {
+                runOnUiThread(() -> {
+                    if (isFinishing() || isDestroyed()) return;
+                    UiUtils.showToast(FileBrowserActivity.this, "路径不存在: " + target);
+                });
+            }
+
+            @Override
+            public void onError(String message) {
+                runOnUiThread(() -> {
+                    if (isFinishing() || isDestroyed()) return;
+                    UiUtils.showToast(FileBrowserActivity.this, "无法前往: " + message);
+                });
+            }
+        });
     }
 
     private void initViews() {
