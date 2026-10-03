@@ -25,6 +25,7 @@ import com.ssh.mdreader.util.FileOpsHelper;
 import com.ssh.mdreader.util.FileSortUtils;
 import com.ssh.mdreader.util.PreferenceManager;
 import com.ssh.mdreader.util.PreviewPaneHelper;
+import com.ssh.mdreader.util.SshConnectionHelper;
 import com.ssh.mdreader.util.UiUtils;
 
 import java.util.List;
@@ -296,6 +297,8 @@ public class FileBrowserActivity extends BaseActivity
         progressBar.setVisibility(View.VISIBLE);
         layoutError.setVisibility(View.GONE);
         SshManager.getInstance().setHostKeyStore(prefManager);
+        SshManager.getInstance().setPortForwardRules(
+                prefManager.getPortForwardRules(SshConnectionHelper.deriveConnectionKey(config)));
         sshManager.connect(config, new SshManager.ConnectionListener() {
             @Override
             public void onConnected() {

@@ -15,6 +15,7 @@ import com.ssh.mdreader.ssh.SshManager;
 import com.ssh.mdreader.util.ConnectionGroupHelper;
 import com.ssh.mdreader.util.DialogHelper;
 import com.ssh.mdreader.util.PreferenceManager;
+import com.ssh.mdreader.util.SshConnectionHelper;
 import com.ssh.mdreader.util.UiUtils;
 
 public class ConnectionActivity extends BaseActivity {
@@ -138,6 +139,8 @@ public class ConnectionActivity extends BaseActivity {
         setLoading(true);
 
         SshManager.getInstance().setHostKeyStore(prefManager);
+        SshManager.getInstance().setPortForwardRules(
+                prefManager.getPortForwardRules(SshConnectionHelper.deriveConnectionKey(config)));
         SshManager.getInstance().connect(config, new SshManager.ConnectionListener() {
             @Override
             public void onConnected() {
@@ -145,6 +148,10 @@ public class ConnectionActivity extends BaseActivity {
                     setLoading(false);
                     if (SshManager.getInstance().consumeFingerprintFirstSeen()) {
                         UiUtils.showToast(ConnectionActivity.this, getString(R.string.host_key_recorded));
+                    }
+                    String report = SshManager.getInstance().consumePortForwardReport();
+                    if (report != null) {
+                        UiUtils.showToast(ConnectionActivity.this, report);
                     }
                     if (editIndex >= 0) {
                         prefManager.updateConnection(editIndex, config);

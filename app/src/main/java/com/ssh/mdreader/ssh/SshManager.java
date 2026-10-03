@@ -8,11 +8,13 @@ import com.jcraft.jsch.JSch;
 import com.jcraft.jsch.Session;
 import com.jcraft.jsch.SftpATTRS;
 import com.jcraft.jsch.SftpException;
+import com.ssh.mdreader.model.PortForwardRule;
 import com.ssh.mdreader.model.RemoteFile;
 import com.ssh.mdreader.model.SshConfig;
 import com.ssh.mdreader.util.FileSortUtils;
 import com.ssh.mdreader.util.HostKeyHelper;
 import com.ssh.mdreader.util.HostKeyStore;
+import com.ssh.mdreader.util.PortForwardHelper;
 import com.ssh.mdreader.util.SshConnectionHelper;
 import com.ssh.mdreader.util.UiUtils;
 
@@ -20,6 +22,7 @@ import java.io.ByteArrayOutputStream;
 import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 import java.util.Properties;
 import java.util.Vector;
@@ -75,6 +78,12 @@ public class SshManager {
     private volatile HostKeyStore hostKeyStore;
     /** 本次连接是否首次记录主机指纹（TOFU），供 UI 一次性提示；读后清。 */
     private volatile boolean fingerprintFirstSeen;
+    /** 端口转发规则（由 UI 层按当前连接键从 PreferenceManager 注入）；null/空=不启用转发。 */
+    private volatile List<PortForwardRule> portForwardRules = Collections.emptyList();
+    /** 已成功建立转发的本地端口（仅 worker 线程读写；cleanup/断开时显式移除）。 */
+    private volatile List<Integer> activeForwardedPorts = Collections.emptyList();
+    /** 最近一次建连的转发摘要（null=无规则或全部成功无跳过/失败）；UI 经 consume 读取并清空。 */
+    private volatile String portForwardReport;
 
     public interface ConnectionListener {
         void onConnected();
@@ -151,6 +160,21 @@ public class SshManager {
         return hostKeyStore;
     }
 
+    /** 注入端口转发规则（UI 层传服务器对应规则）；在 connect 前调用。null 恢复「不启用转发」。 */
+    public void setPortForwardRules(List<PortForwardRule> rules) {
+        this.portForwardRules = rules == null ? Collections.emptyList() : rules;
+    }
+
+    /**
+     * 消费最近一次建连的端口转发摘要（null=无规则或全部成功无跳过/失败）；读后清，
+     * 供 UI 在 onConnected 后一次性提示「跳过/失败」明细（成功不提示）。
+     */
+    public String consumePortForwardReport() {
+        String report = portForwardReport;
+        portForwardReport = null;
+        return report;
+    }
+
     /** 本次连接是否首次记录主机指纹（TOFU）；读后重置，供 UI 一次性提示「已记录」。 */
     public boolean consumeFingerprintFirstSeen() {
         boolean v = fingerprintFirstSeen;
@@ -184,6 +208,8 @@ public class SshManager {
         this.config = config;
         this.listener = listener;
         userDisconnected = false;
+        // 新连接请求：清除上一轮转发摘要，防止旧报告串到新连接（复用路径不产生新报告）。
+        portForwardReport = null;
 
         sftpExecutor.execute(() -> {
             // 同一目标幂等连接：已存活连接且同键同凭据且心跳一致 → 复用，不做 teardown/重建
@@ -250,6 +276,71 @@ public class SshManager {
 
         sftpChannel = (ChannelSftp) session.openChannel("sftp");
         sftpChannel.connect(CONNECT_TIMEOUT_MS);
+
+        // 端口转发（隧道）：仅依赖已连接的 SSH 会话，放在主通道建立之后——
+        // 转发失败不阻断主连接（逐条降级记录，摘要供 UI 提示）。
+        applyPortForwardsSync();
+    }
+
+    /**
+     * 应用端口转发规则（仅限 worker 线程、session 已连接后调用）：先经
+     * {@link PortForwardHelper#planEnable} 派生启用计划（字段非法/本地端口重复=跳过），
+     * 对可启用的逐条 {@code session.setPortForwardingL(bind, lport, rhost, rport)}——
+     * 绑定地址留空回退 {@link PortForwardHelper#DEFAULT_BIND_ADDRESS}（安全默认，仅回环）。
+     * 系统级端口占用等运行时失败逐条 catch 记录，**不抛出、不阻断主连接**；
+     * 摘要写入 {@link #portForwardReport} 供 UI 在 onConnected 后一次性提示。
+     */
+    private void applyPortForwardsSync() {
+        List<PortForwardRule> rules = portForwardRules;
+        if (rules == null || rules.isEmpty()) return;
+        List<PortForwardHelper.EnablePlan> plan = PortForwardHelper.planEnable(rules);
+        List<Integer> forwarded = new ArrayList<>();
+        List<String> skipped = new ArrayList<>();
+        List<String> failed = new ArrayList<>();
+        for (PortForwardHelper.EnablePlan item : plan) {
+            if (item.status != PortForwardHelper.PlanStatus.ENABLED) {
+                skipped.add(PortForwardHelper.describe(item.rule)
+                        + "：" + (item.reason == null ? "未启用" : item.reason));
+                continue;
+            }
+            PortForwardRule rule = item.rule;
+            String bind = PortForwardHelper.normalizeBindAddress(rule.getBindAddress());
+            if (bind.isEmpty()) bind = PortForwardHelper.DEFAULT_BIND_ADDRESS;
+            try {
+                session.setPortForwardingL(bind, rule.getLocalPort(),
+                        rule.getRemoteHost(), rule.getRemotePort());
+                forwarded.add(rule.getLocalPort());
+            } catch (Exception e) {
+                failed.add(PortForwardHelper.describe(rule) + "：" + UiUtils.errorMessage(e));
+            }
+        }
+        activeForwardedPorts = forwarded;
+        String report = PortForwardHelper.buildReport(
+                forwarded.size(), skipped, failed);
+        if (report != null) {
+            Log.i(TAG, report);
+            portForwardReport = report;
+        } else {
+            if (!forwarded.isEmpty()) {
+                Log.i(TAG, "端口转发已启用 " + forwarded.size() + " 条");
+            }
+        }
+    }
+
+    /** 显式移除已建立的本地转发端口（仅限 worker 线程；session 断开前调用，失败仅记日志）。 */
+    private void teardownPortForwardsSync() {
+        List<Integer> ports = activeForwardedPorts;
+        activeForwardedPorts = Collections.emptyList();
+        if (ports.isEmpty()) return;
+        Session s = session;
+        if (s == null) return;
+        for (int port : ports) {
+            try {
+                s.delPortForwardingL(port);
+            } catch (Exception e) {
+                Log.w(TAG, "移除端口转发失败: " + port, e);
+            }
+        }
     }
 
     /**
@@ -398,6 +489,8 @@ public class SshManager {
      */
     private void cleanupSync() {
         try {
+            // 显式移除端口转发（JSch disconnect 亦会回收，此处保障顺序性并清理记录）
+            teardownPortForwardsSync();
             ChannelSftp ch = sftpChannel;
             if (ch != null) {
                 try { ch.disconnect(); } catch (Exception e) { Log.w(TAG, "断开 SFTP channel 失败", e); }
@@ -417,6 +510,7 @@ public class SshManager {
         userDisconnected = true;
         sftpExecutor.execute(() -> {
             try {
+                teardownPortForwardsSync();
                 if (sftpChannel != null && sftpChannel.isConnected()) {
                     sftpChannel.disconnect();
                 }

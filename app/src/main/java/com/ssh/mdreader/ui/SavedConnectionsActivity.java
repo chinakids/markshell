@@ -17,11 +17,14 @@ import androidx.recyclerview.widget.LinearLayoutManager;
 import androidx.recyclerview.widget.RecyclerView;
 
 import com.ssh.mdreader.R;
+import com.ssh.mdreader.model.PortForwardRule;
 import com.ssh.mdreader.model.SshConfig;
 import com.ssh.mdreader.ssh.SshManager;
 import com.ssh.mdreader.util.ConnectionGroupHelper;
 import com.ssh.mdreader.util.DialogHelper;
+import com.ssh.mdreader.util.PortForwardHelper;
 import com.ssh.mdreader.util.PreferenceManager;
+import com.ssh.mdreader.util.SshConnectionHelper;
 import com.ssh.mdreader.util.UiUtils;
 
 import java.util.ArrayList;
@@ -54,6 +57,7 @@ public class SavedConnectionsActivity extends BaseActivity {
         adapter.setOnConnectListener(this::quickConnect);
         adapter.setOnEditListener(this::editConnection);
         adapter.setOnDeleteListener(this::deleteConnection);
+        adapter.setOnPortForwardListener(this::showPortForwardManagerDialog);
         adapter.setOnGroupHeaderLongClickListener(this::showGroupHeaderActions);
         recycler.setLayoutManager(new LinearLayoutManager(this));
         recycler.setAdapter(adapter);
@@ -108,6 +112,8 @@ public class SavedConnectionsActivity extends BaseActivity {
 
         setLoading(true);
         SshManager.getInstance().setHostKeyStore(prefManager);
+        SshManager.getInstance().setPortForwardRules(
+                prefManager.getPortForwardRules(SshConnectionHelper.deriveConnectionKey(config)));
         SshManager.getInstance().connect(config, new SshManager.ConnectionListener() {
             @Override
             public void onConnected() {
@@ -115,6 +121,10 @@ public class SavedConnectionsActivity extends BaseActivity {
                     setLoading(false);
                     if (SshManager.getInstance().consumeFingerprintFirstSeen()) {
                         UiUtils.showToast(SavedConnectionsActivity.this, getString(R.string.host_key_recorded));
+                    }
+                    String report = SshManager.getInstance().consumePortForwardReport();
+                    if (report != null) {
+                        UiUtils.showToast(SavedConnectionsActivity.this, report);
                     }
                     UiUtils.showToast(SavedConnectionsActivity.this, "已连接");
 
@@ -290,6 +300,68 @@ public class SavedConnectionsActivity extends BaseActivity {
         }
     }
 
+    // ── 端口转发规则管理（按服务器连接键隔离） ───────────────────────────────
+
+    private void showPortForwardManagerDialog(SshConfig config) {
+        String key = SshConnectionHelper.deriveConnectionKey(config);
+        if (key == null) {
+            UiUtils.showToast(this, "连接信息不完整");
+            return;
+        }
+        List<PortForwardRule> rules = prefManager.getPortForwardRules(key);
+        String[] items = new String[rules.size() + 1];
+        int[] icons = new int[rules.size() + 1];
+        items[0] = "＋ 新建规则";
+        icons[0] = R.drawable.ic_add;
+        for (int i = 0; i < rules.size(); i++) {
+            items[i + 1] = PortForwardHelper.describe(rules.get(i));
+            icons[i + 1] = 0;
+        }
+        DialogHelper.showListDialog(this, "端口转发（" + config.getDisplayName() + "）",
+                items, icons, (d, which) -> {
+                    if (which == 0) {
+                        showPortForwardEditDialog(key, null);
+                    } else {
+                        showPortForwardActionsDialog(key, rules.get(which - 1));
+                    }
+                });
+    }
+
+    /** 新建（initial=null）或编辑（initial=已有规则）：输入后校验保存；规则于下次连接生效。 */
+    private void showPortForwardEditDialog(String key, PortForwardRule initial) {
+        DialogHelper.showPortForwardDialog(this,
+                initial == null ? "新建端口转发规则" : "编辑端口转发规则",
+                "保存", "取消", initial, rule -> {
+                    String error = PortForwardHelper.validate(rule);
+                    if (error != null) {
+                        UiUtils.showToast(this, error);
+                        return;
+                    }
+                    if (prefManager.savePortForwardRule(key, rule)) {
+                        UiUtils.showToast(this, "规则已保存，重新连接后生效");
+                    } else {
+                        UiUtils.showToast(this, "规则保存失败");
+                    }
+                });
+    }
+
+    private void showPortForwardActionsDialog(String key, PortForwardRule rule) {
+        DialogHelper.showListDialog(this, PortForwardHelper.describe(rule),
+                new String[]{"编辑", "删除"},
+                new int[]{R.drawable.ic_edit, R.drawable.ic_delete},
+                (d, which) -> {
+                    if (which == 0) {
+                        showPortForwardEditDialog(key, rule);
+                    } else if (which == 1) {
+                        if (prefManager.deletePortForwardRule(key, rule.getLocalPort())) {
+                            UiUtils.showToast(this, "规则已删除");
+                        } else {
+                            UiUtils.showToast(this, "规则删除失败");
+                        }
+                    }
+                });
+    }
+
     // ── Adapter（分组 header / 连接行 双 viewType） ───────────────────────────
 
     private static class Row {
@@ -321,6 +393,10 @@ public class SavedConnectionsActivity extends BaseActivity {
             void onDelete(SshConfig config);
         }
 
+        public interface OnPortForwardListener {
+            void onPortForward(SshConfig config);
+        }
+
         public interface OnGroupHeaderLongClickListener {
             void onGroupHeaderLongClick(String groupName);
         }
@@ -328,6 +404,7 @@ public class SavedConnectionsActivity extends BaseActivity {
         private OnConnectListener connectListener;
         private OnEditListener editListener;
         private OnDeleteListener deleteListener;
+        private OnPortForwardListener portForwardListener;
         private OnGroupHeaderLongClickListener groupHeaderLongListener;
         private boolean clickable = true;
 
@@ -340,6 +417,7 @@ public class SavedConnectionsActivity extends BaseActivity {
         void setOnConnectListener(OnConnectListener l) { connectListener = l; }
         void setOnEditListener(OnEditListener l) { editListener = l; }
         void setOnDeleteListener(OnDeleteListener l) { deleteListener = l; }
+        void setOnPortForwardListener(OnPortForwardListener l) { portForwardListener = l; }
         void setOnGroupHeaderLongClickListener(OnGroupHeaderLongClickListener l) {
             groupHeaderLongListener = l;
         }
@@ -453,12 +531,14 @@ public class SavedConnectionsActivity extends BaseActivity {
             holder.itemView.setOnLongClickListener(v -> {
                 String name = config.getDisplayName();
                 DialogHelper.showListDialog(v.getContext(), name,
-                        new String[]{"编辑", "删除"},
-                        new int[]{R.drawable.ic_edit, R.drawable.ic_delete},
+                        new String[]{"编辑", "端口转发…", "删除"},
+                        new int[]{R.drawable.ic_edit, R.drawable.ic_tunnel, R.drawable.ic_delete},
                         (dialog, which) -> {
                             if (which == 0) {
                                 if (editListener != null) editListener.onEdit(config);
                             } else if (which == 1) {
+                                if (portForwardListener != null) portForwardListener.onPortForward(config);
+                            } else if (which == 2) {
                                 if (deleteListener != null) deleteListener.onDelete(config);
                             }
                         });

@@ -4,6 +4,7 @@ import android.content.Context;
 import android.content.SharedPreferences;
 import android.util.Log;
 
+import com.ssh.mdreader.model.PortForwardRule;
 import com.ssh.mdreader.model.SshConfig;
 
 import org.json.JSONArray;
@@ -28,6 +29,8 @@ public class PreferenceManager implements HostKeyStore {
     private static final int DEFAULT_HEARTBEAT_MS = 5_000;
     /** 连接分组元数据（组名列表，JSONArray of String）。 */
     private static final String KEY_CONNECTION_GROUPS = "connection_groups";
+    /** 端口转发规则（按服务器连接键隔离，JSON 结构见 {@link #readPortForwardRules()}）。 */
+    private static final String KEY_PORT_FORWARD_RULES = "port_forward_rules";
 
     private final SharedPreferences prefs;
     /** Keystore 密钥（懒加载）。null=Keystore 不可用，降级明文（保持功能可用）。 */
@@ -471,5 +474,151 @@ public class PreferenceManager implements HostKeyStore {
     private void writeConnectionGroups(List<String> groups) {
         prefs.edit().putString(KEY_CONNECTION_GROUPS, new JSONArray(
                 ConnectionGroupHelper.dedupeGroupNames(groups)).toString()).apply();
+    }
+
+    // ── 端口转发规则（按服务器连接键隔离；连接键派生见 SshConnectionHelper）──────────
+
+    /**
+     * 读取指定服务器（连接键）的端口转发规则列表（保存顺序）。
+     * JSON 结构：{@code [{"key":"host:port:user","rules":[{"name":..,"localPort":..,
+     * "remoteHost":..,"remotePort":..,"bindAddress":..},..]},..]}；
+     * 损坏 JSON 按空列表（与其他偏好读取容错一致）。
+     */
+    public List<PortForwardRule> getPortForwardRules(String serverKey) {
+        if (serverKey == null || serverKey.isEmpty()) return new ArrayList<>();
+        JSONArray arr = readPortForwardRules();
+        for (int i = 0; i < arr.length(); i++) {
+            JSONObject obj = arr.optJSONObject(i);
+            if (obj == null || !serverKey.equals(obj.optString("key", ""))) continue;
+            return rulesFrom(obj.optJSONArray("rules"));
+        }
+        return new ArrayList<>();
+    }
+
+    /**
+     * 新增/覆盖规则：同一服务器内本地端口已存在则覆盖（规则以本地端口为唯一标识），
+     * 否则追加保存。返回 true（与分组 add 不同：覆盖合法，不判重拒绝）。
+     */
+    public boolean savePortForwardRule(String serverKey, PortForwardRule rule) {
+        if (serverKey == null || serverKey.isEmpty() || rule == null) return false;
+        JSONArray arr = readPortForwardRules();
+        JSONObject entry = null;
+        for (int i = 0; i < arr.length(); i++) {
+            JSONObject obj = arr.optJSONObject(i);
+            if (obj != null && serverKey.equals(obj.optString("key", ""))) {
+                entry = obj;
+                break;
+            }
+        }
+        try {
+            List<PortForwardRule> rules = entry == null ? new ArrayList<>()
+                    : rulesFrom(entry.optJSONArray("rules"));
+            boolean replaced = false;
+            for (int i = 0; i < rules.size(); i++) {
+                if (rules.get(i).getLocalPort() == rule.getLocalPort()) {
+                    rules.set(i, rule);
+                    replaced = true;
+                    break;
+                }
+            }
+            if (!replaced) rules.add(rule);
+            if (entry == null) {
+                entry = new JSONObject()
+                        .put("key", serverKey)
+                        .put("rules", rulesToArray(rules));
+                arr.put(entry);
+            } else {
+                entry.put("rules", rulesToArray(rules));
+            }
+            writePortForwardRules(arr);
+            return true;
+        } catch (JSONException e) {
+            Log.w(TAG, "保存端口转发规则失败", e);
+            return false;
+        }
+    }
+
+    /** 删除指定服务器本地端口为 {@code localPort} 的规则；失败返回 false。 */
+    public boolean deletePortForwardRule(String serverKey, int localPort) {
+        if (serverKey == null || serverKey.isEmpty()) return false;
+        JSONArray arr = readPortForwardRules();
+        for (int i = 0; i < arr.length(); i++) {
+            JSONObject obj = arr.optJSONObject(i);
+            if (obj == null || !serverKey.equals(obj.optString("key", ""))) continue;
+            List<PortForwardRule> rules = rulesFrom(obj.optJSONArray("rules"));
+            boolean removed = false;
+            for (int j = 0; j < rules.size(); j++) {
+                if (rules.get(j).getLocalPort() == localPort) {
+                    rules.remove(j);
+                    removed = true;
+                    break;
+                }
+            }
+            if (!removed) return false;
+            try {
+                if (rules.isEmpty()) {
+                    arr.remove(i); // 该服务器规则已空：删除整条记录
+                } else {
+                    obj.put("rules", rulesToArray(rules));
+                }
+                writePortForwardRules(arr);
+                return true;
+            } catch (JSONException e) {
+                Log.w(TAG, "删除端口转发规则失败", e);
+                return false;
+            }
+        }
+        return false;
+    }
+
+    private JSONArray readPortForwardRules() {
+        String json = prefs.getString(KEY_PORT_FORWARD_RULES, "");
+        if (json.isEmpty()) return new JSONArray();
+        try {
+            return new JSONArray(json);
+        } catch (JSONException e) {
+            Log.w(TAG, "读取端口转发规则失败，已忽略损坏的数据", e);
+            return new JSONArray();
+        }
+    }
+
+    private void writePortForwardRules(JSONArray arr) {
+        prefs.edit().putString(KEY_PORT_FORWARD_RULES, arr.toString()).apply();
+    }
+
+    private static List<PortForwardRule> rulesFrom(JSONArray rules) {
+        List<PortForwardRule> list = new ArrayList<>();
+        if (rules != null) {
+            for (int i = 0; i < rules.length(); i++) {
+                JSONObject obj = rules.optJSONObject(i);
+                if (obj == null) continue;
+                PortForwardRule rule = new PortForwardRule();
+                rule.setName(obj.optString("name", ""));
+                rule.setLocalPort(obj.optInt("localPort", 0));
+                rule.setRemoteHost(obj.optString("remoteHost", ""));
+                rule.setRemotePort(obj.optInt("remotePort", 0));
+                rule.setBindAddress(obj.optString("bindAddress", ""));
+                list.add(rule);
+            }
+        }
+        return list;
+    }
+
+    private static JSONArray rulesToArray(List<PortForwardRule> rules) throws JSONException {
+        JSONArray array = new JSONArray();
+        for (PortForwardRule rule : rules) {
+            JSONObject obj = new JSONObject();
+            if (rule.getName() != null && !rule.getName().isEmpty()) {
+                obj.put("name", rule.getName());
+            }
+            obj.put("localPort", rule.getLocalPort());
+            obj.put("remoteHost", rule.getRemoteHost());
+            obj.put("remotePort", rule.getRemotePort());
+            if (rule.getBindAddress() != null && !rule.getBindAddress().isEmpty()) {
+                obj.put("bindAddress", rule.getBindAddress());
+            }
+            array.put(obj);
+        }
+        return array;
     }
 }

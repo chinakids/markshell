@@ -27,6 +27,7 @@ import com.ssh.mdreader.model.SshConfig;
 import com.ssh.mdreader.ssh.SshManager;
 import com.ssh.mdreader.util.DialogHelper;
 import com.ssh.mdreader.util.PreferenceManager;
+import com.ssh.mdreader.util.SshConnectionHelper;
 import com.ssh.mdreader.util.UiUtils;
 
 import java.util.ArrayList;
@@ -107,6 +108,8 @@ public class MainActivity extends BaseActivity {
         adapter.setClickable(false);
         adapter.setConnecting(position);
         SshManager.getInstance().setHostKeyStore(prefManager);
+        SshManager.getInstance().setPortForwardRules(
+                prefManager.getPortForwardRules(SshConnectionHelper.deriveConnectionKey(config)));
         SshManager.getInstance().connect(config, new SshManager.ConnectionListener() {
             @Override
             public void onConnected() {
@@ -115,6 +118,10 @@ public class MainActivity extends BaseActivity {
                     adapter.setClickable(true);
                     if (SshManager.getInstance().consumeFingerprintFirstSeen()) {
                         UiUtils.showToast(MainActivity.this, getString(R.string.host_key_recorded));
+                    }
+                    String report = SshManager.getInstance().consumePortForwardReport();
+                    if (report != null) {
+                        UiUtils.showToast(MainActivity.this, report);
                     }
                     UiUtils.showToast(MainActivity.this, "已连接");
                     String path = config.getRemotePath();
@@ -280,6 +287,8 @@ public class MainActivity extends BaseActivity {
         btnConnect.setText(R.string.msg_connecting);
 
         SshManager.getInstance().setHostKeyStore(prefManager);
+        SshManager.getInstance().setPortForwardRules(
+                prefManager.getPortForwardRules(SshConnectionHelper.deriveConnectionKey(config)));
         SshManager.getInstance().connect(config, new SshManager.ConnectionListener() {
             @Override
             public void onConnected() {
@@ -290,6 +299,10 @@ public class MainActivity extends BaseActivity {
                     btnConnect.setText(R.string.btn_connect);
                     if (SshManager.getInstance().consumeFingerprintFirstSeen()) {
                         UiUtils.showToast(MainActivity.this, getString(R.string.host_key_recorded));
+                    }
+                    String report = SshManager.getInstance().consumePortForwardReport();
+                    if (report != null) {
+                        UiUtils.showToast(MainActivity.this, report);
                     }
                     prefManager.saveConnection(config);
                     dialog.dismiss();

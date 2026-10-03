@@ -22,6 +22,7 @@ import androidx.recyclerview.widget.LinearLayoutManager;
 import androidx.recyclerview.widget.RecyclerView;
 
 import com.ssh.mdreader.R;
+import com.ssh.mdreader.model.PortForwardRule;
 
 public class DialogHelper {
 
@@ -275,6 +276,89 @@ public class DialogHelper {
                 et.getContext().getSystemService(Context.INPUT_METHOD_SERVICE);
         if (imm != null) imm.hideSoftInputFromWindow(et.getWindowToken(), 0);
         dialog.dismiss();
+    }
+
+    // ── 端口转发规则输入对话框 ──────────────────────────────────────────────
+
+    public interface OnPortForwardListener {
+        /** 用户确认时回调（字段已收集，合法性由调用方经 PortForwardHelper.validate 校验）。 */
+        void onResult(PortForwardRule rule);
+    }
+
+    /**
+     * 端口转发规则输入对话框（名称/本地端口/远端主机/远端端口/绑定地址 五字段，
+     * 布局 dialog_port_forward；旧规则经 {@code initial} 预填=编辑语义）。
+     * 校验由调用方负责（toast 错误并保持对话框不变——本方法只负责收集与展示）。
+     */
+    public static void showPortForwardDialog(@NonNull Context context,
+                                             @NonNull String title,
+                                             @NonNull String positiveText,
+                                             @NonNull String negativeText,
+                                             final PortForwardRule initial,
+                                             @NonNull OnPortForwardListener listener) {
+        if (!canShow(context)) return;
+
+        Dialog dialog = new Dialog(context, R.style.BrandDialog);
+        View view = LayoutInflater.from(context).inflate(R.layout.dialog_port_forward, null);
+        dialog.setContentView(view);
+        applyDialogSize(dialog);
+
+        ((TextView) view.findViewById(R.id.dialog_pf_title)).setText(title);
+
+        EditText etName = view.findViewById(R.id.dialog_pf_name);
+        EditText etLocalPort = view.findViewById(R.id.dialog_pf_local_port);
+        EditText etRemoteHost = view.findViewById(R.id.dialog_pf_remote_host);
+        EditText etRemotePort = view.findViewById(R.id.dialog_pf_remote_port);
+        EditText etBind = view.findViewById(R.id.dialog_pf_bind);
+
+        if (initial != null) {
+            if (initial.getName() != null) etName.setText(initial.getName());
+            etLocalPort.setText(String.valueOf(initial.getLocalPort()));
+            etRemoteHost.setText(initial.getRemoteHost() == null ? "" : initial.getRemoteHost());
+            etRemotePort.setText(String.valueOf(initial.getRemotePort()));
+            if (initial.getBindAddress() != null) etBind.setText(initial.getBindAddress());
+        }
+
+        TextView btnNeg = view.findViewById(R.id.dialog_pf_btn_negative);
+        btnNeg.setText(negativeText);
+        btnNeg.setOnClickListener(v -> dismissWithKeyboard(dialog, etLocalPort));
+
+        TextView btnPos = view.findViewById(R.id.dialog_pf_btn_positive);
+        btnPos.setText(positiveText);
+        btnPos.setOnClickListener(v -> {
+            PortForwardRule rule = new PortForwardRule();
+            rule.setName(etName.getText() != null ? etName.getText().toString() : "");
+            rule.setLocalPort(parsePort(etLocalPort.getText()));
+            rule.setRemoteHost(etRemoteHost.getText() != null ? etRemoteHost.getText().toString() : "");
+            rule.setRemotePort(parsePort(etRemotePort.getText()));
+            rule.setBindAddress(etBind.getText() != null ? etBind.getText().toString() : "");
+            rule.setName(PortForwardHelper.normalizeName(rule.getName()));
+            rule.setRemoteHost(rule.getRemoteHost().trim());
+            rule.setBindAddress(PortForwardHelper.normalizeBindAddress(rule.getBindAddress()));
+            dismissWithKeyboard(dialog, etLocalPort);
+            listener.onResult(rule);
+        });
+
+        dialog.setCancelable(true);
+        dialog.show();
+
+        etLocalPort.postDelayed(() -> {
+            etLocalPort.requestFocus();
+            InputMethodManager imm = (InputMethodManager)
+                    context.getSystemService(Context.INPUT_METHOD_SERVICE);
+            if (imm != null) imm.showSoftInput(etLocalPort, InputMethodManager.SHOW_IMPLICIT);
+        }, 100);
+    }
+
+    /** 输入框文本→端口：空/非法返回 0（由校验层识别并提示）。 */
+    private static int parsePort(CharSequence text) {
+        String s = text == null ? "" : text.toString().trim();
+        if (s.isEmpty()) return 0;
+        try {
+            return Integer.parseInt(s);
+        } catch (NumberFormatException e) {
+            return 0;
+        }
     }
 
     /** 对话框宽度设为屏幕 88%、居中；util 包内共享（以 DirectoryPickerDialog 复用）。 */
