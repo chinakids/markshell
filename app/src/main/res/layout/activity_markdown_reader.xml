@@ -143,6 +143,88 @@
 
             </LinearLayout>
 
+            <!-- 编辑模式格式栏（路线图 #17 编辑格式工具栏，仅编辑模式显示） -->
+            <HorizontalScrollView
+                android:id="@+id/format_bar_scroll"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:background="@color/md_theme_surface"
+                android:scrollbars="none"
+                android:visibility="gone">
+
+                <LinearLayout
+                    android:id="@+id/format_bar"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:orientation="horizontal"
+                    android:gravity="center_vertical"
+                    android:paddingStart="8dp"
+                    android:paddingEnd="8dp">
+
+                    <ImageButton
+                        android:id="@+id/btn_format_bold"
+                        android:layout_width="40dp"
+                        android:layout_height="40dp"
+                        android:background="?attr/selectableItemBackgroundBorderless"
+                        android:contentDescription="加粗（**文本**）"
+                        android:src="@drawable/ic_format_bold" />
+
+                    <ImageButton
+                        android:id="@+id/btn_format_italic"
+                        android:layout_width="40dp"
+                        android:layout_height="40dp"
+                        android:background="?attr/selectableItemBackgroundBorderless"
+                        android:contentDescription="斜体（_文本_）"
+                        android:src="@drawable/ic_format_italic" />
+
+                    <TextView
+                        android:id="@+id/btn_format_h1"
+                        android:layout_width="40dp"
+                        android:layout_height="40dp"
+                        android:background="?attr/selectableItemBackgroundBorderless"
+                        android:contentDescription="一级标题"
+                        android:gravity="center"
+                        android:text="H1"
+                        android:textColor="#BB86FC"
+                        android:textSize="14sp"
+                        android:textStyle="bold" />
+
+                    <TextView
+                        android:id="@+id/btn_format_h2"
+                        android:layout_width="40dp"
+                        android:layout_height="40dp"
+                        android:background="?attr/selectableItemBackgroundBorderless"
+                        android:contentDescription="二级标题"
+                        android:gravity="center"
+                        android:text="H2"
+                        android:textColor="#BB86FC"
+                        android:textSize="14sp"
+                        android:textStyle="bold" />
+
+                    <TextView
+                        android:id="@+id/btn_format_h3"
+                        android:layout_width="40dp"
+                        android:layout_height="40dp"
+                        android:background="?attr/selectableItemBackgroundBorderless"
+                        android:contentDescription="三级标题"
+                        android:gravity="center"
+                        android:text="H3"
+                        android:textColor="#BB86FC"
+                        android:textSize="14sp"
+                        android:textStyle="bold" />
+
+                    <ImageButton
+                        android:id="@+id/btn_format_list"
+                        android:layout_width="40dp"
+                        android:layout_height="40dp"
+                        android:background="?attr/selectableItemBackgroundBorderless"
+                        android:contentDescription="无序列表（- 逐行切换）"
+                        android:src="@drawable/ic_format_list" />
+
+                </LinearLayout>
+
+            </HorizontalScrollView>
+
         </com.google.android.material.appbar.AppBarLayout>
 
         <ScrollView

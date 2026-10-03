@@ -35,6 +35,7 @@ import com.ssh.mdreader.util.AnnotationOverlayHelper;
 import com.ssh.mdreader.util.DialogHelper;
 import com.ssh.mdreader.util.FindHelper;
 import com.ssh.mdreader.util.LinkTargetHelper;
+import com.ssh.mdreader.util.MarkdownFormatHelper;
 import com.ssh.mdreader.util.OpenFileHelper;
 import com.ssh.mdreader.util.PreferenceManager;
 import com.ssh.mdreader.util.ReplaceHelper;
@@ -116,6 +117,8 @@ public class MarkdownReaderActivity extends BaseActivity implements AnnotationOv
     /** 替换行（仅编辑模式可见；路线图 #11）与替换输入框。 */
     private View replaceRow;
     private EditText etReplaceQuery;
+    /** 编辑模式格式栏（路线图 #17；含滚动容器，仅编辑模式可见）。 */
+    private View formatBarScroll;
     /** 当前查询词在渲染文本上的全部匹配（文档序，FindHelper.scanAll 产出）。 */
     private List<FindHelper.Match> findMatches = Collections.emptyList();
     /** 当前高亮匹配下标（-1=无）。 */
@@ -269,6 +272,7 @@ public class MarkdownReaderActivity extends BaseActivity implements AnnotationOv
         etEditor.setVisibility(View.VISIBLE);
         setTitle(pageTitle + "（编辑中）");
         invalidateOptionsMenu();
+        updateFormatBarVisibility();
 
         etEditor.post(() -> {
             etEditor.requestFocus();
@@ -333,6 +337,7 @@ public class MarkdownReaderActivity extends BaseActivity implements AnnotationOv
         setTitle(pageTitle);
         invalidateOptionsMenu();
         updateReplaceRowVisibility();
+        updateFormatBarVisibility();
         if (findBar.getVisibility() == View.VISIBLE) {
             // 查找栏若开着：扫描源已从编辑器切回渲染文本，重算匹配（保持原序位不打断阅读）
             rebuildFind(true);
@@ -358,8 +363,16 @@ public class MarkdownReaderActivity extends BaseActivity implements AnnotationOv
         scrollView   = findViewById(R.id.scroll_view);
         drawerLayout = findViewById(R.id.drawer_layout);
         drawerView   = findViewById(R.id.drawer_annotations);
+        formatBarScroll = findViewById(R.id.format_bar_scroll);
 
         etEditor.setMovementMethod(new ScrollingMovementMethod());
+
+        findViewById(R.id.btn_format_bold).setOnClickListener(v -> applyFormat(0, 0));
+        findViewById(R.id.btn_format_italic).setOnClickListener(v -> applyFormat(1, 0));
+        findViewById(R.id.btn_format_h1).setOnClickListener(v -> applyFormat(2, 1));
+        findViewById(R.id.btn_format_h2).setOnClickListener(v -> applyFormat(2, 2));
+        findViewById(R.id.btn_format_h3).setOnClickListener(v -> applyFormat(2, 3));
+        findViewById(R.id.btn_format_list).setOnClickListener(v -> applyFormat(3, 0));
 
         scaleDetector = new ScaleGestureDetector(this,
                 new ScaleGestureDetector.SimpleOnScaleGestureListener() {
@@ -818,6 +831,38 @@ public class MarkdownReaderActivity extends BaseActivity implements AnnotationOv
         if (replaceRow != null) {
             replaceRow.setVisibility(editMode ? View.VISIBLE : View.GONE);
         }
+    }
+
+    /** 格式栏仅编辑模式显示（路线图 #17）；阅读态保持隐藏不占位。 */
+    private void updateFormatBarVisibility() {
+        if (formatBarScroll != null) {
+            formatBarScroll.setVisibility(editMode ? View.VISIBLE : View.GONE);
+        }
+    }
+
+    /**
+     * 执行编辑格式动作（路线图 #17），动作码约定：
+     * 0=加粗（**…**）、1=斜体（_…_）、2=标题（level 参数 1..3）、3=无序列表（- 逐行）。
+     *
+     * <p>基于当前选区/光标调用纯函数层 {@link MarkdownFormatHelper}，结果写回编辑器并恢复选区。</p>
+     */
+    private void applyFormat(int action, int level) {
+        if (!editMode || etEditor == null) return;
+        int s = etEditor.getSelectionStart();
+        int e = etEditor.getSelectionEnd();
+        if (s < 0) s = etEditor.length();
+        if (e < 0) e = s;
+        String text = etEditor.getText().toString();
+        MarkdownFormatHelper.Result r;
+        switch (action) {
+            case 0:  r = MarkdownFormatHelper.wrapSelection(text, s, e, "**", "**"); break;
+            case 1:  r = MarkdownFormatHelper.wrapSelection(text, s, e, "_", "_"); break;
+            case 2:  r = MarkdownFormatHelper.toggleHeading(text, s, e, level); break;
+            case 3:  r = MarkdownFormatHelper.toggleUnorderedList(text, s, e); break;
+            default: return;
+        }
+        etEditor.setText(r.text);
+        etEditor.setSelection(r.selStart, r.selEnd);
     }
 
     /** 查找扫描源：编辑态=编辑器文本（源 Markdown），阅读态=渲染后文本（所见即所搜）。 */
