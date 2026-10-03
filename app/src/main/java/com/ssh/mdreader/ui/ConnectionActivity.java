@@ -12,6 +12,7 @@ import com.google.android.material.textfield.TextInputLayout;
 import com.ssh.mdreader.R;
 import com.ssh.mdreader.model.SshConfig;
 import com.ssh.mdreader.ssh.SshManager;
+import com.ssh.mdreader.util.ConnectionGroupHelper;
 import com.ssh.mdreader.util.DialogHelper;
 import com.ssh.mdreader.util.PreferenceManager;
 import com.ssh.mdreader.util.UiUtils;
@@ -19,7 +20,7 @@ import com.ssh.mdreader.util.UiUtils;
 public class ConnectionActivity extends BaseActivity {
 
     private TextInputEditText etAlias, etHost, etPort, etUsername, etPassword, etRemotePath;
-    private TextInputEditText etPrivateKey, etKeyPassphrase;
+    private TextInputEditText etPrivateKey, etKeyPassphrase, etGroup;
     private TextInputLayout tilPassword;
     private View layoutKeyFields;
     private MaterialButtonToggleGroup toggleAuthMode;
@@ -54,6 +55,9 @@ public class ConnectionActivity extends BaseActivity {
             if (intent.hasExtra("remotePath")) {
                 etRemotePath.setText(intent.getStringExtra("remotePath"));
             }
+            if (intent.hasExtra("group")) {
+                etGroup.setText(intent.getStringExtra("group"));
+            }
             if (intent.hasExtra("password")) {
                 etPassword.setText(intent.getStringExtra("password"));
             }
@@ -78,6 +82,7 @@ public class ConnectionActivity extends BaseActivity {
         etUsername = findViewById(R.id.et_username);
         etPassword = findViewById(R.id.et_password);
         etRemotePath = findViewById(R.id.et_remote_path);
+        etGroup = findViewById(R.id.et_group);
         etPrivateKey = findViewById(R.id.et_private_key);
         etKeyPassphrase = findViewById(R.id.et_key_passphrase);
         tilPassword = findViewById(R.id.til_password);
@@ -121,6 +126,7 @@ public class ConnectionActivity extends BaseActivity {
         } else {
             prefManager.saveConnection(config);
         }
+        registerGroupIfNeeded(config);
         UiUtils.showToast(this, "已保存");
         finish();
     }
@@ -145,6 +151,7 @@ public class ConnectionActivity extends BaseActivity {
                     } else {
                         prefManager.saveConnection(config);
                     }
+                    registerGroupIfNeeded(config);
                     UiUtils.showToast(ConnectionActivity.this, getString(R.string.msg_connected));
 
                     String path = config.getRemotePath();
@@ -194,6 +201,14 @@ public class ConnectionActivity extends BaseActivity {
         attemptConnect();
     }
 
+    /** 连接保存时若填写了新组名，同步注册到分组元数据（已存在则静默跳过）。 */
+    private void registerGroupIfNeeded(SshConfig config) {
+        String group = ConnectionGroupHelper.normalizeGroupName(config.getGroup());
+        if (!group.isEmpty()) {
+            prefManager.addConnectionGroup(group);
+        }
+    }
+
     /**
      * 收集表单并校验，按认证方式取凭据（密码模式取密码；私钥模式取私钥+可选口令）。
      *
@@ -237,6 +252,7 @@ public class ConnectionActivity extends BaseActivity {
         config.setAuthMode(keyMode ? SshConfig.AUTH_KEY : SshConfig.AUTH_PASSWORD);
         config.setPrivateKey(privateKey);
         config.setKeyPassphrase(keyPassphrase);
+        config.setGroup(ConnectionGroupHelper.normalizeGroupName(getText(etGroup)));
         return config;
     }
 

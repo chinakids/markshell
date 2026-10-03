@@ -94,4 +94,29 @@ public class SshConfigJsonTest {
         JSONObject missing = new JSONObject();
         assertFalse(SshConfigJson.hasLegacyPlainSecret(missing, "privateKey"));
     }
+
+    @Test
+    public void roundTrip_preservesGroup() throws Exception {
+        SshConfig c = new SshConfig("a", "h", 22, "u", "p", "/");
+        c.setGroup("生产环境");
+        SshConfig out = SshConfigJson.fromJson(SshConfigJson.toJson(c));
+        assertEquals("生产环境", out.getGroup());
+        // 未分组：不落 key（旧数据兼容），读出为空串
+        c.setGroup(null);
+        assertFalse(SshConfigJson.toJson(c).has("group"));
+        assertEquals("", SshConfigJson.fromJson(SshConfigJson.toJson(c)).getGroup());
+        assertEquals("", SshConfigJson.fromJson(new JSONObject()).getGroup());
+    }
+
+    @Test
+    public void fromJson_legacyData_missingGroupBecomesEmpty() throws Exception {
+        JSONObject legacy = new JSONObject()
+                .put("alias", "a")
+                .put("host", "h")
+                .put("port", 22)
+                .put("username", "u")
+                .put("password", "enc$xxx")
+                .put("remotePath", "/");
+        assertEquals("", SshConfigJson.fromJson(legacy).getGroup());
+    }
 }

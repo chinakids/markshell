@@ -26,6 +26,8 @@ public class PreferenceManager implements HostKeyStore {
     private static final String KEY_HOST_KEYS = "known_hosts";
     /** 与 SshManager.DEFAULT_HEARTBEAT_MS 保持一致。 */
     private static final int DEFAULT_HEARTBEAT_MS = 5_000;
+    /** 连接分组元数据（组名列表，JSONArray of String）。 */
+    private static final String KEY_CONNECTION_GROUPS = "connection_groups";
 
     private final SharedPreferences prefs;
     /** Keystore 密钥（懒加载）。null=Keystore 不可用，降级明文（保持功能可用）。 */
@@ -381,5 +383,93 @@ public class PreferenceManager implements HostKeyStore {
 
     private void writeHostKeys(JSONArray arr) {
         prefs.edit().putString(KEY_HOST_KEYS, arr.toString()).apply();
+    }
+
+    // ── 连接分组元数据（组列表 CRUD；连接上的 group 字段见 ConnectionGroupHelper）──────
+
+    /**
+     * 读取分组列表（有序；已规范化并去重；不含空白「未分组」）。
+     * 组列表与连接归属独立：空组（无连接）也保留，便于用户管理。
+     */
+    public List<String> getConnectionGroups() {
+        return ConnectionGroupHelper.dedupeGroupNames(readConnectionGroupArray());
+    }
+
+    /**
+     * 新增分组：组名规范化；空白忽略；已存在（规范化后）返回 false；成功返回 true。
+     */
+    public boolean addConnectionGroup(String name) {
+        String normalized = ConnectionGroupHelper.normalizeGroupName(name);
+        if (normalized.isEmpty()) return false;
+        List<String> groups = getConnectionGroups();
+        if (groups.contains(normalized)) return false;
+        groups.add(normalized);
+        writeConnectionGroups(groups);
+        return true;
+    }
+
+    /**
+     * 重命名分组：组内连接同步改为新组名（组名规范化；目标空白=拒绝）。
+     * 若目标组名已存在 → 合并（旧组连接并入目标组，旧组从列表移除）。
+     * 旧组不存在或新旧同名返回 false；成功返回 true。
+     */
+    public boolean renameConnectionGroup(String oldName, String newName) {
+        String old = ConnectionGroupHelper.normalizeGroupName(oldName);
+        String target = ConnectionGroupHelper.normalizeGroupName(newName);
+        if (old.isEmpty() || target.isEmpty() || old.equals(target)) return false;
+
+        List<String> groups = getConnectionGroups();
+        int idx = groups.indexOf(old);
+        if (idx < 0) return false;
+        if (!groups.contains(target)) {
+            groups.set(idx, target);
+        } else {
+            groups.remove(idx); // 目标已存在：合并，旧组直接移除
+        }
+        writeConnectionGroups(ConnectionGroupHelper.dedupeGroupNames(groups));
+
+        // 同步连接归属：组内连接改为目标组
+        List<SshConfig> updated = ConnectionGroupHelper.renameGroupInList(
+                getSavedConnections(), old, target);
+        saveConnectionList(updated);
+        return true;
+    }
+
+    /**
+     * 删除分组：组内连接退回「未分组」（group 置空），不级联删除连接（决策已定）。
+     * 组不存在返回 false；成功返回 true。
+     */
+    public boolean deleteConnectionGroup(String name) {
+        String group = ConnectionGroupHelper.normalizeGroupName(name);
+        if (group.isEmpty()) return false;
+        List<String> groups = getConnectionGroups();
+        if (!groups.remove(group)) return false;
+        writeConnectionGroups(groups);
+
+        List<SshConfig> updated = ConnectionGroupHelper.ungroupAllInList(
+                getSavedConnections(), group);
+        saveConnectionList(updated);
+        return true;
+    }
+
+    private List<String> readConnectionGroupArray() {
+        String json = prefs.getString(KEY_CONNECTION_GROUPS, "");
+        List<String> list = new ArrayList<>();
+        if (json.isEmpty()) return list;
+        try {
+            JSONArray arr = new JSONArray(json);
+            for (int i = 0; i < arr.length(); i++) {
+                String name = arr.optString(i, "");
+                if (!name.isEmpty()) list.add(name);
+            }
+        } catch (JSONException e) {
+            Log.w(TAG, "读取连接分组失败，已忽略损坏的数据", e);
+        }
+        return list;
+    }
+
+    private void writeConnectionGroups(List<String> groups) {
+        prefs.edit().putString(KEY_CONNECTION_GROUPS, new JSONArray(
+                ConnectionGroupHelper.dedupeGroupNames(groups)).toString()).apply();
     }
 }

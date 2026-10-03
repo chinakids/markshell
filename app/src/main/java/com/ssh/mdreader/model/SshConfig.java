@@ -18,6 +18,8 @@ public class SshConfig {
     private String privateKey;
     /** 私钥口令（可选；仅加密私钥使用）。 */
     private String keyPassphrase;
+    /** 所属分组名；null/空白=未分组（旧数据兼容）。 */
+    private String group;
 
     public SshConfig() {
         this.port = 22;
@@ -59,6 +61,10 @@ public class SshConfig {
 
     public String getKeyPassphrase() { return keyPassphrase; }
     public void setKeyPassphrase(String keyPassphrase) { this.keyPassphrase = keyPassphrase; }
+
+    /** 所属分组名；null/空白=未分组。 */
+    public String getGroup() { return group; }
+    public void setGroup(String group) { this.group = group; }
 
     /** 是否私钥认证模式（authMode=key）。 */
     public boolean isKeyAuth() {

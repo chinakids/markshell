@@ -34,6 +34,10 @@ public final class SshConfigJson {
         obj.put("authMode", config.getAuthMode());
         obj.put("privateKey", config.getPrivateKey());
         obj.put("keyPassphrase", config.getKeyPassphrase());
+        // group 为 null/空白=未分组：不落 key（旧数据自然兼容）
+        if (config.getGroup() != null && !config.getGroup().isEmpty()) {
+            obj.put("group", config.getGroup());
+        }
         return obj;
     }
 
@@ -52,6 +56,8 @@ public final class SshConfigJson {
         config.setAuthMode(SshConfig.authModeOrDefault(obj.optString("authMode", "")));
         config.setPrivateKey(obj.optString("privateKey", ""));
         config.setKeyPassphrase(obj.optString("keyPassphrase", ""));
+        // group：旧数据缺省 ""=未分组
+        config.setGroup(obj.optString("group", ""));
         return config;
     }
 
