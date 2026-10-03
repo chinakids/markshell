@@ -44,6 +44,14 @@
     <string name="msg_disconnected">已断开</string>
     <string name="msg_connecting">连接中…</string>
 
+    <!-- Host key verification (known_hosts) -->
+    <string name="host_key_recorded">已记录主机指纹（首次连接）</string>
+    <string name="host_key_changed_title">主机密钥已变更</string>
+    <string name="host_key_changed_trust">信任新指纹并重连</string>
+    <string name="host_key_changed_cancel">取消</string>
+    <string name="host_key_changed_message">检测到主机 %1$s:%2$d 的密钥已变更，可能存在中间人攻击。\n\n已记录指纹：\n%3$s\n\n服务器当前指纹：\n%4$s\n\n信任新指纹后将以新指纹为准并重连。</string>
+    <string name="host_key_changed_rejected">已取消连接：主机密钥已变更</string>
+
     <!-- Large-screen two-pane preview -->
     <string name="preview_empty_hint">选择文件以预览</string>
     <string name="preview_unsupported">暂不支持预览此文件类型</string>

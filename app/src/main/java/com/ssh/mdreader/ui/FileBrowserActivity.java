@@ -295,11 +295,15 @@ public class FileBrowserActivity extends BaseActivity
         if (isFinishing() || isDestroyed()) return;
         progressBar.setVisibility(View.VISIBLE);
         layoutError.setVisibility(View.GONE);
+        SshManager.getInstance().setHostKeyStore(prefManager);
         sshManager.connect(config, new SshManager.ConnectionListener() {
             @Override
             public void onConnected() {
                 runOnUiThread(() -> {
                     if (!isFinishing() && !isDestroyed()) {
+                        if (SshManager.getInstance().consumeFingerprintFirstSeen()) {
+                            UiUtils.showToast(FileBrowserActivity.this, getString(R.string.host_key_recorded));
+                        }
                         recyclerFiles.setVisibility(View.VISIBLE);
                         loadFiles();
                     }
@@ -312,6 +316,19 @@ public class FileBrowserActivity extends BaseActivity
                     if (isFinishing() || isDestroyed()) return;
                     progressBar.setVisibility(View.GONE);
                     showErrorPage("连接失败：" + message);
+                });
+            }
+
+            @Override
+            public void onHostKeyChanged(String expected, String actual) {
+                runOnUiThread(() -> {
+                    if (isFinishing() || isDestroyed()) return;
+                    progressBar.setVisibility(View.GONE);
+                    DialogHelper.showHostKeyChangedDialog(FileBrowserActivity.this,
+                            prefManager, config.getHost(), config.getPort(),
+                            expected, actual,
+                            () -> reconnectAndReload(config),
+                            () -> showErrorPage(getString(R.string.host_key_changed_rejected)));
                 });
             }
 

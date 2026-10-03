@@ -78,11 +78,15 @@ public class SavedConnectionsActivity extends BaseActivity {
         }
 
         setLoading(true);
+        SshManager.getInstance().setHostKeyStore(prefManager);
         SshManager.getInstance().connect(config, new SshManager.ConnectionListener() {
             @Override
             public void onConnected() {
                 runOnUiThread(() -> {
                     setLoading(false);
+                    if (SshManager.getInstance().consumeFingerprintFirstSeen()) {
+                        UiUtils.showToast(SavedConnectionsActivity.this, getString(R.string.host_key_recorded));
+                    }
                     UiUtils.showToast(SavedConnectionsActivity.this, "已连接");
 
                     String path = config.getRemotePath();
@@ -105,6 +109,19 @@ public class SavedConnectionsActivity extends BaseActivity {
                             "重新连接", "取消",
                             (d) -> quickConnect(config, position),
                             (d) -> {});
+                });
+            }
+
+            @Override
+            public void onHostKeyChanged(String expected, String actual) {
+                runOnUiThread(() -> {
+                    if (isFinishing() || isDestroyed()) return;
+                    setLoading(false);
+                    DialogHelper.showHostKeyChangedDialog(SavedConnectionsActivity.this,
+                            prefManager, config.getHost(), config.getPort(),
+                            expected, actual,
+                            () -> quickConnect(config, position),
+                            () -> {});
                 });
             }
 

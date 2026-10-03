@@ -93,6 +93,34 @@ public class DialogHelper {
                 true, false, positiveListener, negativeListener);
     }
 
+    /**
+     * 主机指纹变更确认框（危险样式）：展示已记录/服务器当前两组指纹（4 字符分组换行），
+     * 「信任」= 以新指纹落盘并执行 {@code onTrusted}；「取消」= 仅执行 {@code onRejected}。
+     */
+    public static void showHostKeyChangedDialog(@NonNull Context context,
+                                                @NonNull HostKeyStore store,
+                                                @NonNull String host,
+                                                int port,
+                                                @NonNull String expectedFingerprint,
+                                                @NonNull String actualFingerprint,
+                                                @NonNull Runnable onTrusted,
+                                                @NonNull Runnable onRejected) {
+        if (!canShow(context)) return;
+        showDangerConfirmDialog(context,
+                context.getString(R.string.host_key_changed_title),
+                context.getString(R.string.host_key_changed_message,
+                        host, port,
+                        HostKeyHelper.formatGrouped(expectedFingerprint, 4),
+                        HostKeyHelper.formatGrouped(actualFingerprint, 4)),
+                context.getString(R.string.host_key_changed_trust),
+                context.getString(R.string.host_key_changed_cancel),
+                d -> {
+                    store.saveFingerprint(host, port, actualFingerprint);
+                    onTrusted.run();
+                },
+                d -> onRejected.run());
+    }
+
     public static void showConfirmDialog(@NonNull Context context,
                                          @NonNull String title,
                                          @NonNull String message,

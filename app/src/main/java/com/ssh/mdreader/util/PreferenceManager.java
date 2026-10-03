@@ -13,7 +13,7 @@ import org.json.JSONObject;
 import java.util.ArrayList;
 import java.util.List;
 
-public class PreferenceManager {
+public class PreferenceManager implements HostKeyStore {
     private static final String TAG = "PreferenceManager";
     private static final String PREF_NAME = "ssh_md_reader_prefs";
     private static final String KEY_SAVED_CONNECTIONS = "saved_connections";
@@ -22,6 +22,8 @@ public class PreferenceManager {
     private static final String KEY_HEARTBEAT_MS = "heartbeat_interval_ms";
     private static final String KEY_FILE_SORT_MODE = "file_sort_mode";
     private static final String KEY_BOOKMARKS = "bookmarked_dirs";
+    /** 主机指纹库（known_hosts），按 host+port 记录。 */
+    private static final String KEY_HOST_KEYS = "known_hosts";
     /** 与 SshManager.DEFAULT_HEARTBEAT_MS 保持一致。 */
     private static final int DEFAULT_HEARTBEAT_MS = 5_000;
 
@@ -314,5 +316,70 @@ public class PreferenceManager {
             Log.w(TAG, "序列化书签失败", e);
             return false;
         }
+    }
+
+    // ── 主机指纹（known_hosts，按 host+port 记录）───────────────────────────
+
+    /**
+     * 读取指定主机已记录的规范指纹；从未记录返回 null。
+     * JSON 结构：{@code [{"host":..,"port":..,"fingerprint":..},..]}。
+     */
+    @Override
+    public String getFingerprint(String host, int port) {
+        JSONArray arr = readHostKeys();
+        for (int i = 0; i < arr.length(); i++) {
+            JSONObject obj = arr.optJSONObject(i);
+            if (obj != null && obj.optString("host", "").equals(host)
+                    && obj.optInt("port", 0) == port) {
+                String fp = obj.optString("fingerprint", "");
+                return HostKeyHelper.isValidFingerprint(fp) ? fp : null;
+            }
+        }
+        return null;
+    }
+
+    /** 记录/覆盖该主机指纹（规范化后存储）；非法指纹或空入参忽略。 */
+    @Override
+    public void saveFingerprint(String host, int port, String fingerprint) {
+        if (host == null || host.isEmpty()) return;
+        String normalized = HostKeyHelper.normalizeFingerprint(fingerprint);
+        if (normalized.isEmpty()) return;
+        JSONArray arr = readHostKeys();
+        for (int i = 0; i < arr.length(); i++) {
+            JSONObject obj = arr.optJSONObject(i);
+            if (obj != null && obj.optString("host", "").equals(host)
+                    && obj.optInt("port", 0) == port) {
+                try {
+                    obj.put("fingerprint", normalized);
+                    writeHostKeys(arr);
+                } catch (JSONException e) {
+                    Log.w(TAG, "更新主机指纹失败", e);
+                }
+                return;
+            }
+        }
+        JSONObject obj = new JSONObject();
+        try {
+            obj.put("host", host).put("port", port).put("fingerprint", normalized);
+            arr.put(obj);
+            writeHostKeys(arr);
+        } catch (JSONException e) {
+            Log.w(TAG, "保存主机指纹失败", e);
+        }
+    }
+
+    private JSONArray readHostKeys() {
+        String json = prefs.getString(KEY_HOST_KEYS, "");
+        if (json.isEmpty()) return new JSONArray();
+        try {
+            return new JSONArray(json);
+        } catch (JSONException e) {
+            Log.w(TAG, "读取主机指纹失败，已忽略损坏的数据", e);
+            return new JSONArray();
+        }
+    }
+
+    private void writeHostKeys(JSONArray arr) {
+        prefs.edit().putString(KEY_HOST_KEYS, arr.toString()).apply();
     }
 }

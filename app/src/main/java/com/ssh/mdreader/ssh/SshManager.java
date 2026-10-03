@@ -3,6 +3,7 @@ package com.ssh.mdreader.ssh;
 import android.util.Log;
 
 import com.jcraft.jsch.ChannelSftp;
+import com.jcraft.jsch.HostKey;
 import com.jcraft.jsch.JSch;
 import com.jcraft.jsch.Session;
 import com.jcraft.jsch.SftpATTRS;
@@ -10,6 +11,8 @@ import com.jcraft.jsch.SftpException;
 import com.ssh.mdreader.model.RemoteFile;
 import com.ssh.mdreader.model.SshConfig;
 import com.ssh.mdreader.util.FileSortUtils;
+import com.ssh.mdreader.util.HostKeyHelper;
+import com.ssh.mdreader.util.HostKeyStore;
 import com.ssh.mdreader.util.UiUtils;
 
 import java.io.ByteArrayOutputStream;
@@ -64,16 +67,44 @@ public class SshManager {
     private volatile boolean userDisconnected;
     /** 心跳间隔（毫秒），由 UI 层从偏好注入；对已建立连接不生效，下次 connect/自动重连生效。 */
     private volatile int heartbeatIntervalMs = DEFAULT_HEARTBEAT_MS;
+    /** 主机指纹存储（由 UI 层注入 PreferenceManager）；null=跳过校验（保持旧行为）。 */
+    private volatile HostKeyStore hostKeyStore;
+    /** 本次连接是否首次记录主机指纹（TOFU），供 UI 一次性提示；读后清。 */
+    private volatile boolean fingerprintFirstSeen;
 
     public interface ConnectionListener {
         void onConnected();
         void onError(String message);
         void onDisconnected();
+        /**
+         * 主机指纹与已记录不一致（可能中间人攻击）：连接已中止，{@code expected} 为已记录指纹、
+         * {@code actual} 为服务器当前指纹。默认 no-op；UI 层应弹窗让用户「信任新指纹并重连 / 取消」，
+         * 信任前不会建立（完整）连接。回调线程与 {@link #onConnected} 一致（worker 线程）。
+         */
+        default void onHostKeyChanged(String expected, String actual) {}
     }
 
     public interface FileListCallback {
         void onSuccess(List<RemoteFile> files);
         void onError(String message);
+    }
+
+    /**
+     * 主机指纹与已记录不一致时抛出（内部信号，不得静默放行）。
+     * {@code expected}=已记录指纹，{@code actual}=服务器当前指纹。
+     */
+    public static class HostKeyChangedException extends Exception {
+        private final String expectedFingerprint;
+        private final String actualFingerprint;
+
+        HostKeyChangedException(String expected, String actual) {
+            super("主机指纹已变更（可能为中间人攻击）");
+            this.expectedFingerprint = expected;
+            this.actualFingerprint = actual;
+        }
+
+        public String getExpectedFingerprint() { return expectedFingerprint; }
+        public String getActualFingerprint() { return actualFingerprint; }
     }
 
     public interface FileContentCallback {
@@ -107,6 +138,22 @@ public class SshManager {
         return heartbeatIntervalMs;
     }
 
+    /** 注入主机指纹存储（UI 层传 PreferenceManager）；在 connect 前调用。null 恢复「跳过校验」。 */
+    public void setHostKeyStore(HostKeyStore store) {
+        this.hostKeyStore = store;
+    }
+
+    public HostKeyStore getHostKeyStore() {
+        return hostKeyStore;
+    }
+
+    /** 本次连接是否首次记录主机指纹（TOFU）；读后重置，供 UI 一次性提示「已记录」。 */
+    public boolean consumeFingerprintFirstSeen() {
+        boolean v = fingerprintFirstSeen;
+        fingerprintFirstSeen = false;
+        return v;
+    }
+
     /** 心跳间隔合法性过滤：越界值回退默认 5000。包级可见以便单测。 */
     static int sanitizeHeartbeat(int ms) {
         if (ms < HEARTBEAT_MIN_MS || ms > HEARTBEAT_MAX_MS) return DEFAULT_HEARTBEAT_MS;
@@ -133,6 +180,13 @@ public class SshManager {
                 }
 
                 if (cb != null) cb.onConnected();
+            } catch (HostKeyChangedException e) {
+                Log.w(TAG, "主机指纹已变更，中止连接: " + config.getHost() + ":" + config.getPort(),
+                        e);
+                cleanupSync();
+                if (cb != null) {
+                    cb.onHostKeyChanged(e.getExpectedFingerprint(), e.getActualFingerprint());
+                }
             } catch (Exception e) {
                 Log.w(TAG, "连接失败: " + config.getHost() + ":" + config.getPort(), e);
                 cleanupSync();
@@ -161,8 +215,50 @@ public class SshManager {
         session.setTimeout(IO_TIMEOUT_MS);
         session.connect(CONNECT_TIMEOUT_MS);
 
+        // 主机指纹校验（known_hosts）：TOFU 记录 / 一致放行 / 变更中止。
+        // JSch 保持 StrictHostKeyChecking=no 交由我们自校验，以便拿到实际指纹做 UI 展示。
+        verifyHostKeySync();
+
         sftpChannel = (ChannelSftp) session.openChannel("sftp");
         sftpChannel.connect(CONNECT_TIMEOUT_MS);
+    }
+
+    /**
+     * 校验主机指纹（仅限 worker 线程、session 已连接后调用）：从未记录=TOFU 记录并置
+     * {@link #fingerprintFirstSeen}；一致=放行；不一致=抛 {@link HostKeyChangedException}
+     * （连接在此之前保持关闭，信任前不建立 sftp 通道）。未注入 store 或拿不到指纹时降级放行。
+     */
+    private void verifyHostKeySync() throws HostKeyChangedException {
+        HostKeyStore store = hostKeyStore;
+        if (store == null) {
+            Log.w(TAG, "未注入 HostKeyStore，跳过主机指纹校验");
+            return;
+        }
+        HostKey hostKey;
+        try {
+            hostKey = session.getHostKey();
+        } catch (Exception e) {
+            Log.w(TAG, "读取主机密钥失败，跳过指纹校验（降级放行）", e);
+            return;
+        }
+        String actual = HostKeyHelper.fingerprintOf(hostKey);
+        if (actual == null || actual.isEmpty()) {
+            Log.w(TAG, "主机指纹计算失败，跳过指纹校验（降级放行）");
+            return;
+        }
+        String stored = store.getFingerprint(config.getHost(), config.getPort());
+        switch (HostKeyHelper.verifyFingerprint(stored, actual)) {
+            case NEW:
+                store.saveFingerprint(config.getHost(), config.getPort(), actual);
+                fingerprintFirstSeen = true;
+                Log.i(TAG, "首次连接，已记录主机指纹: " + config.getHost() + ":" + config.getPort());
+                break;
+            case CHANGED:
+                Log.w(TAG, "主机指纹不匹配: " + config.getHost() + ":" + config.getPort()
+                        + " stored=" + stored + " actual=" + actual);
+                throw new HostKeyChangedException(stored, actual);
+            default: // MATCH：静默放行
+        }
     }
 
     /** 私钥认证时注入 JSch 的身份名（仅内存，不落盘）。 */
@@ -228,6 +324,13 @@ public class SshManager {
     private void runOp(String name, boolean retryable, SftpOp op, java.util.function.Consumer<String> onError) {
         try {
             op.run(obtainChannel());
+        } catch (HostKeyChangedException e) {
+            // 自动重连（obtainChannel）遇指纹变更：不得静默放行——中断连接并提示；
+            // UI 收到错误后通常走 checkConnectionAlive→reconnectAndReload→connect()，
+            // 最终收敛到 onHostKeyChanged 弹窗（信任/取消）。
+            Log.w(TAG, name + " 遇主机指纹变更，中断连接", e);
+            cleanupSync();
+            onError.accept(e.getMessage());
         } catch (Exception first) {
             if (retryable && isConnectionGone(first)) {
                 Log.w(TAG, name + " 疑似断线，重连后重试一次", first);

@@ -106,12 +106,16 @@ public class MainActivity extends BaseActivity {
 
         adapter.setClickable(false);
         adapter.setConnecting(position);
+        SshManager.getInstance().setHostKeyStore(prefManager);
         SshManager.getInstance().connect(config, new SshManager.ConnectionListener() {
             @Override
             public void onConnected() {
                 runOnUiThread(() -> {
                     adapter.clearConnecting();
                     adapter.setClickable(true);
+                    if (SshManager.getInstance().consumeFingerprintFirstSeen()) {
+                        UiUtils.showToast(MainActivity.this, getString(R.string.host_key_recorded));
+                    }
                     UiUtils.showToast(MainActivity.this, "已连接");
                     String path = config.getRemotePath();
                     if (path == null || path.isEmpty()) {
@@ -134,6 +138,21 @@ public class MainActivity extends BaseActivity {
                             "重新连接", "取消",
                             (d) -> quickConnect(config, position),
                             (d) -> {});
+                });
+            }
+
+            @Override
+            public void onHostKeyChanged(String expected, String actual) {
+                runOnUiThread(() -> {
+                    if (isFinishing() || isDestroyed()) return;
+                    // 先恢复列表可点，避免弹窗期间/取消后卡片永久 connecting
+                    adapter.clearConnecting();
+                    adapter.setClickable(true);
+                    DialogHelper.showHostKeyChangedDialog(MainActivity.this,
+                            prefManager, config.getHost(), config.getPort(),
+                            expected, actual,
+                            () -> quickConnect(config, position),
+                            () -> {});
                 });
             }
 
@@ -260,6 +279,7 @@ public class MainActivity extends BaseActivity {
         btnConnect.setEnabled(false);
         btnConnect.setText(R.string.msg_connecting);
 
+        SshManager.getInstance().setHostKeyStore(prefManager);
         SshManager.getInstance().connect(config, new SshManager.ConnectionListener() {
             @Override
             public void onConnected() {
@@ -268,6 +288,9 @@ public class MainActivity extends BaseActivity {
                     progressBar.setVisibility(View.GONE);
                     btnConnect.setEnabled(true);
                     btnConnect.setText(R.string.btn_connect);
+                    if (SshManager.getInstance().consumeFingerprintFirstSeen()) {
+                        UiUtils.showToast(MainActivity.this, getString(R.string.host_key_recorded));
+                    }
                     prefManager.saveConnection(config);
                     dialog.dismiss();
                     UiUtils.showToast(MainActivity.this, getString(R.string.msg_connected));
@@ -294,6 +317,21 @@ public class MainActivity extends BaseActivity {
                             "重试", "取消",
                             d -> connectFromDialog(dialog, config, progressBar, btnConnect),
                             d -> {});
+                });
+            }
+
+            @Override
+            public void onHostKeyChanged(String expected, String actual) {
+                runOnUiThread(() -> {
+                    if (isFinishing() || isDestroyed()) return;
+                    progressBar.setVisibility(View.GONE);
+                    btnConnect.setEnabled(true);
+                    btnConnect.setText(R.string.btn_connect);
+                    DialogHelper.showHostKeyChangedDialog(MainActivity.this,
+                            prefManager, config.getHost(), config.getPort(),
+                            expected, actual,
+                            () -> connectFromDialog(dialog, config, progressBar, btnConnect),
+                            () -> {});
                 });
             }
 

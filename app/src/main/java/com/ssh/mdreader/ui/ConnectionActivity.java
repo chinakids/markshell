@@ -131,11 +131,15 @@ public class ConnectionActivity extends BaseActivity {
 
         setLoading(true);
 
+        SshManager.getInstance().setHostKeyStore(prefManager);
         SshManager.getInstance().connect(config, new SshManager.ConnectionListener() {
             @Override
             public void onConnected() {
                 runOnUiThread(() -> {
                     setLoading(false);
+                    if (SshManager.getInstance().consumeFingerprintFirstSeen()) {
+                        UiUtils.showToast(ConnectionActivity.this, getString(R.string.host_key_recorded));
+                    }
                     if (editIndex >= 0) {
                         prefManager.updateConnection(editIndex, config);
                     } else {
@@ -168,9 +172,26 @@ public class ConnectionActivity extends BaseActivity {
             }
 
             @Override
+            public void onHostKeyChanged(String expected, String actual) {
+                runOnUiThread(() -> {
+                    if (isFinishing() || isDestroyed()) return;
+                    setLoading(false);
+                    DialogHelper.showHostKeyChangedDialog(ConnectionActivity.this,
+                            prefManager, config.getHost(), config.getPort(),
+                            expected, actual,
+                            ConnectionActivity.this::reconnectAfterTrust,
+                            () -> {});
+                });
+            }
+
+            @Override
             public void onDisconnected() {
             }
         });
+    }
+
+    private void reconnectAfterTrust() {
+        attemptConnect();
     }
 
     /**
