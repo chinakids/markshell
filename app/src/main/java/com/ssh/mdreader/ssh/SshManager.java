@@ -660,6 +660,38 @@ public class SshManager {
         }, callback::onError));
     }
 
+    /**
+     * 创建新文件（不存在才创建——先 stat 判存在，已存在直接报错<b>不覆盖</b>）。
+     * 与 {@link #writeFile} 的 OVERWRITE 写口径严格区分：编辑保存允许覆盖，新建则
+     * 必须守住「同名已有内容不被静默清空」。写操作不重试（与 writeFile 同口径）；
+     * 内容为空字节（新建即空文件，随后可由「编辑」模式写入）。回调在 worker 线程。
+     */
+    public void createFile(String path, WriteFileCallback callback) {
+        sftpExecutor.execute(() -> runOp("创建文件", false, channel -> {
+            if (!isPathMissingSync(channel, path)) {
+                callback.onError("文件已存在: " + path);
+                return;
+            }
+            channel.put(new java.io.ByteArrayInputStream(new byte[0]), path, ChannelSftp.OVERWRITE);
+            callback.onSuccess();
+        }, callback::onError));
+    }
+
+    /**
+     * 创建目录（不存在才创建：先 stat 判存在，已存在直接报错不覆盖；父目录不存在时
+     * mkdir 抛错走 onError「创建目录失败…」）。写操作不重试；回调在 worker 线程。
+     */
+    public void createDirectory(String path, DeleteFileCallback callback) {
+        sftpExecutor.execute(() -> runOp("创建目录", false, channel -> {
+            if (!isPathMissingSync(channel, path)) {
+                callback.onError("目录已存在: " + path);
+                return;
+            }
+            channel.mkdir(path);
+            callback.onSuccess();
+        }, callback::onError));
+    }
+
     public interface DeleteFileCallback {
         void onSuccess();
         void onError(String message);

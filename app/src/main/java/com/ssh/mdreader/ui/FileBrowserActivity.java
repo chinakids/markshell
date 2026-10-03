@@ -28,6 +28,7 @@ import com.ssh.mdreader.ssh.SshManager;
 import com.ssh.mdreader.util.DialogHelper;
 import com.ssh.mdreader.util.FileOpsHelper;
 import com.ssh.mdreader.util.FileSortUtils;
+import com.ssh.mdreader.util.NewFileHelper;
 import com.ssh.mdreader.util.OpenFileHelper;
 import com.ssh.mdreader.util.PreferenceManager;
 import com.ssh.mdreader.util.PreviewPaneHelper;
@@ -136,7 +137,89 @@ public class FileBrowserActivity extends BaseActivity
             showBookmarksDialog();
             return true;
         }
+        if (id == R.id.action_new) {
+            showCreateDialog();
+            return true;
+        }
         return super.onOptionsItemSelected(item);
+    }
+
+    // ── 新建文件/目录（能力发现循环） ───────────────────────────────────────
+
+    /** 顶部更多菜单「新建」：选择新建文件或文件夹，再输入名称。 */
+    private void showCreateDialog() {
+        if (isFinishing() || isDestroyed()) return;
+        DialogHelper.showListDialog(this,
+                "新建（" + currentPath + "）",
+                new String[]{"新建文件", "新建文件夹"},
+                new int[]{R.drawable.ic_file, R.drawable.ic_folder},
+                (dialog, which) -> {
+                    if (which == 0) {
+                        createNewFile();
+                    } else {
+                        createNewDirectory();
+                    }
+                });
+    }
+
+    /** 新建文件：输入名称 → 校验 → 服务器上「不存在才创建」→ 刷新列表。 */
+    private void createNewFile() {
+        if (isFinishing() || isDestroyed()) return;
+        DialogHelper.showInputDialog(this,
+                "新建文件", "文件名（如：笔记.md）", "创建", "取消",
+                name -> {
+                    String error = NewFileHelper.validateName(name);
+                    if (error != null) {
+                        UiUtils.showToast(this, error);
+                        return;
+                    }
+                    final String path = NewFileHelper.joinPath(currentPath, name);
+                    sshManager.createFile(path, new SshManager.WriteFileCallback() {
+                        @Override
+                        public void onSuccess() {
+                            runOnUiThread(() -> {
+                                UiUtils.showToast(FileBrowserActivity.this, "已创建: " + path);
+                                loadFiles();
+                            });
+                        }
+
+                        @Override
+                        public void onError(String message) {
+                            runOnUiThread(() ->
+                                    UiUtils.showToast(FileBrowserActivity.this, "创建失败: " + message));
+                        }
+                    });
+                });
+    }
+
+    /** 新建文件夹：输入名称 → 校验 → 服务器上「不存在才创建」→ 刷新列表。 */
+    private void createNewDirectory() {
+        if (isFinishing() || isDestroyed()) return;
+        DialogHelper.showInputDialog(this,
+                "新建文件夹", "文件夹名称（如：notes）", "创建", "取消",
+                name -> {
+                    String error = NewFileHelper.validateName(name);
+                    if (error != null) {
+                        UiUtils.showToast(this, error);
+                        return;
+                    }
+                    final String path = NewFileHelper.joinPath(currentPath, name);
+                    sshManager.createDirectory(path, new SshManager.DeleteFileCallback() {
+                        @Override
+                        public void onSuccess() {
+                            runOnUiThread(() -> {
+                                UiUtils.showToast(FileBrowserActivity.this, "已创建: " + path);
+                                loadFiles();
+                            });
+                        }
+
+                        @Override
+                        public void onError(String message) {
+                            runOnUiThread(() ->
+                                    UiUtils.showToast(FileBrowserActivity.this, "创建失败: " + message));
+                        }
+                    });
+                });
     }
 
     // ── 目录书签快捷访问 ────────────────────────────────────────────────────

@@ -792,6 +792,8 @@ public class MarkdownReaderActivity extends BaseActivity implements AnnotationOv
         if (findMatches.isEmpty()) {
             findCurrentIndex = -1;
             tvFindStatus.setText(query.isEmpty() ? "" : "未找到");
+            // 新查询无匹配：清除上一处查询残留的高亮（防“状态显示未找到、画面仍高亮旧词”）
+            annotationOverlay.clearActiveHighlight();
             return;
         }
         if (preserve && prev >= 0 && prev < findMatches.size()) {

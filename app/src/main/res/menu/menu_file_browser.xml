@@ -25,4 +25,10 @@
         android:title="书签"
         app:showAsAction="ifRoom" />
 
+    <item
+        android:id="@+id/action_new"
+        android:icon="@drawable/ic_add"
+        android:title="新建"
+        app:showAsAction="never" />
+
 </menu>
