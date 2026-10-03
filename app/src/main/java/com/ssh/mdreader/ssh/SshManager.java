@@ -145,8 +145,11 @@ public class SshManager {
     private void openChannelSync() throws Exception {
         cleanupSync();
         JSch jsch = new JSch();
+        configureAuth(jsch, config);
         session = jsch.getSession(config.getUsername(), config.getHost(), config.getPort());
-        session.setPassword(config.getPassword());
+        if (usesPasswordAuth(config)) {
+            session.setPassword(config.getPassword());
+        }
 
         Properties props = new Properties();
         props.put("StrictHostKeyChecking", "no");
@@ -160,6 +163,36 @@ public class SshManager {
 
         sftpChannel = (ChannelSftp) session.openChannel("sftp");
         sftpChannel.connect(CONNECT_TIMEOUT_MS);
+    }
+
+    /** 私钥认证时注入 JSch 的身份名（仅内存，不落盘）。 */
+    static final String KEY_AUTH_IDENTITY_NAME = "MarkShell-key";
+
+    /** 是否走密码认证（非私钥模式）。包级可见以便单测。 */
+    static boolean usesPasswordAuth(SshConfig config) {
+        return config == null || !config.isKeyAuth();
+    }
+
+    /**
+     * 按认证方式配置 JSch：私钥模式注入内存 PEM——
+     * {@code jsch.addIdentity(name, prvkey, pubkey, passphrase)}（pubkey 传 null 由 JSch
+     * 从私钥推导）；密码模式由调用方 {@code session.setPassword} 负责，本方法不处理密码。
+     *
+     * <p>包级可见以便单测：单测用 JSch 子类截获 addIdentity 参数（不触发真实密钥解析）。</p>
+     */
+    static void configureAuth(JSch jsch, SshConfig config) throws com.jcraft.jsch.JSchException {
+        if (config == null || !config.isKeyAuth()) return;
+        String pem = config.getPrivateKey();
+        if (pem == null || pem.isEmpty()) return;
+        byte[] prv = pem.getBytes(StandardCharsets.UTF_8);
+        byte[] pass = keyPassphraseBytes(config.getKeyPassphrase());
+        jsch.addIdentity(KEY_AUTH_IDENTITY_NAME, prv, null, pass);
+    }
+
+    /** 私钥口令转字节；空/ null → null（JSch 视为无口令）。包级可见以便单测。 */
+    static byte[] keyPassphraseBytes(String passphrase) {
+        if (passphrase == null || passphrase.isEmpty()) return null;
+        return passphrase.getBytes(StandardCharsets.UTF_8);
     }
 
     /**

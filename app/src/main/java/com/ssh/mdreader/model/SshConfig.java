@@ -1,12 +1,23 @@
 package com.ssh.mdreader.model;
 
 public class SshConfig {
+    /** 认证方式：密码认证（默认，兼容旧数据）。 */
+    public static final String AUTH_PASSWORD = "password";
+    /** 认证方式：私钥认证（PEM 私钥 + 可选口令）。 */
+    public static final String AUTH_KEY = "key";
+
     private String alias;
     private String host;
     private int port;
     private String username;
     private String password;
     private String remotePath;
+    /** 认证方式，取值 {@link #AUTH_PASSWORD} / {@link #AUTH_KEY}；旧数据缺省=password。 */
+    private String authMode = AUTH_PASSWORD;
+    /** 私钥 PEM 全文（内存态明文；落盘由 PreferenceManager 加密，断不可明文存储）。 */
+    private String privateKey;
+    /** 私钥口令（可选；仅加密私钥使用）。 */
+    private String keyPassphrase;
 
     public SshConfig() {
         this.port = 22;
@@ -40,15 +51,48 @@ public class SshConfig {
     public String getRemotePath() { return remotePath; }
     public void setRemotePath(String remotePath) { this.remotePath = remotePath; }
 
+    public String getAuthMode() { return authMode; }
+    public void setAuthMode(String authMode) { this.authMode = authMode; }
+
+    public String getPrivateKey() { return privateKey; }
+    public void setPrivateKey(String privateKey) { this.privateKey = privateKey; }
+
+    public String getKeyPassphrase() { return keyPassphrase; }
+    public void setKeyPassphrase(String keyPassphrase) { this.keyPassphrase = keyPassphrase; }
+
+    /** 是否私钥认证模式（authMode=key）。 */
+    public boolean isKeyAuth() {
+        return AUTH_KEY.equals(authMode);
+    }
+
+    /** 认证方式取值是否合法。 */
+    public static boolean isValidAuthMode(String mode) {
+        return AUTH_PASSWORD.equals(mode) || AUTH_KEY.equals(mode);
+    }
+
+    /** 读取持久化的 authMode 并过滤：非法/缺省值一律回退 password（旧数据兼容）。 */
+    public static String authModeOrDefault(String stored) {
+        return isValidAuthMode(stored) ? stored : AUTH_PASSWORD;
+    }
+
     public String getDisplayName() {
         if (alias != null && !alias.isEmpty()) return alias;
         return host + ":" + port;
     }
 
+    /**
+     * 连接配置可用性校验：base（host/username/port）必须有效；认证凭据按模式校验——
+     * 私钥模式要求 privateKey 非空（口令可选）；密码模式要求 password 非空。
+     */
     public boolean isValid() {
-        return host != null && !host.isEmpty()
-                && username != null && !username.isEmpty()
-                && password != null && !password.isEmpty()
-                && port > 0 && port <= 65535;
+        if (host == null || host.isEmpty()
+                || username == null || username.isEmpty()
+                || port <= 0 || port > 65535) {
+            return false;
+        }
+        if (isKeyAuth()) {
+            return privateKey != null && !privateKey.isEmpty();
+        }
+        return password != null && !password.isEmpty();
     }
 }

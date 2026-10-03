@@ -41,24 +41,24 @@ public class PreferenceManager {
         return credentialKey;
     }
 
-    /** 加密密码后再写盘；密钥不可用时降级明文（并记日志，不阻塞保存）。 */
-    private String encryptPassword(String password) {
-        if (password == null || password.isEmpty()) return password;
+    /** 加密敏感字段（密码/私钥/私钥口令）后再写盘；密钥不可用时降级明文（并记日志，不阻塞保存）。 */
+    private String encryptSecret(String plain) {
+        if (plain == null || plain.isEmpty()) return plain;
         javax.crypto.SecretKey key = credentialKey();
         if (key == null) {
-            Log.w(TAG, "无可用加密密钥，本条目密码以明文落盘");
-            return password;
+            Log.w(TAG, "无可用加密密钥，本条目敏感字段以明文落盘");
+            return plain;
         }
         try {
-            return CredentialCrypto.encrypt(password, key);
+            return CredentialCrypto.encrypt(plain, key);
         } catch (java.security.GeneralSecurityException e) {
-            Log.w(TAG, "密码加密失败，本条目以明文落盘", e);
-            return password;
+            Log.w(TAG, "敏感字段加密失败，本条目以明文落盘", e);
+            return plain;
         }
     }
 
-    /** 解密读取；旧明文透传；损坏密文返回 null（调用方按无密码处理，用户需重输）。 */
-    private String decryptPassword(String stored) {
+    /** 解密读取；旧明文透传；损坏密文返回 null（调用方按无值处理，用户需重输）。 */
+    private String decryptSecret(String stored) {
         javax.crypto.SecretKey key = credentialKey();
         // Keystore 不可用时不抛错：透传原始值（旧行为）
         if (key == null) return stored;
@@ -89,43 +89,39 @@ public class PreferenceManager {
             JSONArray arr = new JSONArray(json);
             for (int i = 0; i < arr.length(); i++) {
                 JSONObject obj = arr.getJSONObject(i);
-                SshConfig config = new SshConfig();
-                config.setAlias(obj.optString("alias", ""));
-                config.setHost(obj.optString("host", ""));
-                config.setPort(obj.optInt("port", 22));
-                config.setUsername(obj.optString("username", ""));
-                config.setPassword(readDecryptedPassword(obj, config));
-                if (hasLegacyPlainPassword(obj)) needsMigrate = true;
-                config.setRemotePath(obj.optString("remotePath", "/"));
+                SshConfig config = SshConfigJson.fromJson(obj);
+                config.setPassword(readDecryptedSecret(obj, "password", config, "密码"));
+                config.setPrivateKey(readDecryptedSecret(obj, "privateKey", config, "私钥"));
+                config.setKeyPassphrase(readDecryptedSecret(obj, "keyPassphrase", config, "私钥口令"));
+                if (SshConfigJson.hasLegacyPlainSecret(obj, "password")
+                        || SshConfigJson.hasLegacyPlainSecret(obj, "privateKey")
+                        || SshConfigJson.hasLegacyPlainSecret(obj, "keyPassphrase")) {
+                    needsMigrate = true;
+                }
                 list.add(config);
             }
         } catch (JSONException e) {
             Log.w(TAG, "读取已保存连接失败，已忽略损坏的配置", e);
         }
-        // 一次性迁移：旧明文密码读出来后立即重写为加密存储（saveConnectionList 负责加密）
+        // 一次性迁移：旧明文凭据读出来后立即重写为加密存储（saveConnectionList 负责加密）
         if (needsMigrate) {
-            Log.i(TAG, "检测到旧明文连接密码，正在迁移为加密存储");
+            Log.i(TAG, "检测到旧明文连接凭据，正在迁移为加密存储");
             saveConnectionList(list);
         }
         return list;
     }
 
-    /** 读取并解密密码；损坏密文按无密码处理（用户重输），并保留原值待下次覆盖。 */
-    private String readDecryptedPassword(JSONObject obj, SshConfig config) {
-        String raw = obj.optString("password", "");
+    /** 读取并解密某敏感字段；损坏密文按无值处理（用户重输），并保留原值待下次覆盖。 */
+    private String readDecryptedSecret(JSONObject obj, String field, SshConfig config, String label) {
+        String raw = obj.optString(field, "");
         if (raw.isEmpty()) return "";
-        String plain = decryptPassword(raw);
+        String plain = decryptSecret(raw);
         if (plain == null) {
-            Log.w(TAG, "连接「" + config.getHost() + "」密码解密失败（密钥变更或数据损坏），请重新输入");
+            Log.w(TAG, "连接「" + config.getHost() + "」" + label
+                    + "解密失败（密钥变更或数据损坏），请重新输入");
             return "";
         }
         return plain;
-    }
-
-    /** 是否残留旧明文密码（无前缀且非空），供一次性迁移判定。 */
-    private static boolean hasLegacyPlainPassword(JSONObject obj) {
-        String raw = obj.optString("password", "");
-        return !raw.isEmpty() && !CredentialCrypto.isEncrypted(raw);
     }
 
     public void deleteConnection(int index) {
@@ -160,14 +156,11 @@ public class PreferenceManager {
     private void saveConnectionList(List<SshConfig> list) {
         JSONArray arr = new JSONArray();
         for (SshConfig c : list) {
-            JSONObject obj = new JSONObject();
             try {
-                obj.put("alias", c.getAlias());
-                obj.put("host", c.getHost());
-                obj.put("port", c.getPort());
-                obj.put("username", c.getUsername());
-                obj.put("password", encryptPassword(c.getPassword()));
-                obj.put("remotePath", c.getRemotePath());
+                JSONObject obj = SshConfigJson.toJson(c);
+                obj.put("password", encryptSecret(c.getPassword()));
+                obj.put("privateKey", encryptSecret(c.getPrivateKey()));
+                obj.put("keyPassphrase", encryptSecret(c.getKeyPassphrase()));
                 arr.put(obj);
             } catch (JSONException e) {
                 Log.w(TAG, "序列化连接配置失败，该条未保存: " + c.getHost(), e);

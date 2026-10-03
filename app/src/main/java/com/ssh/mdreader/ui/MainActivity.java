@@ -18,8 +18,10 @@ import androidx.recyclerview.widget.LinearLayoutManager;
 import androidx.recyclerview.widget.RecyclerView;
 
 import com.google.android.material.button.MaterialButton;
+import com.google.android.material.button.MaterialButtonToggleGroup;
 import com.google.android.material.floatingactionbutton.FloatingActionButton;
 import com.google.android.material.textfield.TextInputEditText;
+import com.google.android.material.textfield.TextInputLayout;
 import com.ssh.mdreader.R;
 import com.ssh.mdreader.model.SshConfig;
 import com.ssh.mdreader.ssh.SshManager;
@@ -89,7 +91,9 @@ public class MainActivity extends BaseActivity {
     }
 
     private void quickConnect(SshConfig config, int position) {
-        if (config.getPassword() == null || config.getPassword().isEmpty()) {
+        boolean needsPasswordEntry = !config.isKeyAuth()
+                && (config.getPassword() == null || config.getPassword().isEmpty());
+        if (needsPasswordEntry) {
             Intent intent = new Intent(this, ConnectionActivity.class);
             intent.putExtra("alias", config.getAlias());
             intent.putExtra("host", config.getHost());
@@ -149,6 +153,9 @@ public class MainActivity extends BaseActivity {
         intent.putExtra("username", config.getUsername());
         intent.putExtra("password", config.getPassword());
         intent.putExtra("remotePath", config.getRemotePath());
+        intent.putExtra("authMode", config.getAuthMode());
+        intent.putExtra("privateKey", config.getPrivateKey());
+        intent.putExtra("keyPassphrase", config.getKeyPassphrase());
         startActivity(intent);
     }
 
@@ -212,19 +219,24 @@ public class MainActivity extends BaseActivity {
         }
         dialog.setCancelable(true);
 
-        TextInputEditText etAlias      = view.findViewById(R.id.et_alias);
-        TextInputEditText etHost       = view.findViewById(R.id.et_host);
-        TextInputEditText etPort       = view.findViewById(R.id.et_port);
-        TextInputEditText etUsername   = view.findViewById(R.id.et_username);
-        TextInputEditText etPassword   = view.findViewById(R.id.et_password);
-        TextInputEditText etRemotePath = view.findViewById(R.id.et_remote_path);
         MaterialButton btnSave      = view.findViewById(R.id.btn_save_only);
         MaterialButton btnConnect   = view.findViewById(R.id.btn_connect);
         ProgressBar    progressBar  = view.findViewById(R.id.progress_bar);
+        MaterialButtonToggleGroup toggleAuthMode = view.findViewById(R.id.toggle_auth_mode);
+        TextInputLayout tilPassword = view.findViewById(R.id.til_password);
+        View layoutKeyFields = view.findViewById(R.id.layout_key_fields);
+
+        // 缺省=密码认证；切换时显示/隐藏对应凭据区（与 ConnectionActivity 行为一致）
+        toggleAuthMode.check(R.id.btn_auth_password);
+        toggleAuthMode.addOnButtonCheckedListener((group, checkedId, isChecked) -> {
+            if (!isChecked) return;
+            boolean keyMode = checkedId == R.id.btn_auth_key;
+            tilPassword.setVisibility(keyMode ? View.GONE : View.VISIBLE);
+            layoutKeyFields.setVisibility(keyMode ? View.VISIBLE : View.GONE);
+        });
 
         btnSave.setOnClickListener(v -> {
-            SshConfig config = validateAndBuildConfig(
-                    etAlias, etHost, etPort, etUsername, etPassword, etRemotePath, btnSave);
+            SshConfig config = validateAndBuildConfig(view, btnSave);
             if (config == null) return;
             prefManager.saveConnection(config);
             dialog.dismiss();
@@ -233,8 +245,7 @@ public class MainActivity extends BaseActivity {
         });
 
         btnConnect.setOnClickListener(v -> {
-            SshConfig config = validateAndBuildConfig(
-                    etAlias, etHost, etPort, etUsername, etPassword, etRemotePath, btnConnect);
+            SshConfig config = validateAndBuildConfig(view, btnConnect);
             if (config == null) return;
             connectFromDialog(dialog, config, progressBar, btnConnect);
         });
@@ -294,14 +305,22 @@ public class MainActivity extends BaseActivity {
 
     /**
      * Validates the dialog form fields and builds an {@link SshConfig}.
-     * Password is NOT trimmed; all other fields are trimmed.
+     * Password/私钥/口令 are NOT trimmed; all other fields are trimmed.
+     * 认证方式由 {@code toggle_auth_mode} 决定（密码/私钥），凭据按模式校验。
      *
      * @return the config, or null when validation fails
      */
-    private SshConfig validateAndBuildConfig(
-            TextInputEditText etAlias, TextInputEditText etHost, TextInputEditText etPort,
-            TextInputEditText etUsername, TextInputEditText etPassword,
-            TextInputEditText etRemotePath, View anchor) {
+    private SshConfig validateAndBuildConfig(View root, View anchor) {
+        TextInputEditText etAlias      = root.findViewById(R.id.et_alias);
+        TextInputEditText etHost       = root.findViewById(R.id.et_host);
+        TextInputEditText etPort       = root.findViewById(R.id.et_port);
+        TextInputEditText etUsername   = root.findViewById(R.id.et_username);
+        TextInputEditText etPassword   = root.findViewById(R.id.et_password);
+        TextInputEditText etPrivateKey = root.findViewById(R.id.et_private_key);
+        TextInputEditText etKeyPassphrase = root.findViewById(R.id.et_key_passphrase);
+        TextInputEditText etRemotePath = root.findViewById(R.id.et_remote_path);
+        MaterialButtonToggleGroup toggleAuthMode = root.findViewById(R.id.toggle_auth_mode);
+        boolean keyMode = toggleAuthMode.getCheckedButtonId() == R.id.btn_auth_key;
 
         String alias      = text(etAlias);
         String host       = text(etHost);
@@ -309,13 +328,20 @@ public class MainActivity extends BaseActivity {
         String username   = text(etUsername);
         String password   = rawText(etPassword);
         String remotePath = text(etRemotePath);
+        String privateKey = keyMode ? rawText(etPrivateKey) : "";
+        String keyPassphrase = keyMode ? rawText(etKeyPassphrase) : "";
 
         if (host.isEmpty()) {
             etHost.setError(getString(R.string.error_invalid_host));
             return null;
         }
-        if (username.isEmpty() || password.isEmpty()) {
-            UiUtils.showSnackbar(anchor, getString(R.string.error_invalid_credentials));
+        if (username.isEmpty() || (!keyMode && password.isEmpty())) {
+            UiUtils.showSnackbar(anchor, getString(
+                    keyMode ? R.string.error_invalid_key_credentials : R.string.error_invalid_credentials));
+            return null;
+        }
+        if (keyMode && privateKey.trim().isEmpty()) {
+            etPrivateKey.setError(getString(R.string.error_invalid_key));
             return null;
         }
 
@@ -327,8 +353,12 @@ public class MainActivity extends BaseActivity {
             return null;
         }
 
-        return new SshConfig(alias, host, port, username, password,
+        SshConfig config = new SshConfig(alias, host, port, username, password,
                 remotePath.isEmpty() ? "" : remotePath);
+        config.setAuthMode(keyMode ? SshConfig.AUTH_KEY : SshConfig.AUTH_PASSWORD);
+        config.setPrivateKey(privateKey);
+        config.setKeyPassphrase(keyPassphrase);
+        return config;
     }
 
     private String text(TextInputEditText editText) {

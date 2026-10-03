@@ -135,4 +135,16 @@ public class CredentialCryptoTest {
         String stored = CredentialCrypto.encrypt(plain, key);
         assertEquals(plain, CredentialCrypto.decrypt(stored, key));
     }
+
+    @Test
+    public void encryptDecrypt_multilinePemRoundTrip() throws Exception {
+        SecretKey key = newKey();
+        String pem = "-----BEGIN RSA PRIVATE KEY-----\n"
+                + "MIIEpAIBAAKCAQEAuD3x...ab12\n"
+                + "MIIEpAIBAAKCAQEAuD3x...cd34\n"
+                + "-----END RSA PRIVATE KEY-----\n";
+        String stored = CredentialCrypto.encrypt(pem, key);
+        assertTrue("私钥必须密文化", CredentialCrypto.isEncrypted(stored));
+        assertEquals("含换行的 PEM 全文应无损往返", pem, CredentialCrypto.decrypt(stored, key));
+    }
 }

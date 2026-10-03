@@ -7,6 +7,12 @@
     <string name="hint_port">端口 (默认 22)</string>
     <string name="hint_username">用户名</string>
     <string name="hint_password">密码</string>
+    <string name="auth_mode_password">密码</string>
+    <string name="auth_mode_key">私钥</string>
+    <string name="hint_private_key">私钥（PEM 内容）</string>
+    <string name="hint_key_passphrase">私钥口令（可选）</string>
+    <string name="error_invalid_key">请粘贴私钥内容</string>
+    <string name="error_invalid_key_credentials">请输入用户名和私钥</string>
     <string name="hint_remote_path">远程路径 (如 /home/user/docs)</string>
     <string name="btn_connect">连接</string>
     <string name="btn_disconnect">断开</string>

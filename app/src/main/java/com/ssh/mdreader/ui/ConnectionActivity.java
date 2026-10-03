@@ -6,7 +6,9 @@ import android.view.View;
 import android.widget.ProgressBar;
 
 import com.google.android.material.button.MaterialButton;
+import com.google.android.material.button.MaterialButtonToggleGroup;
 import com.google.android.material.textfield.TextInputEditText;
+import com.google.android.material.textfield.TextInputLayout;
 import com.ssh.mdreader.R;
 import com.ssh.mdreader.model.SshConfig;
 import com.ssh.mdreader.ssh.SshManager;
@@ -17,6 +19,10 @@ import com.ssh.mdreader.util.UiUtils;
 public class ConnectionActivity extends BaseActivity {
 
     private TextInputEditText etAlias, etHost, etPort, etUsername, etPassword, etRemotePath;
+    private TextInputEditText etPrivateKey, etKeyPassphrase;
+    private TextInputLayout tilPassword;
+    private View layoutKeyFields;
+    private MaterialButtonToggleGroup toggleAuthMode;
     private MaterialButton btnConnect;
     private ProgressBar progressBar;
     private PreferenceManager prefManager;
@@ -51,10 +57,18 @@ public class ConnectionActivity extends BaseActivity {
             if (intent.hasExtra("password")) {
                 etPassword.setText(intent.getStringExtra("password"));
             }
+            if (intent.hasExtra("privateKey")) {
+                etPrivateKey.setText(intent.getStringExtra("privateKey"));
+            }
+            if (intent.hasExtra("keyPassphrase")) {
+                etKeyPassphrase.setText(intent.getStringExtra("keyPassphrase"));
+            }
             if (!intent.getBooleanExtra("is_edit", false)) {
                 etPassword.requestFocus();
             }
         }
+        // 认证方式回填：缺省=密码（旧调用方/旧数据兼容）
+        setAuthMode(SshConfig.authModeOrDefault(intent.getStringExtra("authMode")));
     }
 
     private void initViews() {
@@ -64,33 +78,43 @@ public class ConnectionActivity extends BaseActivity {
         etUsername = findViewById(R.id.et_username);
         etPassword = findViewById(R.id.et_password);
         etRemotePath = findViewById(R.id.et_remote_path);
+        etPrivateKey = findViewById(R.id.et_private_key);
+        etKeyPassphrase = findViewById(R.id.et_key_passphrase);
+        tilPassword = findViewById(R.id.til_password);
+        layoutKeyFields = findViewById(R.id.layout_key_fields);
+        toggleAuthMode = findViewById(R.id.toggle_auth_mode);
         btnConnect = findViewById(R.id.btn_connect);
         progressBar = findViewById(R.id.progress_bar);
+
+        toggleAuthMode.addOnButtonCheckedListener((group, checkedId, isChecked) -> {
+            if (isChecked) updateAuthFieldsVisibility();
+        });
 
         btnConnect.setText("保存并连接");
         btnConnect.setOnClickListener(v -> attemptConnect());
         findViewById(R.id.btn_save_only).setOnClickListener(v -> saveOnly());
     }
 
+    /** 按当前认证方式显示/隐藏对应输入区（密码域 vs 私钥+口令域）。 */
+    private void updateAuthFieldsVisibility() {
+        boolean keyMode = isKeyMode();
+        tilPassword.setVisibility(keyMode ? View.GONE : View.VISIBLE);
+        layoutKeyFields.setVisibility(keyMode ? View.VISIBLE : View.GONE);
+    }
+
+    private void setAuthMode(String authMode) {
+        boolean keyMode = SshConfig.AUTH_KEY.equals(authMode);
+        toggleAuthMode.check(keyMode ? R.id.btn_auth_key : R.id.btn_auth_password);
+        updateAuthFieldsVisibility();
+    }
+
+    private boolean isKeyMode() {
+        return toggleAuthMode.getCheckedButtonId() == R.id.btn_auth_key;
+    }
+
     private void saveOnly() {
-        String alias = getText(etAlias);
-        String host = getText(etHost);
-        String portStr = getText(etPort);
-        String username = getText(etUsername);
-        String password = getRawText(etPassword);
-        String remotePath = getText(etRemotePath);
-
-        if (host.isEmpty()) {
-            etHost.setError(getString(R.string.error_invalid_host));
-            return;
-        }
-        if (username.isEmpty() || password.isEmpty()) {
-            UiUtils.showSnackbar(btnConnect, getString(R.string.error_invalid_credentials));
-            return;
-        }
-
-        int port = portStr.isEmpty() ? 22 : Integer.parseInt(portStr);
-        SshConfig config = new SshConfig(alias, host, port, username, password, remotePath.isEmpty() ? "" : remotePath);
+        SshConfig config = collectAndValidate();
+        if (config == null) return;
 
         if (editIndex >= 0) {
             prefManager.updateConnection(editIndex, config);
@@ -102,24 +126,8 @@ public class ConnectionActivity extends BaseActivity {
     }
 
     private void attemptConnect() {
-        String alias = getText(etAlias);
-        String host = getText(etHost);
-        String portStr = getText(etPort);
-        String username = getText(etUsername);
-        String password = getRawText(etPassword);
-        String remotePath = getText(etRemotePath);
-
-        if (host.isEmpty()) {
-            etHost.setError(getString(R.string.error_invalid_host));
-            return;
-        }
-        if (username.isEmpty() || password.isEmpty()) {
-            UiUtils.showSnackbar(btnConnect, getString(R.string.error_invalid_credentials));
-            return;
-        }
-
-        int port = portStr.isEmpty() ? 22 : Integer.parseInt(portStr);
-        SshConfig config = new SshConfig(alias, host, port, username, password, remotePath.isEmpty() ? "" : remotePath);
+        SshConfig config = collectAndValidate();
+        if (config == null) return;
 
         setLoading(true);
 
@@ -163,6 +171,52 @@ public class ConnectionActivity extends BaseActivity {
             public void onDisconnected() {
             }
         });
+    }
+
+    /**
+     * 收集表单并校验，按认证方式取凭据（密码模式取密码；私钥模式取私钥+可选口令）。
+     *
+     * @return 校验通过的配置；失败时已给出错误提示并返回 null。
+     */
+    private SshConfig collectAndValidate() {
+        String alias = getText(etAlias);
+        String host = getText(etHost);
+        String portStr = getText(etPort);
+        String username = getText(etUsername);
+        String password = getRawText(etPassword);
+        String remotePath = getText(etRemotePath);
+        boolean keyMode = isKeyMode();
+        String privateKey = keyMode ? getRawText(etPrivateKey) : "";
+        String keyPassphrase = keyMode ? getRawText(etKeyPassphrase) : "";
+
+        if (host.isEmpty()) {
+            etHost.setError(getString(R.string.error_invalid_host));
+            return null;
+        }
+        if (username.isEmpty() || (!keyMode && password.isEmpty())) {
+            UiUtils.showSnackbar(btnConnect, getString(
+                    keyMode ? R.string.error_invalid_key_credentials : R.string.error_invalid_credentials));
+            return null;
+        }
+        if (keyMode && privateKey.trim().isEmpty()) {
+            etPrivateKey.setError(getString(R.string.error_invalid_key));
+            return null;
+        }
+
+        int port;
+        try {
+            port = portStr.isEmpty() ? 22 : Integer.parseInt(portStr);
+        } catch (NumberFormatException e) {
+            etPort.setError("端口无效");
+            return null;
+        }
+
+        SshConfig config = new SshConfig(alias, host, port, username, password,
+                remotePath.isEmpty() ? "" : remotePath);
+        config.setAuthMode(keyMode ? SshConfig.AUTH_KEY : SshConfig.AUTH_PASSWORD);
+        config.setPrivateKey(privateKey);
+        config.setKeyPassphrase(keyPassphrase);
+        return config;
     }
 
     private void setLoading(boolean loading) {

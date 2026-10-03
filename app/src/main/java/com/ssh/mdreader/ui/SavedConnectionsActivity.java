@@ -64,7 +64,9 @@ public class SavedConnectionsActivity extends BaseActivity {
     }
 
     private void quickConnect(SshConfig config, int position) {
-        if (config.getPassword() == null || config.getPassword().isEmpty()) {
+        boolean needsPasswordEntry = !config.isKeyAuth()
+                && (config.getPassword() == null || config.getPassword().isEmpty());
+        if (needsPasswordEntry) {
             Intent intent = new Intent(this, ConnectionActivity.class);
             intent.putExtra("alias", config.getAlias());
             intent.putExtra("host", config.getHost());
@@ -122,6 +124,9 @@ public class SavedConnectionsActivity extends BaseActivity {
         intent.putExtra("username", config.getUsername());
         intent.putExtra("password", config.getPassword());
         intent.putExtra("remotePath", config.getRemotePath());
+        intent.putExtra("authMode", config.getAuthMode());
+        intent.putExtra("privateKey", config.getPrivateKey());
+        intent.putExtra("keyPassphrase", config.getKeyPassphrase());
         startActivity(intent);
     }
 
