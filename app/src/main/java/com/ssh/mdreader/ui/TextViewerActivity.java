@@ -16,6 +16,7 @@ import com.ssh.mdreader.R;
 import com.ssh.mdreader.ssh.SshManager;
 import com.ssh.mdreader.util.UiUtils;
 import com.ssh.mdreader.util.ViewerFindBar;
+import com.ssh.mdreader.widget.LineNumberGutterView;
 
 public class TextViewerActivity extends BaseActivity {
 
@@ -24,6 +25,7 @@ public class TextViewerActivity extends BaseActivity {
     private static final int MENU_FIND_ID = 0xA2002;
 
     private TextView textContent;
+    private LineNumberGutterView lineNumberGutter;
     private View loadingOverlay;
     private ScrollView scrollView;
     private ViewerFindBar viewerFindBar;
@@ -49,6 +51,8 @@ public class TextViewerActivity extends BaseActivity {
         toolbar.setNavigationOnClickListener(v -> finish());
 
         textContent = findViewById(R.id.text_content);
+        lineNumberGutter = findViewById(R.id.line_number_gutter);
+        lineNumberGutter.attach(textContent);
         loadingOverlay = findViewById(R.id.loading_overlay);
         scrollView = findViewById(R.id.scroll_view);
         viewerFindBar = new ViewerFindBar(this, textContent, scrollView, null,
@@ -79,6 +83,7 @@ public class TextViewerActivity extends BaseActivity {
                         if (Math.abs(newSize - currentTextSize) > 0.5f) {
                             currentTextSize = newSize;
                             textContent.setTextSize(newSize);
+                            lineNumberGutter.refresh();
                         }
                         return true;
                     }
@@ -120,6 +125,7 @@ public class TextViewerActivity extends BaseActivity {
             public void onSuccess(String content) {
                 runOnUiThread(() -> {
                     textContent.setText(content);
+                    lineNumberGutter.refresh();
                     viewerFindBar.onContentChanged();
                     if (loadingOverlay != null) {
                         loadingOverlay.setVisibility(View.GONE);
@@ -135,6 +141,7 @@ public class TextViewerActivity extends BaseActivity {
                         loadingOverlay.setVisibility(View.GONE);
                     }
                     textContent.setText("加载失败: " + error);
+                    lineNumberGutter.refresh();
                 });
             }
         });

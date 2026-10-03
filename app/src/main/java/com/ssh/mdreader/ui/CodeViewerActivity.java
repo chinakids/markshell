@@ -18,6 +18,7 @@ import androidx.appcompat.widget.Toolbar;
 import com.ssh.mdreader.R;
 import com.ssh.mdreader.ssh.SshManager;
 import com.ssh.mdreader.util.CodeHighlighter;
+import com.ssh.mdreader.util.LineNumberHelper;
 import com.ssh.mdreader.util.UiUtils;
 import com.ssh.mdreader.util.ViewerFindBar;
 
@@ -177,12 +178,8 @@ public class CodeViewerActivity extends BaseActivity {
     }
 
     private void displayLineNumbers(String content) {
-        String[] lines = content.split("\n", -1);
-        StringBuilder sb = new StringBuilder();
-        for (int i = 1; i <= lines.length; i++) {
-            sb.append(i).append('\n');
-        }
-        textLineNumbers.setText(sb.toString());
+        // 行数/序列语义单一源=LineNumberHelper（与纯文本查看器行号槽共用，防两套实现漂移）
+        textLineNumbers.setText(LineNumberHelper.numberSequence(LineNumberHelper.countLines(content)));
     }
 
     @Override
