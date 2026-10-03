@@ -2,6 +2,8 @@ package com.ssh.mdreader.ui;
 
 import android.os.Bundle;
 import android.view.Gravity;
+import android.view.Menu;
+import android.view.MenuItem;
 import android.view.View;
 import android.view.ViewGroup;
 import android.widget.ScrollView;
@@ -21,11 +23,13 @@ import java.util.List;
 public class CsvReaderActivity extends BaseActivity {
 
     private static final String KEY_SCROLL_Y = "scroll_y";
+    private static final int MENU_COPY_PATH_ID = 0xA2001;
 
     private TableLayout tableLayout;
     private View loadingOverlay;
     private ScrollView scrollView;
     private int restoredScrollY;
+    private String currentFilePath;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -45,9 +49,28 @@ public class CsvReaderActivity extends BaseActivity {
         loadContent();
     }
 
+    @Override
+    public boolean onCreateOptionsMenu(Menu menu) {
+        if (currentFilePath == null) return super.onCreateOptionsMenu(menu);
+        menu.add(Menu.NONE, MENU_COPY_PATH_ID, Menu.NONE, "复制路径")
+                .setIcon(R.drawable.ic_content_copy)
+                .setShowAsAction(MenuItem.SHOW_AS_ACTION_IF_ROOM);
+        return true;
+    }
+
+    @Override
+    public boolean onOptionsItemSelected(MenuItem item) {
+        if (item.getItemId() == MENU_COPY_PATH_ID) {
+            UiUtils.copyRemotePath(this, currentFilePath);
+            return true;
+        }
+        return super.onOptionsItemSelected(item);
+    }
+
     private void loadContent() {
         String filePath = getIntent().getStringExtra("file_path");
         if (filePath == null) { finish(); return; }
+        currentFilePath = filePath;
 
         if (loadingOverlay != null) {
             loadingOverlay.setVisibility(View.VISIBLE);

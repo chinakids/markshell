@@ -1,6 +1,8 @@
 package com.ssh.mdreader.ui;
 
 import android.os.Bundle;
+import android.view.Menu;
+import android.view.MenuItem;
 import android.view.MotionEvent;
 import android.view.ScaleGestureDetector;
 import android.view.View;
@@ -12,10 +14,12 @@ import androidx.annotation.NonNull;
 
 import com.ssh.mdreader.R;
 import com.ssh.mdreader.ssh.SshManager;
+import com.ssh.mdreader.util.UiUtils;
 
 public class TextViewerActivity extends BaseActivity {
 
     private static final String KEY_SCROLL_Y = "scroll_y";
+    private static final int MENU_COPY_PATH_ID = 0xA2001;
 
     private TextView textContent;
     private View loadingOverlay;
@@ -24,6 +28,7 @@ public class TextViewerActivity extends BaseActivity {
     private float currentTextSize = 14f;
     private static final float MIN_TEXT_SIZE = 8f;
     private static final float MAX_TEXT_SIZE = 32f;
+    private String currentFilePath;
 
     private ScaleGestureDetector scaleGestureDetector;
 
@@ -73,7 +78,26 @@ public class TextViewerActivity extends BaseActivity {
                 });
 
         if (filePath == null) { finish(); return; }
+        currentFilePath = filePath;
         loadTextFile(filePath);
+    }
+
+    @Override
+    public boolean onCreateOptionsMenu(Menu menu) {
+        if (currentFilePath == null) return super.onCreateOptionsMenu(menu);
+        menu.add(Menu.NONE, MENU_COPY_PATH_ID, Menu.NONE, "复制路径")
+                .setIcon(R.drawable.ic_content_copy)
+                .setShowAsAction(MenuItem.SHOW_AS_ACTION_IF_ROOM);
+        return true;
+    }
+
+    @Override
+    public boolean onOptionsItemSelected(MenuItem item) {
+        if (item.getItemId() == MENU_COPY_PATH_ID) {
+            UiUtils.copyRemotePath(this, currentFilePath);
+            return true;
+        }
+        return super.onOptionsItemSelected(item);
     }
 
     private void loadTextFile(String filePath) {

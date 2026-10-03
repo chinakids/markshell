@@ -705,9 +705,9 @@ public class FileBrowserActivity extends BaseActivity
     public void onFileLongClick(RemoteFile file) {
         DialogHelper.showListDialog(this,
                 file.getName(),
-                new String[]{"多选", "移动", "复制", "重命名", "权限", "删除"},
-                new int[]{0, R.drawable.ic_move, R.drawable.ic_copy, R.drawable.ic_edit,
-                        R.drawable.ic_lock, R.drawable.ic_delete},
+                new String[]{"多选", "移动", "复制", "复制路径", "重命名", "权限", "删除"},
+                new int[]{0, R.drawable.ic_move, R.drawable.ic_copy, R.drawable.ic_content_copy,
+                        R.drawable.ic_edit, R.drawable.ic_lock, R.drawable.ic_delete},
                 (dialog, which) -> {
                     if (which == 0) {
                         adapter.enterSelectionMode(file);
@@ -716,10 +716,12 @@ public class FileBrowserActivity extends BaseActivity
                     } else if (which == 2) {
                         fileOps.copyFile(file);
                     } else if (which == 3) {
-                        fileOps.renameFile(file);
+                        UiUtils.copyRemotePath(this, file.getPath());
                     } else if (which == 4) {
-                        fileOps.showChmodDialog(file);
+                        fileOps.renameFile(file);
                     } else if (which == 5) {
+                        fileOps.showChmodDialog(file);
+                    } else if (which == 6) {
                         fileOps.confirmDeleteFile(file);
                     }
                 });
@@ -766,10 +768,11 @@ public class FileBrowserActivity extends BaseActivity
                 config.getUsername(), dir.getPath());
         DialogHelper.showListDialog(this,
                 dir.getName(),
-                new String[]{"多选", "移动", "复制", "重命名", "权限", "删除", "设为主目录",
+                new String[]{"多选", "移动", "复制", "复制路径", "重命名", "权限", "删除", "设为主目录",
                         bookmarked ? "取消收藏" : "收藏"},
-                new int[]{0, R.drawable.ic_move, R.drawable.ic_copy, R.drawable.ic_edit,
-                        R.drawable.ic_lock, R.drawable.ic_delete, R.drawable.ic_folder_set,
+                new int[]{0, R.drawable.ic_move, R.drawable.ic_copy, R.drawable.ic_content_copy,
+                        R.drawable.ic_edit, R.drawable.ic_lock, R.drawable.ic_delete,
+                        R.drawable.ic_folder_set,
                         bookmarked ? R.drawable.ic_bookmark : R.drawable.ic_bookmark_border},
                 (dialog, which) -> {
                     if (which == 0) {
@@ -779,17 +782,19 @@ public class FileBrowserActivity extends BaseActivity
                     } else if (which == 2) {
                         fileOps.copyDirectory(dir);
                     } else if (which == 3) {
-                        fileOps.renameFile(dir);
+                        UiUtils.copyRemotePath(this, dir.getPath());
                     } else if (which == 4) {
-                        fileOps.showChmodDialog(dir);
+                        fileOps.renameFile(dir);
                     } else if (which == 5) {
-                        fileOps.confirmDeleteDirectory(dir);
+                        fileOps.showChmodDialog(dir);
                     } else if (which == 6) {
+                        fileOps.confirmDeleteDirectory(dir);
+                    } else if (which == 7) {
                         prefManager.updateRemotePath(
                                 config.getHost(), config.getPort(),
                                 config.getUsername(), dir.getPath());
                         UiUtils.showToast(this, "已设为主目录");
-                    } else if (which == 7) {
+                    } else if (which == 8) {
                         toggleBookmark(config, dir);
                     }
                 });

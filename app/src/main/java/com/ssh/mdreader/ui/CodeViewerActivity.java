@@ -3,6 +3,8 @@ package com.ssh.mdreader.ui;
 import android.os.Bundle;
 import android.text.SpannableStringBuilder;
 import android.util.Log;
+import android.view.Menu;
+import android.view.MenuItem;
 import android.view.MotionEvent;
 import android.view.ScaleGestureDetector;
 import android.view.View;
@@ -15,6 +17,7 @@ import androidx.appcompat.widget.Toolbar;
 import com.ssh.mdreader.R;
 import com.ssh.mdreader.ssh.SshManager;
 import com.ssh.mdreader.util.CodeHighlighter;
+import com.ssh.mdreader.util.UiUtils;
 
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -23,6 +26,7 @@ public class CodeViewerActivity extends BaseActivity {
 
     private static final String TAG = "CodeViewerActivity";
     private static final String KEY_SCROLL_Y = "scroll_y";
+    private static final int MENU_COPY_PATH_ID = 0xA2001;
 
     private TextView textLineNumbers;
     private TextView textCodeContent;
@@ -36,6 +40,7 @@ public class CodeViewerActivity extends BaseActivity {
     private ScaleGestureDetector scaleGestureDetector;
     private String rawCode;
     private String fileName;
+    private String currentFilePath;
     private final ExecutorService highlightExecutor = Executors.newSingleThreadExecutor();
 
     @Override
@@ -87,7 +92,26 @@ public class CodeViewerActivity extends BaseActivity {
                 });
 
         if (filePath == null) { finish(); return; }
+        currentFilePath = filePath;
         loadCodeFile(filePath);
+    }
+
+    @Override
+    public boolean onCreateOptionsMenu(Menu menu) {
+        if (currentFilePath == null) return super.onCreateOptionsMenu(menu);
+        menu.add(Menu.NONE, MENU_COPY_PATH_ID, Menu.NONE, "复制路径")
+                .setIcon(R.drawable.ic_content_copy)
+                .setShowAsAction(MenuItem.SHOW_AS_ACTION_IF_ROOM);
+        return true;
+    }
+
+    @Override
+    public boolean onOptionsItemSelected(MenuItem item) {
+        if (item.getItemId() == MENU_COPY_PATH_ID) {
+            UiUtils.copyRemotePath(this, currentFilePath);
+            return true;
+        }
+        return super.onOptionsItemSelected(item);
     }
 
     private void loadCodeFile(String filePath) {

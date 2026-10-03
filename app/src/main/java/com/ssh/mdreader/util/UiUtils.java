@@ -1,5 +1,7 @@
 package com.ssh.mdreader.util;
 
+import android.content.ClipData;
+import android.content.ClipboardManager;
 import android.content.Context;
 import android.widget.Toast;
 
@@ -40,5 +42,19 @@ public class UiUtils {
         int lastSlash = trimmed.lastIndexOf('/');
         if (lastSlash <= 0) return "/";
         return trimmed.substring(0, lastSlash);
+    }
+
+    /** 复制远程路径到系统剪贴板并 toast。路径由 ClipPathHelper 纯函数层派生文案。 */
+    public static void copyRemotePath(Context context, String path) {
+        String clip = ClipPathHelper.clipText(path);
+        if (clip == null) return;
+        ClipboardManager cm = (ClipboardManager) context.getSystemService(Context.CLIPBOARD_SERVICE);
+        if (cm != null) {
+            cm.setPrimaryClip(ClipData.newPlainText("远程路径", clip));
+        }
+        String msg = ClipPathHelper.toastText(path);
+        if (msg != null) {
+            showToast(context, msg);
+        }
     }
 }
