@@ -5,10 +5,12 @@ import android.content.Intent;
 import android.graphics.Typeface;
 import android.net.Uri;
 import android.text.Editable;
+import android.text.Selection;
 import android.text.Spanned;
 import android.text.TextWatcher;
 import android.text.method.ScrollingMovementMethod;
 import android.text.style.URLSpan;
+import android.text.style.UnderlineSpan;
 import android.util.TypedValue;
 import android.view.Menu;
 import android.view.MenuItem;
@@ -17,6 +19,7 @@ import android.view.ScaleGestureDetector;
 import android.view.inputmethod.EditorInfo;
 import android.view.inputmethod.InputMethodManager;
 import android.widget.EditText;
+import android.widget.ImageButton;
 import android.widget.ProgressBar;
 import android.widget.ScrollView;
 import android.widget.TextView;
@@ -33,6 +36,7 @@ import com.ssh.mdreader.ssh.SshManager;
 import com.ssh.mdreader.util.AnnotationHelper;
 import com.ssh.mdreader.util.AnnotationOverlayHelper;
 import com.ssh.mdreader.util.DialogHelper;
+import com.ssh.mdreader.util.EditHistoryHelper;
 import com.ssh.mdreader.util.FindHelper;
 import com.ssh.mdreader.util.LinkTargetHelper;
 import com.ssh.mdreader.util.MarkdownFormatHelper;
@@ -73,6 +77,10 @@ public class MarkdownReaderActivity extends BaseActivity implements AnnotationOv
     private static final String KEY_SCROLL_Y   = "scroll_y";
     private static final String KEY_EDIT_MODE  = "edit_mode";
     private static final String KEY_EDIT_DRAFT = "edit_draft";
+    /** 编辑撤销/重做历史最大步数（能力发现 #23；防长会话内存膨胀）。 */
+    private static final int EDIT_HISTORY_MAX_SIZE = 100;
+    /** 不可用按钮的置灰透明度（Material 惯例 38%）。 */
+    private static final float DISABLED_ALPHA = 0.38f;
 
     // ── Views ─────────────────────────────────────────────────────────────────
     private TextView    tvContent;
@@ -131,6 +139,46 @@ public class MarkdownReaderActivity extends BaseActivity implements AnnotationOv
     private boolean editMode;
     private boolean saving;
     private String  pendingEditDraft;
+    /** 编辑撤销/重做历史（能力发现 #23；进入编辑会话时清空，纯函数层见 {@link EditHistoryHelper}）。 */
+    private EditHistoryHelper.EditHistory editHistory;
+    /** 撤销/重做回放执行标志：TextWatcher 视为自身回放不做记录（markor isUndoOrRedo 语义）。 */
+    private boolean isUndoOrRedo;
+    private ImageButton btnUndo;
+    private ImageButton btnRedo;
+
+    /**
+     * 编辑器文本变化观察者：非回放期间记录编辑历史（markor TextViewUndoRedo TextWatcher 语义：
+     * beforeTextChanged 存删除段与旧光标、onTextChanged 存插入段与位置、afterTextChanged 落库）。
+     */
+    private final TextWatcher undoTextWatcher = new TextWatcher() {
+        private String beforeChange = "";
+        private String afterChange = "";
+        private int changeStart = -1;
+        private int selBefore = -1;
+
+        @Override
+        public void beforeTextChanged(CharSequence s, int start, int count, int after) {
+            if (isUndoOrRedo) return;
+            beforeChange = s.subSequence(start, start + count).toString();
+            selBefore = Selection.getSelectionStart(s);
+        }
+
+        @Override
+        public void onTextChanged(CharSequence s, int start, int before, int count) {
+            if (isUndoOrRedo) return;
+            afterChange = s.subSequence(start, start + count).toString();
+            changeStart = start;
+        }
+
+        @Override
+        public void afterTextChanged(Editable s) {
+            if (isUndoOrRedo) return;
+            int selAfter = Selection.getSelectionStart(s);
+            editHistory.record(changeStart, beforeChange, afterChange, selBefore, selAfter,
+                    System.currentTimeMillis());
+            updateUndoRedoButtons();
+        }
+    };
 
     // ── Annotation feature (批注功能层，含抽屉/span/弹窗/CSV 持久化) ──────────
     private AnnotationOverlayHelper annotationOverlay;
@@ -266,7 +314,12 @@ public class MarkdownReaderActivity extends BaseActivity implements AnnotationOv
         if (drawerLayout.isDrawerOpen(drawerView)) {
             drawerLayout.closeDrawer(drawerView);
         }
+        // 装载草稿的 setText 不记入历史（会话起始帧；markor 同：新会话清历史重来）
+        isUndoOrRedo = true;
         etEditor.setText(draft);
+        isUndoOrRedo = false;
+        editHistory.clear();
+        updateUndoRedoButtons();
         etEditor.setTextSize(TypedValue.COMPLEX_UNIT_SP, currentFontSize);
         scrollView.setVisibility(View.GONE);
         etEditor.setVisibility(View.VISIBLE);
@@ -347,6 +400,61 @@ public class MarkdownReaderActivity extends BaseActivity implements AnnotationOv
         }
     }
 
+    /** 撤销最近一步编辑（markor TextViewUndoRedo.undo 语义：replace 回放 + 恢复光标）。 */
+    private void undoLast() {
+        if (!editMode || etEditor == null) return;
+        EditHistoryHelper.EditItem item = editHistory.undoStep();
+        if (item == null) return;
+        applyHistoryStep(item, false);
+    }
+
+    /** 重做最近撤销的一步编辑（markor TextViewUndoRedo.redo 语义）。 */
+    private void redoLast() {
+        if (!editMode || etEditor == null) return;
+        EditHistoryHelper.EditItem item = editHistory.redoStep();
+        if (item == null) return;
+        applyHistoryStep(item, true);
+    }
+
+    /**
+     * 应用历史步：按最小差分回放编辑器文本（undo=after→before 区间替换；redo=before→after），
+     * 并恢复记录的光标位置；isUndoOrRedo 防观察者循环（回放本身不入历史）。
+     */
+    private void applyHistoryStep(EditHistoryHelper.EditItem item, boolean redo) {
+        Editable text = etEditor.getText();
+        int len = text.length();
+        int start = Math.min(item.start, len);
+        int end = Math.min(start + (redo ? item.before.length() : item.after.length()), len);
+        isUndoOrRedo = true;
+        try {
+            text.replace(start, end, redo ? item.after : item.before);
+        } catch (Exception ex) {
+            // 防御：差分越界极少发生（文本被外部改动），跳过本次回放不崩溃
+        } finally {
+            isUndoOrRedo = false;
+        }
+        // 清除编辑器自动更正/联想产生的下划线残留（markor 同）
+        for (Object o : text.getSpans(0, text.length(), UnderlineSpan.class)) {
+            text.removeSpan(o);
+        }
+        int sel = redo ? item.selAfter : item.selBefore;
+        if (sel >= 0 && sel <= text.length()) {
+            etEditor.setSelection(sel);
+        }
+        updateUndoRedoButtons();
+    }
+
+    /** 撤销/重做按钮可用状态同步（canUndo/canRedo → enabled + 置灰 alpha，markor 动态使能同型）。 */
+    private void updateUndoRedoButtons() {
+        if (btnUndo == null || btnRedo == null) return;
+        boolean canUndo = editMode && editHistory != null && editHistory.canUndo();
+        boolean canRedo = editMode && editHistory != null && editHistory.canRedo();
+        btnUndo.setEnabled(canUndo);
+        btnUndo.setAlpha(canUndo ? 1f : DISABLED_ALPHA);
+        btnRedo.setEnabled(canRedo);
+        btnRedo.setAlpha(canRedo ? 1f : DISABLED_ALPHA);
+    }
+
     private void hideKeyboard() {
         InputMethodManager imm = (InputMethodManager) getSystemService(INPUT_METHOD_SERVICE);
         if (imm != null && etEditor != null) {
@@ -366,6 +474,15 @@ public class MarkdownReaderActivity extends BaseActivity implements AnnotationOv
         formatBarScroll = findViewById(R.id.format_bar_scroll);
 
         etEditor.setMovementMethod(new ScrollingMovementMethod());
+
+        // 编辑撤销/重做（能力发现 #23）：按钮接线 + 历史初始化 + 观察者挂载
+        editHistory = new EditHistoryHelper.EditHistory(EDIT_HISTORY_MAX_SIZE);
+        btnUndo = findViewById(R.id.btn_undo);
+        btnRedo = findViewById(R.id.btn_redo);
+        btnUndo.setOnClickListener(v -> undoLast());
+        btnRedo.setOnClickListener(v -> redoLast());
+        etEditor.addTextChangedListener(undoTextWatcher);
+        updateUndoRedoButtons();
 
         findViewById(R.id.btn_format_bold).setOnClickListener(v -> applyFormat(0, 0));
         findViewById(R.id.btn_format_italic).setOnClickListener(v -> applyFormat(1, 0));

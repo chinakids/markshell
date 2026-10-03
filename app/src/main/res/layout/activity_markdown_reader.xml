@@ -162,6 +162,22 @@
                     android:paddingEnd="8dp">
 
                     <ImageButton
+                        android:id="@+id/btn_undo"
+                        android:layout_width="40dp"
+                        android:layout_height="40dp"
+                        android:background="?attr/selectableItemBackgroundBorderless"
+                        android:contentDescription="撤销"
+                        android:src="@drawable/ic_undo" />
+
+                    <ImageButton
+                        android:id="@+id/btn_redo"
+                        android:layout_width="40dp"
+                        android:layout_height="40dp"
+                        android:background="?attr/selectableItemBackgroundBorderless"
+                        android:contentDescription="重做"
+                        android:src="@drawable/ic_redo" />
+
+                    <ImageButton
                         android:id="@+id/btn_format_bold"
                         android:layout_width="40dp"
                         android:layout_height="40dp"
