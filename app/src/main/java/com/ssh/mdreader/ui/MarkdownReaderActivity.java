@@ -1,6 +1,7 @@
 package com.ssh.mdreader.ui;
 
 import android.os.Bundle;
+import android.text.Spanned;
 import android.text.method.ScrollingMovementMethod;
 import android.util.TypedValue;
 import android.view.Menu;
@@ -22,13 +23,17 @@ import com.ssh.mdreader.util.AnnotationHelper;
 import com.ssh.mdreader.util.AnnotationOverlayHelper;
 import com.ssh.mdreader.util.DialogHelper;
 import com.ssh.mdreader.util.PreferenceManager;
+import com.ssh.mdreader.util.TaskCheckboxHelper;
 import com.ssh.mdreader.util.UiUtils;
 
 import io.noties.markwon.Markwon;
 import io.noties.markwon.ext.tables.TablePlugin;
 import io.noties.markwon.ext.tasklist.TaskListPlugin;
+import io.noties.markwon.ext.tasklist.TaskListSpan;
 import io.noties.markwon.image.ImagesPlugin;
 
+import java.util.Collections;
+import java.util.List;
 import java.util.Set;
 
 public class MarkdownReaderActivity extends BaseActivity implements AnnotationOverlayHelper.Host {
@@ -63,6 +68,10 @@ public class MarkdownReaderActivity extends BaseActivity implements AnnotationOv
     private int     restoredScrollY;
     private PreferenceManager prefManager;
     private ScaleGestureDetector scaleDetector;
+
+    // ── 任务清单 checkbox 交互（路线图 #5）────────────────────────────────────
+    /** 当前渲染输入的任务行坐标（与 {@link #renderContent()} 的标记注入同源）。 */
+    private List<TaskCheckboxHelper.TaskLine> currentTaskLines = Collections.emptyList();
 
     // ── Editing (编辑模式：远程文件在线编辑，保存经 SshManager.writeFile 覆盖写回) ──
     private String  currentFilePath;
@@ -103,6 +112,7 @@ public class MarkdownReaderActivity extends BaseActivity implements AnnotationOv
                 findViewById(R.id.tv_annotation_count),
                 annotationFilePath);
         annotationOverlay.init();
+        annotationOverlay.setTaskTapListener(this::toggleTaskAt);
 
         buildMarkwon();
 
@@ -363,8 +373,12 @@ public class MarkdownReaderActivity extends BaseActivity implements AnnotationOv
 
         final int savedScrollY = scrollView.getScrollY();
 
+        // 任务清单行定位：渲染前注入零宽标记（与 currentTaskLines 同源），点击命中用
+        TaskCheckboxHelper.MarkedSource prepared = TaskCheckboxHelper.injectMarkers(markdownContent);
+        currentTaskLines = prepared.lines;
+
         tvContent.setTextSize(TypedValue.COMPLEX_UNIT_SP, currentFontSize);
-        markwon.setMarkdown(tvContent, markdownContent);
+        markwon.setMarkdown(tvContent, prepared.text);
         tvContent.setTextIsSelectable(true);
 
         annotationOverlay.applyAnnotationSpans();
@@ -393,7 +407,9 @@ public class MarkdownReaderActivity extends BaseActivity implements AnnotationOv
 
     @Override
     public void refreshMarkdownText() {
-        markwon.setMarkdown(tvContent, markdownContent);
+        TaskCheckboxHelper.MarkedSource prepared = TaskCheckboxHelper.injectMarkers(markdownContent);
+        currentTaskLines = prepared.lines;
+        markwon.setMarkdown(tvContent, prepared.text);
         tvContent.setTextIsSelectable(true);
     }
 
@@ -406,6 +422,59 @@ public class MarkdownReaderActivity extends BaseActivity implements AnnotationOv
         if (n > 0) {
             UiUtils.showToast(this, n + " 条批注因编辑未找到原文，已从渲染中移除");
         }
+    }
+
+    // ── 任务清单 checkbox 交互（路线图 #5）────────────────────────────────────
+
+    /**
+     * 阅读态单击命中回调（批注未命中时由 AnnotationOverlayHelper 转达）：命中任务项
+     * （TaskListSpan 覆盖且带定位标记）→ 翻转状态并写回。返回 true=已消费本次点击。
+     *
+     * <p>行定位与 Markwon 渲染错位解耦：渲染前已按源任务行注入零宽标记（同序），
+     * 点击命中任务区间起点 → 解码标记序号 → 映射回源任务行 → 只翻转状态字符。
+     * 失败防御：无标记/越界/无任务行 → 不消费（点击落入原生行为）。</p>
+     */
+    private boolean toggleTaskAt(int charOffset) {
+        if (editMode || markdownContent == null || currentFilePath == null) return false;
+        CharSequence current = tvContent.getText();
+        if (!(current instanceof Spanned)) return false;
+        Spanned spanned = (Spanned) current;
+        TaskListSpan[] spans = spanned.getSpans(charOffset, charOffset, TaskListSpan.class);
+        if (spans.length == 0) return false;
+        int spanStart = spanned.getSpanStart(spans[0]);
+        int index = TaskCheckboxHelper.decodeMarkerIndex(spanned, spanStart);
+        if (index < 0 || index >= currentTaskLines.size()) return false;
+        TaskCheckboxHelper.TaskLine line = currentTaskLines.get(index);
+        String updated = TaskCheckboxHelper.flipTaskState(markdownContent, line, !line.checked);
+        if (updated.equals(markdownContent)) return false;
+        // 乐观更新：先渲染（含标记注入，滚动保持由 renderContent 承担），再异步写回
+        markdownContent = updated;
+        renderContent();
+        writeTaskToggle(updated);
+        return true;
+    }
+
+    /**
+     * 写回=既有 writeFile(OVERWRITE) 同口径（写操作不重试）；成功静默（勾选状态已反馈），
+     * 失败 toast + 以服务器实际内容为准重读回滚（保证 UI 与盘面一致）。
+     */
+    private void writeTaskToggle(String content) {
+        SshManager.getInstance().writeFile(currentFilePath, content, false,
+                new SshManager.WriteFileCallback() {
+                    @Override
+                    public void onSuccess() {
+                        // 乐观更新已展示勾选状态，无需额外动作
+                    }
+
+                    @Override
+                    public void onError(String message) {
+                        runOnUiThread(() -> {
+                            UiUtils.showToast(MarkdownReaderActivity.this,
+                                    "保存失败: " + message);
+                            loadContent(currentFilePath);
+                        });
+                    }
+                });
     }
 
     // ── Lifecycle ─────────────────────────────────────────────────────────────

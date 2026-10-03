@@ -77,6 +77,14 @@ public class AnnotationOverlayHelper {
         default void onAnnotationsRelocated(@NonNull Set<String> failedIds) {}
     }
 
+    /**
+     * 正文单击命中但未命中批注时的回调（任务清单 checkbox 翻转用，路线图 #5）：
+     * 返回 true 表示已消费本次点击；null=未注册（行为与原来一致=无任何动作）。
+     */
+    public interface TaskTapListener {
+        boolean onTaskTap(int charOffset);
+    }
+
     /** 与拆分前一致的 logcat tag（原 MarkdownReaderActivity）。 */
     private static final String TAG = "MarkdownReaderActivity";
     private static final int MENU_ANNOTATE_ID = 0xA1010;
@@ -98,6 +106,13 @@ public class AnnotationOverlayHelper {
     private float lastTouchX, lastTouchY;
     private long lastDownTime;
     private float lastDownX, lastDownY;
+    /** 任务行点击回调（未命中批注时触发；见 {@link TaskTapListener}）。 */
+    private TaskTapListener taskTapListener;
+
+    /** 注册任务行点击回调（checkbox 翻转）；null 可注销。 */
+    public void setTaskTapListener(TaskTapListener listener) {
+        this.taskTapListener = listener;
+    }
 
     // ── 连续导航状态（上一处/下一处）────────────────────────────────────────
     /** 最近一次导航到的批注起点（字符偏移）；-1 = 尚无。 */
@@ -449,6 +464,11 @@ public class AnnotationOverlayHelper {
         AnnotationSpan[] spans = spanned.getSpans(charOffset, charOffset, AnnotationSpan.class);
         if (spans.length > 0) {
             spans[0].onClick(tvContent);
+            return;
+        }
+        // 未命中批注：交给任务行点击回调（checkbox 翻转；返回 false 表示未处理=无动作）
+        if (taskTapListener != null) {
+            taskTapListener.onTaskTap(charOffset);
         }
     }
 
