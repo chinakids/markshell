@@ -29,7 +29,9 @@
         <activity android:name=".ui.ConnectionActivity" />
         <activity android:name=".ui.SavedConnectionsActivity" />
         <activity android:name=".ui.FileBrowserActivity" />
-        <activity android:name=".ui.MarkdownReaderActivity" />
+        <activity
+            android:name=".ui.MarkdownReaderActivity"
+            android:windowSoftInputMode="adjustResize" />
         <activity android:name=".ui.CsvReaderActivity" />
         <activity android:name=".ui.CodeViewerActivity" />
         <activity android:name=".ui.ImageViewerActivity" />
