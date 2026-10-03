@@ -34,6 +34,8 @@ public class PreferenceManager implements HostKeyStore {
     private static final String KEY_PORT_FORWARD_RULES = "port_forward_rules";
     /** 最近打开文件（阅读历史，按服务器 host+port+username 隔离）。 */
     private static final String KEY_RECENT_FILES = "recent_files";
+    /** 上次浏览目录（「继续上次位置」，按服务器 host+port+username 隔离）。 */
+    private static final String KEY_LAST_BROWSED_DIR = "last_browsed_dir";
 
     private final SharedPreferences prefs;
     /** Keystore 密钥（懒加载）。null=Keystore 不可用，降级明文（保持功能可用）。 */
@@ -379,6 +381,86 @@ public class PreferenceManager implements HostKeyStore {
 
     private void writeRecentFiles(JSONArray arr) {
         prefs.edit().putString(KEY_RECENT_FILES, arr.toString()).apply();
+    }
+
+    // ── 上次浏览目录（「继续上次位置」，按服务器 host+port+username 隔离）──────────
+
+    /** 读取指定服务器上次浏览的目录路径；从未记录返回空串。损坏数据按空串容错（同书签）。 */
+    public String getLastBrowsedDir(String host, int port, String username) {
+        JSONArray arr = readLastBrowsedDirs();
+        for (int i = 0; i < arr.length(); i++) {
+            JSONObject obj = arr.optJSONObject(i);
+            if (obj != null && matchesServer(obj, host, port, username)) {
+                return BookmarkHelper.normalizePath(obj.optString("path", ""));
+            }
+        }
+        return "";
+    }
+
+    /**
+     * 记录上次浏览目录（规范化后覆盖，立即持久化）；
+     * 规范化后为空（无效路径）时等价于 {@link #clearLastBrowsedDir}。
+     */
+    public void saveLastBrowsedDir(String host, int port, String username, String path) {
+        if (host == null || username == null) return;
+        String normalized = LastBrowseHelper.normalizeForSave(path);
+        if (normalized.isEmpty()) {
+            clearLastBrowsedDir(host, port, username);
+            return;
+        }
+        JSONArray arr = readLastBrowsedDirs();
+        for (int i = 0; i < arr.length(); i++) {
+            JSONObject obj = arr.optJSONObject(i);
+            if (obj != null && matchesServer(obj, host, port, username)) {
+                try {
+                    obj.put("path", normalized);
+                    writeLastBrowsedDirs(arr);
+                } catch (JSONException e) {
+                    Log.w(TAG, "更新上次浏览目录失败", e);
+                }
+                return;
+            }
+        }
+        // 该服务器尚无记录：新建条目
+        JSONObject obj = new JSONObject();
+        try {
+            obj.put("host", host)
+                    .put("port", port)
+                    .put("username", username)
+                    .put("path", normalized);
+            arr.put(obj);
+            writeLastBrowsedDirs(arr);
+        } catch (JSONException e) {
+            Log.w(TAG, "保存上次浏览目录失败", e);
+        }
+    }
+
+    /** 清除该服务器上次浏览目录记录（目录已不存在等场景）；无记录则为无操作。 */
+    public void clearLastBrowsedDir(String host, int port, String username) {
+        JSONArray arr = readLastBrowsedDirs();
+        for (int i = 0; i < arr.length(); i++) {
+            JSONObject obj = arr.optJSONObject(i);
+            if (obj != null && matchesServer(obj, host, port, username)) {
+                arr.remove(i);
+                writeLastBrowsedDirs(arr);
+                return;
+            }
+        }
+    }
+
+    private JSONArray readLastBrowsedDirs() {
+        String json = prefs.getString(KEY_LAST_BROWSED_DIR, "");
+        if (json.isEmpty()) return new JSONArray();
+        try {
+            return new JSONArray(json);
+        } catch (JSONException e) {
+            Log.w(TAG, "读取上次浏览目录失败，已忽略损坏的数据", e);
+            return new JSONArray();
+        }
+    }
+
+    private void writeLastBrowsedDirs(JSONArray arr) {
+        prefs.edit().putString(KEY_LAST_BROWSED_DIR, arr.toString()).apply();
     }
 
     private static List<RecentFileEntry> entriesFrom(JSONArray files) {

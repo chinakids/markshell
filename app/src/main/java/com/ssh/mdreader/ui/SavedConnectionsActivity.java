@@ -128,12 +128,13 @@ public class SavedConnectionsActivity extends BaseActivity {
                     }
                     UiUtils.showToast(SavedConnectionsActivity.this, "已连接");
 
-                    String path = config.getRemotePath();
-                    if (path == null || path.isEmpty()) {
-                        path = SshManager.getInstance().getHomeDirectory();
-                    }
                     Intent intent = new Intent(SavedConnectionsActivity.this, FileBrowserActivity.class);
-                    intent.putExtra("remote_path", path);
+                    // 仅显式主目录（remotePath）才指定起始位置；未配置则交由文件浏览器
+                    // 恢复上次浏览目录（「继续上次位置」）。
+                    String path = config.getRemotePath();
+                    if (path != null && !path.isEmpty()) {
+                        intent.putExtra("remote_path", path);
+                    }
                     startActivity(intent);
                 });
             }

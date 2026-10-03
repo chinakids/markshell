@@ -26,9 +26,11 @@ import com.ssh.mdreader.model.RemoteFile;
 import com.ssh.mdreader.model.RecentFileEntry;
 import com.ssh.mdreader.model.SshConfig;
 import com.ssh.mdreader.ssh.SshManager;
+import com.ssh.mdreader.util.BookmarkHelper;
 import com.ssh.mdreader.util.DialogHelper;
 import com.ssh.mdreader.util.FileOpsHelper;
 import com.ssh.mdreader.util.FileSortUtils;
+import com.ssh.mdreader.util.LastBrowseHelper;
 import com.ssh.mdreader.util.NewFileHelper;
 import com.ssh.mdreader.util.OpenFileHelper;
 import com.ssh.mdreader.util.PreferenceManager;
@@ -79,16 +81,71 @@ public class FileBrowserActivity extends BaseActivity
         setContentView(R.layout.activity_file_browser);
         setupToolbar(R.string.title_files, true);
 
-        currentPath = getIntent().getStringExtra("remote_path");
-        if (currentPath == null || currentPath.isEmpty()) {
-            currentPath = sshManager.getHomeDirectory();
-        }
-
+        // 「继续上次位置」：显式路径（连接配置主目录/外部指定）优先；
+        // 否则恢复该服务器上次浏览目录（异步校验存在性），无记录则主目录。
+        String explicitPath = getIntent().getStringExtra("remote_path");
         prefManager = new PreferenceManager(this);
+        SshConfig config = sshManager.getConfig();
+        String last = config == null ? ""
+                : prefManager.getLastBrowsedDir(
+                        config.getHost(), config.getPort(), config.getUsername());
+        String home = sshManager.getHomeDirectory();
+        if (BookmarkHelper.normalizePath(explicitPath).isEmpty() && !last.isEmpty()) {
+            // 无显式路径且有上次记录：先校验存在性再决定（恢复语义）
+            currentPath = home; // 占位，回调中再切换为上次目录
+            restoreLastBrowsedDir(config, last, home);
+        } else {
+            currentPath = LastBrowseHelper.resolveStartPath(explicitPath, last, home);
+        }
         fileOps = new FileOpsHelper(this, this);
         previewHelper = new PreviewPaneHelper(this, this);
         initViews();
         loadFiles();
+    }
+
+    /**
+     * 恢复上次浏览目录：先 stat 校验存在（目录被删除/移动则清除记录并回退主目录），
+     * 校验期间连接问题按「保持上次目录」处理，交给 {@link #loadFiles()} 的统一错误流程。
+     */
+    private void restoreLastBrowsedDir(SshConfig config, String lastPath, String homePath) {
+        sshManager.fileExists(lastPath, new SshManager.ExistsCallback() {
+            @Override
+            public void onResult(final boolean exists) {
+                runOnUiThread(() -> {
+                    if (isFinishing() || isDestroyed()) return;
+                    if (!exists) {
+                        prefManager.clearLastBrowsedDir(
+                                config.getHost(), config.getPort(), config.getUsername());
+                        currentPath = homePath;
+                        updateToolbarSubtitle();
+                        UiUtils.showToast(FileBrowserActivity.this,
+                                "上次目录已不存在，已回到主目录");
+                    } else {
+                        currentPath = lastPath;
+                        updateToolbarSubtitle();
+                    }
+                    loadFiles();
+                });
+            }
+
+            @Override
+            public void onError(String message) {
+                runOnUiThread(() -> {
+                    if (isFinishing() || isDestroyed()) return;
+                    currentPath = lastPath;
+                    updateToolbarSubtitle();
+                    loadFiles();
+                });
+            }
+        });
+    }
+
+    /** 每次都落盘当前浏览目录（启动恢复的数据源，按服务器隔离）。 */
+    private void recordLastBrowsedDir() {
+        SshConfig config = sshManager.getConfig();
+        if (config == null) return;
+        prefManager.saveLastBrowsedDir(
+                config.getHost(), config.getPort(), config.getUsername(), currentPath);
     }
 
     @Override
@@ -493,6 +550,7 @@ public class FileBrowserActivity extends BaseActivity
                     int sortMode = prefManager.getFileSortMode();
                     adapter.setFiles(FileSortUtils.sort(files, sortMode), sortMode);
                     updateEmptyState();
+                    recordLastBrowsedDir();
 
                     // Restore scroll position
                     if (savedScrollY[0] >= 0 && savedScrollY[0] < adapter.getItemCount()) {
