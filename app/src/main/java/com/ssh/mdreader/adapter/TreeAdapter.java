@@ -14,6 +14,7 @@ import androidx.recyclerview.widget.RecyclerView;
 import com.ssh.mdreader.R;
 import com.ssh.mdreader.model.RemoteFile;
 import com.ssh.mdreader.util.FileFilterHelper;
+import com.ssh.mdreader.util.FileMetaHelper;
 import com.ssh.mdreader.util.FileSortUtils;
 
 import java.util.ArrayList;
@@ -415,7 +416,7 @@ public class TreeAdapter extends RecyclerView.Adapter<TreeAdapter.ViewHolder> {
 
         if (file.isDirectory()) {
             holder.ivIcon.setImageResource(R.drawable.ic_folder);
-            holder.tvInfo.setText("文件夹");
+            holder.tvInfo.setText("文件夹 · " + FileMetaHelper.formatMtime(file.getMtime()));
             // 多选模式下点击=选中而非展开，隐藏展开箭头避免误导
             holder.ivExpand.setVisibility(selectionMode ? View.INVISIBLE : View.VISIBLE);
 
@@ -451,7 +452,7 @@ public class TreeAdapter extends RecyclerView.Adapter<TreeAdapter.ViewHolder> {
             } else {
                 holder.ivIcon.setImageResource(R.drawable.ic_file_unsupported);
             }
-            holder.tvInfo.setText(file.getFormattedSize());
+            holder.tvInfo.setText(file.getFormattedSize() + " · " + FileMetaHelper.formatMtime(file.getMtime()));
             holder.ivExpand.setVisibility(View.INVISIBLE);
 
             holder.itemView.setOnClickListener(v -> {
