@@ -1,5 +1,7 @@
 package com.ssh.mdreader.model;
 
+import com.ssh.mdreader.util.DownloadHelper;
+
 import java.util.ArrayList;
 import java.util.List;
 
@@ -101,8 +103,7 @@ public class RemoteFile {
 
     public String getFormattedSize() {
         if (directory) return "";
-        if (size < 1024) return size + " B";
-        if (size < 1024 * 1024) return String.format("%.1f KB", size / 1024.0);
-        return String.format("%.1f MB", size / (1024.0 * 1024.0));
+        // 委托 DownloadHelper.formatBytes：与「下载到本地」完成提示同一语义源（B/KB/MB）。
+        return DownloadHelper.formatBytes(size);
     }
 }

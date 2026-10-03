@@ -726,6 +726,38 @@ public class SshManager {
         }, callback::onError));
     }
 
+    public interface DownloadFileCallback {
+        void onSuccess(long bytes);
+        void onError(String message);
+    }
+
+    /**
+     * 把远端文件流式下载到本地输出流（SAF「另存为」的 OutputStream）。
+     * 与 {@link #readFileBytes} 同口径：只读操作（retryable=true，断线重试同语义），
+     * 本方法负责在完成后关闭传入流（调用方只 openOutputStream，不 close）；
+     * 回调在 worker 线程（UI 侧须 runOnUiThread + 生命周期守卫）。
+     * 大文件不整读入内存（阻塞式 8KB 缓冲拷贝），进度可用 {@code onSuccess(bytes)}
+     * 与远端 size 计算（见 DownloadHelper.progressPercent）。
+     */
+    public void downloadFile(String path, java.io.OutputStream out, DownloadFileCallback callback) {
+        sftpExecutor.execute(() -> runOp("下载文件", true, channel -> {
+            InputStream is = channel.get(path);
+            byte[] buffer = new byte[8192];
+            long total = 0;
+            int len;
+            try {
+                while ((len = is.read(buffer)) != -1) {
+                    out.write(buffer, 0, len);
+                    total += len;
+                }
+            } finally {
+                is.close();
+                out.close();
+            }
+            callback.onSuccess(total);
+        }, callback::onError));
+    }
+
     public interface WriteFileCallback {
         void onSuccess();
         void onError(String message);

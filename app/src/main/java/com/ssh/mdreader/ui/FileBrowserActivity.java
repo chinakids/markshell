@@ -29,6 +29,7 @@ import com.ssh.mdreader.model.SshConfig;
 import com.ssh.mdreader.ssh.SshManager;
 import com.ssh.mdreader.util.BookmarkHelper;
 import com.ssh.mdreader.util.DialogHelper;
+import com.ssh.mdreader.util.DownloadHelper;
 import com.ssh.mdreader.util.FileMetaHelper;
 import com.ssh.mdreader.util.FileOpsHelper;
 import com.ssh.mdreader.util.FilePropsHelper;
@@ -66,6 +67,10 @@ public class FileBrowserActivity extends BaseActivity
     private PreferenceManager prefManager;
     private FileOpsHelper fileOps;
     private PreviewPaneHelper previewHelper;
+    /** SAF「另存为」请求（下载到本地入口；uri 回调里用 {@link #pendingDownloadFile} 定位远端文件）。 */
+    private androidx.activity.result.ActivityResultLauncher<String> downloadLauncher;
+    /** 等待 SAF 用户选择位置的远端文件（无则忽略回调——旋转等重建后取消下载）。 */
+    private RemoteFile pendingDownloadFile;
 
     /** 多选模式底部操作栏（批量移动/权限/删除）。 */
     private View selectionBar;
@@ -109,6 +114,16 @@ public class FileBrowserActivity extends BaseActivity
         }
         fileOps = new FileOpsHelper(this, this);
         previewHelper = new PreviewPaneHelper(this, this);
+        downloadLauncher = registerForActivityResult(
+                new androidx.activity.result.contract.ActivityResultContracts.CreateDocument("*/*"),
+                uri -> {
+                    if (uri == null) {
+                        // 用户在系统「另存为」中取消：静默返回（pending 清空）。
+                        pendingDownloadFile = null;
+                        return;
+                    }
+                    startRemoteDownload(uri);
+                });
         initViews();
         loadFiles();
     }
@@ -886,10 +901,10 @@ public class FileBrowserActivity extends BaseActivity
     public void onFileLongClick(RemoteFile file) {
         DialogHelper.showListDialog(this,
                 file.getName(),
-                new String[]{"多选", "移动", "复制", "复制路径", "属性", "重命名", "权限", "删除"},
+                new String[]{"多选", "移动", "复制", "复制路径", "下载到本地", "属性", "重命名", "权限", "删除"},
                 new int[]{0, R.drawable.ic_move, R.drawable.ic_copy, R.drawable.ic_content_copy,
-                        R.drawable.ic_info_outline, R.drawable.ic_edit, R.drawable.ic_lock,
-                        R.drawable.ic_delete},
+                        R.drawable.ic_download, R.drawable.ic_info_outline, R.drawable.ic_edit,
+                        R.drawable.ic_lock, R.drawable.ic_delete},
                 (dialog, which) -> {
                     if (which == 0) {
                         adapter.enterSelectionMode(file);
@@ -900,15 +915,73 @@ public class FileBrowserActivity extends BaseActivity
                     } else if (which == 3) {
                         UiUtils.copyRemotePath(this, file.getPath());
                     } else if (which == 4) {
-                        showFileProperties(file);
+                        startDownloadToLocal(file);
                     } else if (which == 5) {
-                        fileOps.renameFile(file);
+                        showFileProperties(file);
                     } else if (which == 6) {
-                        fileOps.showChmodDialog(file);
+                        fileOps.renameFile(file);
                     } else if (which == 7) {
+                        fileOps.showChmodDialog(file);
+                    } else if (which == 8) {
                         fileOps.confirmDeleteFile(file);
                     }
                 });
+    }
+
+    /**
+     * 下载到本地入口：SAF（ActivityResultContracts.CreateDocument）让用户选保存位置，
+     * 默认名=远端文件名（DownloadHelper.suggestFileName，可改）。仅文件（目录下载需
+     * 递归打包，成本高另议，见路线图观察项）。SAF 零存储权限（Android 10+ 免弹窗）。
+     */
+    private void startDownloadToLocal(RemoteFile file) {
+        if (file == null || file.isDirectory()) return;
+        pendingDownloadFile = file;
+        String suggested = DownloadHelper.suggestFileName(file.getPath());
+        try {
+            downloadLauncher.launch(suggested);
+        } catch (RuntimeException e) {
+            pendingDownloadFile = null;
+            UiUtils.showToast(this, "无法打开保存对话框: " + UiUtils.errorMessage(e));
+        }
+    }
+
+    /** SAF 返回目标 uri 后执行下载：openOutputStream → SshManager.downloadFile（worker 线程流式拷贝）。 */
+    private void startRemoteDownload(android.net.Uri uri) {
+        RemoteFile file = pendingDownloadFile;
+        pendingDownloadFile = null;
+        if (file == null || file.isDirectory()) return;
+        UiUtils.showToast(this, "正在下载 " + file.getName() + "…");
+        java.io.OutputStream out;
+        try {
+            out = getContentResolver().openOutputStream(uri);
+        } catch (Exception e) {
+            UiUtils.showToast(this, "下载失败: " + UiUtils.errorMessage(e));
+            return;
+        }
+        if (out == null) {
+            UiUtils.showToast(this, "无法写入所选位置");
+            return;
+        }
+        sshManager.downloadFile(file.getPath(), out, new SshManager.DownloadFileCallback() {
+            @Override
+            public void onSuccess(long bytes) {
+                runOnUiThread(() -> {
+                    if (!isFinishing() && !isDestroyed()) {
+                        UiUtils.showToast(FileBrowserActivity.this,
+                                "已保存 " + file.getName() + "（" + DownloadHelper.formatBytes(bytes) + "）");
+                    }
+                });
+            }
+
+            @Override
+            public void onError(String message) {
+                runOnUiThread(() -> {
+                    if (!isFinishing() && !isDestroyed()) {
+                        UiUtils.showToast(FileBrowserActivity.this, "下载失败: " + message);
+                    }
+                });
+            }
+        });
     }
 
     // ── 多选模式 UI 与批量操作 ──────────────────────────────────────────────
