@@ -129,6 +129,46 @@
             android:layout_height="1dp"
             android:background="#333333" />
 
+        <!-- Tab switcher: 批注 / 大纲（路线图 #6 TOC 导航入口，抽屉双 Tab） -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="44dp"
+            android:orientation="horizontal"
+            android:background="#252525">
+
+            <TextView
+                android:id="@+id/tv_tab_annotations"
+                android:layout_width="0dp"
+                android:layout_height="match_parent"
+                android:layout_weight="1"
+                android:gravity="center"
+                android:paddingTop="12dp"
+                android:paddingBottom="12dp"
+                android:text="批注"
+                android:textColor="#BB86FC"
+                android:textStyle="bold"
+                android:textSize="13sp" />
+
+            <TextView
+                android:id="@+id/tv_tab_toc"
+                android:layout_width="0dp"
+                android:layout_height="match_parent"
+                android:layout_weight="1"
+                android:gravity="center"
+                android:paddingTop="12dp"
+                android:paddingBottom="12dp"
+                android:text="大纲"
+                android:textColor="#888888"
+                android:textSize="13sp" />
+
+        </LinearLayout>
+
+        <!-- Separator -->
+        <View
+            android:layout_width="match_parent"
+            android:layout_height="1dp"
+            android:background="#333333" />
+
         <!-- Annotation list -->
         <androidx.recyclerview.widget.RecyclerView
             android:id="@+id/rv_annotation_list"
@@ -165,6 +205,37 @@
                 android:text="长按选中文字以添加批注"
                 android:textColor="#555555"
                 android:textSize="13sp" />
+
+        </LinearLayout>
+
+        <!-- TOC (大纲) list -->
+        <androidx.recyclerview.widget.RecyclerView
+            android:id="@+id/rv_toc_list"
+            android:layout_width="match_parent"
+            android:layout_height="0dp"
+            android:layout_weight="1"
+            android:clipToPadding="false"
+            android:paddingTop="8dp"
+            android:paddingBottom="8dp"
+            android:overScrollMode="always"
+            android:visibility="gone" />
+
+        <!-- TOC empty state -->
+        <LinearLayout
+            android:id="@+id/layout_empty_toc"
+            android:layout_width="match_parent"
+            android:layout_height="0dp"
+            android:layout_weight="1"
+            android:orientation="vertical"
+            android:gravity="center"
+            android:visibility="gone">
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="本文档没有标题"
+                android:textColor="#666666"
+                android:textSize="15sp" />
 
         </LinearLayout>
 

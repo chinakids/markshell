@@ -1,6 +1,7 @@
 package com.ssh.mdreader.ui;
 
 import android.os.Bundle;
+import android.graphics.Typeface;
 import android.text.Spanned;
 import android.text.method.ScrollingMovementMethod;
 import android.util.TypedValue;
@@ -16,24 +17,31 @@ import android.widget.TextView;
 
 import androidx.annotation.NonNull;
 import androidx.drawerlayout.widget.DrawerLayout;
+import androidx.recyclerview.widget.LinearLayoutManager;
+import androidx.recyclerview.widget.RecyclerView;
 
 import com.ssh.mdreader.R;
+import com.ssh.mdreader.adapter.TocAdapter;
 import com.ssh.mdreader.ssh.SshManager;
 import com.ssh.mdreader.util.AnnotationHelper;
 import com.ssh.mdreader.util.AnnotationOverlayHelper;
 import com.ssh.mdreader.util.DialogHelper;
 import com.ssh.mdreader.util.PreferenceManager;
 import com.ssh.mdreader.util.TaskCheckboxHelper;
+import com.ssh.mdreader.util.TocHelper;
 import com.ssh.mdreader.util.UiUtils;
 
 import io.noties.markwon.Markwon;
+import io.noties.markwon.core.spans.HeadingSpan;
 import io.noties.markwon.ext.tables.TablePlugin;
 import io.noties.markwon.ext.tasklist.TaskListPlugin;
 import io.noties.markwon.ext.tasklist.TaskListSpan;
 import io.noties.markwon.image.ImagesPlugin;
 
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 
 public class MarkdownReaderActivity extends BaseActivity implements AnnotationOverlayHelper.Host {
@@ -72,6 +80,19 @@ public class MarkdownReaderActivity extends BaseActivity implements AnnotationOv
     // ── 任务清单 checkbox 交互（路线图 #5）────────────────────────────────────
     /** 当前渲染输入的任务行坐标（与 {@link #renderContent()} 的标记注入同源）。 */
     private List<TaskCheckboxHelper.TaskLine> currentTaskLines = Collections.emptyList();
+
+    // ── 大纲 TOC 导航（路线图 #6）─────────────────────────────────────────────
+    /** 当前渲染输入的标题元数据（与 {@link #renderContent()} 的标记注入同源）。 */
+    private List<TocHelper.Heading> currentHeadings = Collections.emptyList();
+    /** 标题扫描序 → 渲染文本区间 [start, end)；每次渲染后重建，点击跳转用。 */
+    private final Map<Integer, int[]> headingRenderRanges = new HashMap<>();
+    /** 抽屉当前高亮 Tab（true=大纲；默认批注，与旧行为一致）。 */
+    private boolean tocTabActive;
+    private TocAdapter tocAdapter;
+    private RecyclerView rvTocList;
+    private View layoutEmptyToc;
+    private TextView tvTabAnnotations;
+    private TextView tvTabToc;
 
     // ── Editing (编辑模式：远程文件在线编辑，保存经 SshManager.writeFile 覆盖写回) ──
     private String  currentFilePath;
@@ -113,6 +134,8 @@ public class MarkdownReaderActivity extends BaseActivity implements AnnotationOv
                 annotationFilePath);
         annotationOverlay.init();
         annotationOverlay.setTaskTapListener(this::toggleTaskAt);
+
+        initTocUi();
 
         buildMarkwon();
 
@@ -167,7 +190,7 @@ public class MarkdownReaderActivity extends BaseActivity implements AnnotationOv
                 if (drawerLayout.isDrawerOpen(drawerView)) {
                     drawerLayout.closeDrawer(drawerView);
                 } else {
-                    annotationOverlay.refreshAnnotationDrawer();
+                    applyDrawerTab(tocTabActive);   // 刷新当前 Tab 数据与可见性（默认批注=旧行为）
                     drawerLayout.openDrawer(drawerView);
                 }
                 return true;
@@ -317,6 +340,89 @@ public class MarkdownReaderActivity extends BaseActivity implements AnnotationOv
         tvContent.setTextIsSelectable(true);
     }
 
+    // ── 大纲 TOC 导航（路线图 #6）─────────────────────────────────────────────
+
+    /** 初始化大纲 Tab、列表与点击回调（drawer 布局内含「批注/大纲」双 Tab）。 */
+    private void initTocUi() {
+        rvTocList = findViewById(R.id.rv_toc_list);
+        layoutEmptyToc = findViewById(R.id.layout_empty_toc);
+        tvTabAnnotations = findViewById(R.id.tv_tab_annotations);
+        tvTabToc = findViewById(R.id.tv_tab_toc);
+        tocAdapter = new TocAdapter();
+        rvTocList.setLayoutManager(new LinearLayoutManager(this));
+        rvTocList.setAdapter(tocAdapter);
+        tocAdapter.setOnItemClickListener(this::onTocItemClick);
+        tvTabAnnotations.setOnClickListener(v -> applyDrawerTab(false));
+        tvTabToc.setOnClickListener(v -> applyDrawerTab(true));
+    }
+
+    /**
+     * 切换/刷新抽屉 Tab（tocTab=true=大纲）：更新 Tab 高亮、刷新对应列表数据与空态，
+     * 隐藏另一侧视图。打开抽屉与 Tab 点击共用。
+     */
+    private void applyDrawerTab(boolean tocTab) {
+        tocTabActive = tocTab;
+        tvTabAnnotations.setTextColor(tocTab ? 0xFF888888 : 0xFFBB86FC);
+        tvTabAnnotations.setTypeface(null, tocTab ? Typeface.NORMAL : Typeface.BOLD);
+        tvTabToc.setTextColor(tocTab ? 0xFFBB86FC : 0xFF888888);
+        tvTabToc.setTypeface(null, tocTab ? Typeface.BOLD : Typeface.NORMAL);
+        if (tocTab) {
+            refreshTocDrawer();
+            rvTocList.setVisibility(currentHeadings.isEmpty() ? View.GONE : View.VISIBLE);
+            layoutEmptyToc.setVisibility(currentHeadings.isEmpty() ? View.VISIBLE : View.GONE);
+            findViewById(R.id.rv_annotation_list).setVisibility(View.GONE);
+            findViewById(R.id.layout_empty_annotations).setVisibility(View.GONE);
+        } else {
+            annotationOverlay.refreshAnnotationDrawer();   // 数据+批注空态+计数
+            rvTocList.setVisibility(View.GONE);
+            layoutEmptyToc.setVisibility(View.GONE);
+        }
+    }
+
+    /** 刷新大纲列表（数据=最近一次渲染的标题元数据构建的树）。 */
+    private void refreshTocDrawer() {
+        if (tocAdapter == null) return;
+        tocAdapter.setData(TocHelper.buildTree(currentHeadings));
+    }
+
+    /**
+     * 大纲条目点击：按标题扫描序定位渲染区间（HeadingSpan+U+200C 标记解码）→
+     * 复用批注导航落点（关抽屉+高亮+平滑滚动居中）。编辑模式下无可跳转目标（toast）。
+     */
+    private void onTocItemClick(int position) {
+        if (editMode) {
+            UiUtils.showToast(this, "编辑模式下大纲不可用");
+            return;
+        }
+        int[] range = headingRenderRanges.get(position);
+        if (range == null) {
+            UiUtils.showToast(this, "无法定位该标题");
+            return;
+        }
+        annotationOverlay.jumpToCharOffset(range[0], range[1]);
+    }
+
+    /**
+     * 渲染后重建「标题扫描序 → 渲染文本区间」映射：遍历 HeadingSpan（Markwon core
+     * 默认渲染 ATX/setext 标题，span 覆盖标题文本），在 span 区间内解码首个连续
+     * U+200C 段（=注入标记）取扫描序号。失败（无标记/非法）跳过——不阻塞渲染。
+     */
+    private void rebuildHeadingRenderRanges() {
+        headingRenderRanges.clear();
+        CharSequence cs = tvContent.getText();
+        if (!(cs instanceof Spanned)) return;
+        Spanned spanned = (Spanned) cs;
+        HeadingSpan[] spans = spanned.getSpans(0, spanned.length(), HeadingSpan.class);
+        for (HeadingSpan span : spans) {
+            int start = spanned.getSpanStart(span);
+            int end = spanned.getSpanEnd(span);
+            int idx = TocHelper.decodeHeadingIndex(spanned, start, end);
+            if (idx >= 0) {
+                headingRenderRanges.put(idx, new int[]{start, end});
+            }
+        }
+    }
+
     // ── Markwon ───────────────────────────────────────────────────────────────
 
     /** Built once — no annotation plugin needed. */
@@ -373,15 +479,18 @@ public class MarkdownReaderActivity extends BaseActivity implements AnnotationOv
 
         final int savedScrollY = scrollView.getScrollY();
 
-        // 任务清单行定位：渲染前注入零宽标记（与 currentTaskLines 同源），点击命中用
-        TaskCheckboxHelper.MarkedSource prepared = TaskCheckboxHelper.injectMarkers(markdownContent);
-        currentTaskLines = prepared.lines;
+        // 标题/任务清单行定位：渲染前注入零宽标记（与 currentHeadings/currentTaskLines
+        // 同源），点击命中使用。合并注入=标题 U+200C 标记 + 任务 U+200B 标记（坐标互不干扰）
+        TocHelper.MarkedSource prepared = TocHelper.injectMarkers(markdownContent);
+        currentTaskLines = prepared.taskLines;
+        currentHeadings = prepared.headings;
 
         tvContent.setTextSize(TypedValue.COMPLEX_UNIT_SP, currentFontSize);
         markwon.setMarkdown(tvContent, prepared.text);
         tvContent.setTextIsSelectable(true);
 
         annotationOverlay.applyAnnotationSpans();
+        rebuildHeadingRenderRanges();
 
         if (savedScrollY > 0) {
             scrollView.post(() -> scrollView.scrollTo(0, savedScrollY));
@@ -407,10 +516,12 @@ public class MarkdownReaderActivity extends BaseActivity implements AnnotationOv
 
     @Override
     public void refreshMarkdownText() {
-        TaskCheckboxHelper.MarkedSource prepared = TaskCheckboxHelper.injectMarkers(markdownContent);
-        currentTaskLines = prepared.lines;
+        TocHelper.MarkedSource prepared = TocHelper.injectMarkers(markdownContent);
+        currentTaskLines = prepared.taskLines;
+        currentHeadings = prepared.headings;
         markwon.setMarkdown(tvContent, prepared.text);
         tvContent.setTextIsSelectable(true);
+        rebuildHeadingRenderRanges();
     }
 
     @Override

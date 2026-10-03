@@ -409,6 +409,16 @@ public class AnnotationOverlayHelper {
 
     /** 导航落点：关抽屉（若开）、临时高亮批注区间、平滑滚动到目标。 */
     private void jumpToAnnotation(@NonNull AnnotationNavigator.NavigableAnnotation target) {
+        jumpToCharOffset(target.start, target.end);
+    }
+
+    /**
+     * 通用跳转落点（批注导航与 TOC 大纲导航共用）：关抽屉（若开）、临时高亮区间
+     * （与批注下划线同色系 #FFD600 40% 透明背景）、平滑滚动居中到区间起点。
+     * {@code start/end} 为渲染文本（TextView 当前内容）字符区间。
+     */
+    public void jumpToCharOffset(int start, int end) {
+        if (!host.isAlive()) return;
         if (drawerLayout.isDrawerOpen(drawerView)) {
             drawerLayout.closeDrawer(drawerView);
         }
@@ -416,14 +426,12 @@ public class AnnotationOverlayHelper {
         CharSequence current = tvContent.getText();
         SpannableStringBuilder ssb = new SpannableStringBuilder(current);
         if (activeHighlight != null) ssb.removeSpan(activeHighlight);
-        // 与批注下划线同色系（#FFD600）40% 透明背景，不遮挡文字阅读
         activeHighlight = new BackgroundColorSpan(0x66FFD600);
-        ssb.setSpan(activeHighlight, target.start, target.end,
-                Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
+        ssb.setSpan(activeHighlight, start, end, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
         tvContent.setText(ssb);
         tvContent.setTextIsSelectable(true);
 
-        scrollToOffset(target.start);
+        scrollToOffset(start);
     }
 
     /** 视口顶部所在行的行首字符偏移（导航「当前阅读位置」）；布局未就绪时返回 -1。 */
