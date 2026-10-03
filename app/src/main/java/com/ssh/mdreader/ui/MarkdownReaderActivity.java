@@ -36,6 +36,8 @@ import com.ssh.mdreader.util.FindHelper;
 import com.ssh.mdreader.util.LinkTargetHelper;
 import com.ssh.mdreader.util.OpenFileHelper;
 import com.ssh.mdreader.util.PreferenceManager;
+import com.ssh.mdreader.util.SftpImageSchemeHandler;
+import com.ssh.mdreader.util.SftpImageSpanPlugin;
 import com.ssh.mdreader.util.TaskCheckboxHelper;
 import com.ssh.mdreader.util.TocHelper;
 import com.ssh.mdreader.util.UiUtils;
@@ -457,9 +459,14 @@ public class MarkdownReaderActivity extends BaseActivity implements AnnotationOv
     /** Built once — no annotation plugin needed. */
     private void buildMarkwon() {
         markwon = Markwon.builder(this)
-                .usePlugin(ImagesPlugin.create())
+                // 路线图 #9：注册 markdown-sftp 图片 handler（远端路径图片加载）
+                .usePlugin(ImagesPlugin.create(images -> images.addSchemeHandler(
+                        SftpImageSchemeHandler.getInstance(this))))
                 .usePlugin(TablePlugin.create(this))
                 .usePlugin(TaskListPlugin.create(this))
+                // #9：覆盖 Image span factory，把相对/绝对路径改写为 markdown-sftp:（须在
+                // ImagesPlugin 之后注册，后者 setFactory(Image.class) 会被本层覆盖）
+                .usePlugin(SftpImageSpanPlugin.create(() -> currentFilePath))
                 .build();
     }
 

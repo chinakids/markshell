@@ -61,6 +61,9 @@ public class PreviewPaneHelper {
 
     private Markwon previewMarkwon;
 
+    /** 当前预览文件的远端绝对路径（#9 内嵌图片相对路径解析基座）。 */
+    private String previewBasePath;
+
     public PreviewPaneHelper(Context context, Host host) {
         this.context = context;
         this.host = host;
@@ -69,9 +72,12 @@ public class PreviewPaneHelper {
     private Markwon getPreviewMarkwon() {
         if (previewMarkwon == null) {
             previewMarkwon = Markwon.builder(context)
-                    .usePlugin(ImagesPlugin.create())
+                    // #9：注册 markdown-sftp 图片 handler（远端路径图片加载）
+                    .usePlugin(ImagesPlugin.create(images -> images.addSchemeHandler(
+                            SftpImageSchemeHandler.getInstance(context))))
                     .usePlugin(TablePlugin.create(context))
                     .usePlugin(TaskListPlugin.create(context))
+                    .usePlugin(SftpImageSpanPlugin.create(() -> previewBasePath))
                     .build();
         }
         return previewMarkwon;
@@ -91,6 +97,7 @@ public class PreviewPaneHelper {
         if (pane == null) return;
         if (!host.isAlive()) return;
 
+        previewBasePath = file.getPath();
         pane.removeAllViews();
 
         boolean supported = file.isMarkdown() || file.isCsv() || file.isCodeFile()
