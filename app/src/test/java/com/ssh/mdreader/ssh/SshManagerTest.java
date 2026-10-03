@@ -10,6 +10,7 @@ import com.jcraft.jsch.ChannelSftp;
 import com.jcraft.jsch.LsTestFactory;
 import com.jcraft.jsch.SftpException;
 import com.ssh.mdreader.model.RemoteFile;
+import com.ssh.mdreader.model.SshConfig;
 
 import org.junit.Test;
 
@@ -303,5 +304,35 @@ public class SshManagerTest {
         assertEquals(0x1A4, f.getPermissions());
         assertEquals(42, f.getSize());
         assertEquals(1_700_000_000L, f.getMtime());
+    }
+
+    // ── 连接复用资格判定（reuseEligible = SshConnectionHelper 谓词 + 心跳一致性） ──
+
+    private static SshConfig cfg(String host, String pass) {
+        return new SshConfig("alias", host, 22, "u", pass, "/");
+    }
+
+    @Test
+    public void reuseEligible_sameTargetSameCredsSameHeartbeat() {
+        assertTrue(SshManager.reuseEligible(cfg("h", "p"), cfg("h", "p"), true, 5000, 5000));
+    }
+
+    @Test
+    public void reuseEligible_notAliveOrDifferentTarget() {
+        assertFalse(SshManager.reuseEligible(cfg("h", "p"), cfg("h", "p"), false, 5000, 5000));
+        assertFalse(SshManager.reuseEligible(cfg("h", "p"), cfg("h2", "p"), true, 5000, 5000));
+    }
+
+    @Test
+    public void reuseEligible_heartbeatChangedForcesReconnect() {
+        // 用户改了心跳偏好：「下次 connect 生效」语义 → 即使同目标存活也必须重建
+        assertFalse(SshManager.reuseEligible(cfg("h", "p"), cfg("h", "p"), true, 5000, 10000));
+        // 心跳相同则不受影响
+        assertTrue(SshManager.reuseEligible(cfg("h", "p"), cfg("h", "p"), true, 10000, 10000));
+    }
+
+    @Test
+    public void reuseEligible_credentialChangeForcesReconnect() {
+        assertFalse(SshManager.reuseEligible(cfg("h", "old"), cfg("h", "new"), true, 5000, 5000));
     }
 }

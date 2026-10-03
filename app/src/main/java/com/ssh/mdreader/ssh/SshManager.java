@@ -13,6 +13,7 @@ import com.ssh.mdreader.model.SshConfig;
 import com.ssh.mdreader.util.FileSortUtils;
 import com.ssh.mdreader.util.HostKeyHelper;
 import com.ssh.mdreader.util.HostKeyStore;
+import com.ssh.mdreader.util.SshConnectionHelper;
 import com.ssh.mdreader.util.UiUtils;
 
 import java.io.ByteArrayOutputStream;
@@ -67,6 +68,9 @@ public class SshManager {
     private volatile boolean userDisconnected;
     /** 心跳间隔（毫秒），由 UI 层从偏好注入；对已建立连接不生效，下次 connect/自动重连生效。 */
     private volatile int heartbeatIntervalMs = DEFAULT_HEARTBEAT_MS;
+    /** 当前已建立连接实际应用的心跳间隔（openChannelSync 建立时记录）；用于复用判定，保证
+     *  「下次 connect 生效」语义不被连接复用绕过（见 {@link #reuseEligible}）。 */
+    private volatile int appliedHeartbeatMs = DEFAULT_HEARTBEAT_MS;
     /** 主机指纹存储（由 UI 层注入 PreferenceManager）；null=跳过校验（保持旧行为）。 */
     private volatile HostKeyStore hostKeyStore;
     /** 本次连接是否首次记录主机指纹（TOFU），供 UI 一次性提示；读后清。 */
@@ -160,15 +164,39 @@ public class SshManager {
         return ms;
     }
 
+    /**
+     * 连接复用资格判定（纯静态，包级可见以便单测）：复用=目标连接存活 && 同连接键（host:port:user
+     * 规范化）&& 认证要素等价（见 {@link SshConnectionHelper#shouldReuseConnection}）&& 心跳设置未变
+     * （否则按「下次 connect 生效」语义须重建以应用新心跳）。
+     */
+    static boolean reuseEligible(SshConfig existing, SshConfig requested, boolean alive,
+                                 int appliedHeartbeatMs, int requestedHeartbeatMs) {
+        if (appliedHeartbeatMs != requestedHeartbeatMs) return false;
+        return SshConnectionHelper.shouldReuseConnection(existing, requested, alive);
+    }
+
     public void connect(SshConfig config, ConnectionListener listener) {
+        // Capture per-request listener + old config first: the reuse decision runs on the
+        // worker thread (session state is authored only there), so it is serialized with any
+        // queued disconnect/reconnect and cannot race a teardown.
+        ConnectionListener cb = listener;
+        SshConfig oldConfig = this.config;
         this.config = config;
         this.listener = listener;
         userDisconnected = false;
-        // Capture per-request listener so callbacks always reach the Activity
-        // that initiated THIS connect, even if another one registers later.
-        ConnectionListener cb = listener;
 
         sftpExecutor.execute(() -> {
+            // 同一目标幂等连接：已存活连接且同键同凭据且心跳一致 → 复用，不做 teardown/重建
+            // （避免无谓断开在途操作与重复握手的延迟；指纹/TOFU 已在初次建连时校验，复用不再重验）。
+            // 不变量=「复用不改变既有会话的任何状态」（homeDirectory/fingerprint/服务端会话均保持，
+            // 仅切换监听者）。
+            if (reuseEligible(oldConfig, config, isConnected(),
+                    appliedHeartbeatMs, heartbeatIntervalMs)) {
+                Log.i(TAG, "复用现有连接（同目标同凭据）: "
+                        + SshConnectionHelper.deriveConnectionKey(config));
+                if (cb != null) cb.onConnected();
+                return;
+            }
             try {
                 openChannelSync();
 
@@ -209,6 +237,7 @@ public class SshManager {
         props.put("StrictHostKeyChecking", "no");
         session.setConfig(props);
         session.setServerAliveInterval(heartbeatIntervalMs);
+        appliedHeartbeatMs = heartbeatIntervalMs;
         session.setServerAliveCountMax(HEARTBEAT_COUNT_MAX);
         // Bound socket reads so channel I/O on a silently-broken link
         // fails fast instead of blocking indefinitely.
