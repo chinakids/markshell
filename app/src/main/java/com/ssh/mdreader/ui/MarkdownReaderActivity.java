@@ -36,6 +36,7 @@ import com.ssh.mdreader.util.FindHelper;
 import com.ssh.mdreader.util.LinkTargetHelper;
 import com.ssh.mdreader.util.OpenFileHelper;
 import com.ssh.mdreader.util.PreferenceManager;
+import com.ssh.mdreader.util.ReplaceHelper;
 import com.ssh.mdreader.util.SftpImageSchemeHandler;
 import com.ssh.mdreader.util.SftpImageSpanPlugin;
 import com.ssh.mdreader.util.TaskCheckboxHelper;
@@ -111,6 +112,9 @@ public class MarkdownReaderActivity extends BaseActivity implements AnnotationOv
     private View findBar;
     private EditText etFindQuery;
     private TextView tvFindStatus;
+    /** 替换行（仅编辑模式可见；路线图 #11）与替换输入框。 */
+    private View replaceRow;
+    private EditText etReplaceQuery;
     /** 当前查询词在渲染文本上的全部匹配（文档序，FindHelper.scanAll 产出）。 */
     private List<FindHelper.Match> findMatches = Collections.emptyList();
     /** 当前高亮匹配下标（-1=无）。 */
@@ -184,6 +188,9 @@ public class MarkdownReaderActivity extends BaseActivity implements AnnotationOv
             menu.add(Menu.NONE, MENU_ABORT_ID, Menu.NONE, "放弃")
                     .setIcon(R.drawable.ic_close)
                     .setShowAsAction(MenuItem.SHOW_AS_ACTION_ALWAYS);
+            menu.add(Menu.NONE, MENU_FIND_ID, Menu.NONE, "查找/替换")
+                    .setIcon(R.drawable.ic_search)
+                    .setShowAsAction(MenuItem.SHOW_AS_ACTION_IF_ROOM);
             return true;
         }
         menu.add(Menu.NONE, MENU_ANNOTATION_PREV_ID, Menu.NONE, "上一处")
@@ -247,7 +254,7 @@ public class MarkdownReaderActivity extends BaseActivity implements AnnotationOv
     /** 进入编辑模式；draft 为默认内容（通常=当前文件内容，旋转恢复时=未保存草稿）。 */
     private void enterEditModeWithDraft(String draft) {
         if (editMode) return;
-        hideFindBar();          // 查找栏仅阅读态可用
+        hideFindBar();          // 查找栏收起；编辑模式可经菜单重新打开（含替换行）
         editMode = true;
         saving = false;
         originalContent = markdownContent;
@@ -324,6 +331,11 @@ public class MarkdownReaderActivity extends BaseActivity implements AnnotationOv
         scrollView.setVisibility(View.VISIBLE);
         setTitle(pageTitle);
         invalidateOptionsMenu();
+        updateReplaceRowVisibility();
+        if (findBar.getVisibility() == View.VISIBLE) {
+            // 查找栏若开着：扫描源已从编辑器切回渲染文本，重算匹配（保持原序位不打断阅读）
+            rebuildFind(true);
+        }
         if (reload) {
             loadContent(currentFilePath);
         }
@@ -723,11 +735,13 @@ public class MarkdownReaderActivity extends BaseActivity implements AnnotationOv
 
     // ── 文档内文本查找（路线图 #8）─────────────────────────────────────────────
 
-    /** 初始化查找栏：输入监听（变化即重算并跳第一处）、上一处/下一处/关闭按钮、键盘搜索键。 */
+    /** 初始化查找/替换栏：输入监听（变化即重算并跳第一处）、上一处/下一处/关闭按钮、键盘搜索键。 */
     private void initFindBar() {
         findBar = findViewById(R.id.find_bar);
         etFindQuery = findViewById(R.id.et_find_query);
         tvFindStatus = findViewById(R.id.tv_find_status);
+        replaceRow = findViewById(R.id.replace_row);
+        etReplaceQuery = findViewById(R.id.et_replace_query);
         etFindQuery.addTextChangedListener(new TextWatcher() {
             @Override
             public void beforeTextChanged(CharSequence s, int st, int c, int a) { }
@@ -750,12 +764,21 @@ public class MarkdownReaderActivity extends BaseActivity implements AnnotationOv
             }
             return false;
         });
+        findViewById(R.id.btn_replace).setOnClickListener(v -> replaceCurrentOccurrence());
+        findViewById(R.id.btn_replace_all).setOnClickListener(v -> replaceAllOccurrences());
+        etReplaceQuery.setOnEditorActionListener((v, actionId, event) -> {
+            if (actionId == EditorInfo.IME_ACTION_DONE) {
+                replaceCurrentOccurrence();   // 键盘完成键 = 替换当前处
+                return true;
+            }
+            return false;
+        });
     }
 
-    /** 打开查找栏（仅阅读态；聚焦输入并弹键盘；不预填/保留上次查询词）。 */
+    /** 打开查找/替换栏（阅读态/编辑态均可，编辑态补显替换行；聚焦输入并弹键盘）。 */
     private void showFindBar() {
-        if (editMode) return;
         findBar.setVisibility(View.VISIBLE);
+        updateReplaceRowVisibility();
         etFindQuery.requestFocus();
         etFindQuery.post(() -> {
             InputMethodManager imm = (InputMethodManager) getSystemService(INPUT_METHOD_SERVICE);
@@ -769,6 +792,7 @@ public class MarkdownReaderActivity extends BaseActivity implements AnnotationOv
     /** 关闭查找栏：清除查找态与导航高亮（批注/大纲导航高亮各自管理，不受影响）。 */
     private void hideFindBar() {
         findBar.setVisibility(View.GONE);
+        updateReplaceRowVisibility();
         InputMethodManager imm = (InputMethodManager) getSystemService(INPUT_METHOD_SERVICE);
         if (imm != null) {
             imm.hideSoftInputFromWindow(etFindQuery.getWindowToken(), 0);
@@ -779,8 +803,20 @@ public class MarkdownReaderActivity extends BaseActivity implements AnnotationOv
         annotationOverlay.clearActiveHighlight();
     }
 
+    /** 替换行仅编辑模式显示（阅读态查找栏保持原样，不出替换域）。 */
+    private void updateReplaceRowVisibility() {
+        if (replaceRow != null) {
+            replaceRow.setVisibility(editMode ? View.VISIBLE : View.GONE);
+        }
+    }
+
+    /** 查找扫描源：编辑态=编辑器文本（源 Markdown），阅读态=渲染后文本（所见即所搜）。 */
+    private CharSequence findSource() {
+        return editMode ? etEditor.getText() : tvContent.getText();
+    }
+
     /**
-     * 重建当前查询词的全部匹配（在<b>渲染后文本</b>上扫描，见 {@link FindHelper}）。
+     * 重建当前查询词的全部匹配（在<b>当前查找源</b>上扫描，见 {@link FindHelper}）。
      * {@code preserve=true}：保持当前序号（不跳转，内容重渲染后调用——避免打断阅读位置）；
      * {@code preserve=false}：跳到第一处（输入变化/打开查找栏时）。查找栏隐藏时为空操作。
      */
@@ -788,7 +824,7 @@ public class MarkdownReaderActivity extends BaseActivity implements AnnotationOv
         if (findBar.getVisibility() != View.VISIBLE) return;
         String query = etFindQuery.getText().toString();
         int prev = findCurrentIndex;
-        findMatches = FindHelper.scanAll(tvContent.getText(), query, true);
+        findMatches = FindHelper.scanAll(findSource(), query, true);
         if (findMatches.isEmpty()) {
             findCurrentIndex = -1;
             tvFindStatus.setText(query.isEmpty() ? "" : "未找到");
@@ -807,7 +843,6 @@ public class MarkdownReaderActivity extends BaseActivity implements AnnotationOv
 
     /** 上一处/下一处（循环）；结果为空时先防御性重算（内容可能已变），仍无则提示。 */
     private void findStep(int direction) {
-        if (editMode) return;
         if (findMatches.isEmpty()) rebuildFind(false);
         if (findMatches.isEmpty()) {
             tvFindStatus.setText("未找到");
@@ -817,12 +852,83 @@ public class MarkdownReaderActivity extends BaseActivity implements AnnotationOv
         jumpToFindMatch();
     }
 
-    /** 跳转到当前匹配：更新计数状态并复用批注导航落点（关抽屉+高亮+平滑滚动居中）。 */
+    /** 跳到当前匹配：编辑态把选区移到命中处（编辑器自动滚动），阅读态复用批注导航落点。 */
     private void jumpToFindMatch() {
         if (findCurrentIndex < 0 || findCurrentIndex >= findMatches.size()) return;
         FindHelper.Match m = findMatches.get(findCurrentIndex);
         tvFindStatus.setText((findCurrentIndex + 1) + "/" + findMatches.size());
-        annotationOverlay.jumpToCharOffset(m.start, m.end);
+        if (editMode) {
+            etEditor.setSelection(m.start, m.end);
+            etEditor.post(() -> etEditor.bringPointIntoView(m.end));
+        } else {
+            annotationOverlay.jumpToCharOffset(m.start, m.end);
+        }
+    }
+
+    // ── 编辑模式查找/替换（路线图 #11）────────────────────────────────────────
+
+    /**
+     * 替换<b>当前匹配</b>一处（仅编辑模式）：替换后重扫，停留到同序位/末位的下一匹配
+     * （继续按「替换」可逐个替换；替换文本若再含查询串也只作用于本次这一个匹配）。
+     */
+    private void replaceCurrentOccurrence() {
+        if (!editMode) return;
+        if (findMatches.isEmpty()) rebuildFind(false);
+        if (findMatches.isEmpty()) {
+            tvFindStatus.setText("未找到");
+            return;
+        }
+        int idx = findCurrentIndex < 0 ? 0 : Math.min(findCurrentIndex, findMatches.size() - 1);
+        String query = etFindQuery.getText().toString();
+        if (query.isEmpty()) return;
+        String text = etEditor.getText().toString();
+        String updated = ReplaceHelper.replaceOccurrence(text, query,
+                etReplaceQuery.getText().toString(), true, idx);
+        if (!updated.equals(text)) {
+            etEditor.setText(updated);
+            findMatches = FindHelper.scanAll(etEditor.getText(), query, true);
+            if (findMatches.isEmpty()) {
+                findCurrentIndex = -1;
+                tvFindStatus.setText("未找到");
+                return;
+            }
+            findCurrentIndex = Math.min(idx, findMatches.size() - 1);
+            jumpToFindMatch();
+        }
+    }
+
+    /**
+     * 替换<b>全部</b>匹配（仅编辑模式）：一次扫描原文匹配后整体替换——
+     * 替换文本中新出现的查询串不会被本次操作再次替换（无递归）。
+     */
+    private void replaceAllOccurrences() {
+        if (!editMode) return;
+        String query = etFindQuery.getText().toString();
+        if (query.isEmpty()) {
+            tvFindStatus.setText("未找到");
+            return;
+        }
+        String text = etEditor.getText().toString();
+        List<FindHelper.Match> all = FindHelper.scanAll(text, query, true);
+        if (all.isEmpty()) {
+            tvFindStatus.setText("未找到");
+            return;
+        }
+        int total = all.size();
+        String updated = ReplaceHelper.replaceAll(text, query,
+                etReplaceQuery.getText().toString(), true);
+        if (!updated.equals(text)) {
+            etEditor.setText(updated);
+            UiUtils.showToast(this, "已替换 " + total + " 处");
+        }
+        findMatches = FindHelper.scanAll(etEditor.getText(), query, true);
+        if (findMatches.isEmpty()) {
+            findCurrentIndex = -1;
+            tvFindStatus.setText(query.isEmpty() ? "" : "未找到");
+            return;
+        }
+        findCurrentIndex = 0;
+        jumpToFindMatch();
     }
 
     // ── Lifecycle ─────────────────────────────────────────────────────────────
