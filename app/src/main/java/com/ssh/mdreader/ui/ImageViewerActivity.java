@@ -11,6 +11,8 @@ import android.os.Build;
 import android.os.Bundle;
 import android.os.Environment;
 import android.provider.MediaStore;
+import android.view.Menu;
+import android.view.MenuItem;
 import android.view.MotionEvent;
 import android.view.ScaleGestureDetector;
 import android.view.View;
@@ -44,6 +46,8 @@ public class ImageViewerActivity extends BaseActivity {
     private static final int NONE = 0, DRAG = 1, ZOOM = 2;
     private int mode = NONE;
     private final PointF lastTouch = new PointF();
+
+    private static final int MENU_COPY_PATH_ID = 0xA4001;
 
     private Bitmap currentBitmap;
     private String fileName;
@@ -89,6 +93,28 @@ public class ImageViewerActivity extends BaseActivity {
         });
 
         loadImage();
+    }
+
+    @Override
+    public boolean onCreateOptionsMenu(Menu menu) {
+        // 与 Text/Code/CSV 查看器组能力一致（走查 #31：图片查看器复制路径入口缺失）。
+        menu.add(Menu.NONE, MENU_COPY_PATH_ID, Menu.NONE, "复制路径")
+                .setShowAsAction(MenuItem.SHOW_AS_ACTION_NEVER);
+        return true;
+    }
+
+    @Override
+    public boolean onOptionsItemSelected(MenuItem item) {
+        if (item.getItemId() == MENU_COPY_PATH_ID) {
+            String path = getIntent() != null ? getIntent().getStringExtra("file_path") : null;
+            if (path == null || path.isEmpty()) {
+                UiUtils.showToast(this, "路径不可用");
+            } else {
+                UiUtils.copyRemotePath(this, path);
+            }
+            return true;
+        }
+        return super.onOptionsItemSelected(item);
     }
 
     private void showSaveDialog() {

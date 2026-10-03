@@ -25,7 +25,9 @@ import com.google.android.material.textfield.TextInputLayout;
 import com.ssh.mdreader.R;
 import com.ssh.mdreader.model.SshConfig;
 import com.ssh.mdreader.ssh.SshManager;
+import com.ssh.mdreader.util.ConnectionCopyHelper;
 import com.ssh.mdreader.util.DialogHelper;
+import com.ssh.mdreader.util.PortForwardDialogHelper;
 import com.ssh.mdreader.util.PreferenceManager;
 import com.ssh.mdreader.util.SshConnectionHelper;
 import com.ssh.mdreader.util.UiUtils;
@@ -60,6 +62,8 @@ public class MainActivity extends BaseActivity {
         adapter.setOnConnectListener(this::quickConnect);
         adapter.setOnEditListener(this::editConnection);
         adapter.setOnDeleteListener(this::deleteConnection);
+        adapter.setOnPortForwardListener(this::showPortForwardManagerDialog);
+        adapter.setOnDuplicateListener(this::duplicateConnection);
         adapter.setOnSettingsClickListener(this::showHeartbeatSettings);
         recycler.setLayoutManager(new LinearLayoutManager(this));
         recycler.setAdapter(adapter);
@@ -184,6 +188,29 @@ public class MainActivity extends BaseActivity {
         intent.putExtra("privateKey", config.getPrivateKey());
         intent.putExtra("keyPassphrase", config.getKeyPassphrase());
         startActivity(intent);
+    }
+
+    /** 复制连接（#28）：以现有配置预填「新建连接」表单（别名自动加「（副本）」，可改），
+     * 保存后新增条目，不覆盖原连接（edit_index=-1）。与 SavedConnectionsActivity
+     * duplicateConnection 行为一致（同属连接 CRUD 复制语义）。 */
+    private void duplicateConnection(SshConfig config) {
+        Intent intent = new Intent(this, ConnectionActivity.class);
+        intent.putExtra("alias", ConnectionCopyHelper.duplicateName(config.getAlias()));
+        intent.putExtra("host", config.getHost());
+        intent.putExtra("port", config.getPort());
+        intent.putExtra("username", config.getUsername());
+        intent.putExtra("password", config.getPassword());
+        intent.putExtra("remotePath", config.getRemotePath());
+        intent.putExtra("authMode", config.getAuthMode());
+        intent.putExtra("privateKey", config.getPrivateKey());
+        intent.putExtra("keyPassphrase", config.getKeyPassphrase());
+        intent.putExtra("group", config.getGroup());
+        startActivity(intent);
+    }
+
+    /** 端口转发规则管理（共享实现见 PortForwardDialogHelper；与 SavedConnectionsActivity 同源）。 */
+    private void showPortForwardManagerDialog(SshConfig config) {
+        PortForwardDialogHelper.showManager(this, prefManager, config);
     }
 
     private void deleteConnection(int position) {
@@ -443,10 +470,20 @@ public class MainActivity extends BaseActivity {
             void onDelete(int position);
         }
 
+        public interface OnPortForwardListener {
+            void onPortForward(SshConfig config);
+        }
+
+        public interface OnDuplicateListener {
+            void onDuplicate(SshConfig config);
+        }
+
         private List<SshConfig> data = new ArrayList<>();
         private OnConnectListener connectListener;
         private OnEditListener editListener;
         private OnDeleteListener deleteListener;
+        private OnPortForwardListener portForwardListener;
+        private OnDuplicateListener duplicateListener;
         private OnSettingsClickListener settingsListener;
         private boolean clickable = true;
         private int connectingPosition = -1;
@@ -454,6 +491,8 @@ public class MainActivity extends BaseActivity {
         void setOnConnectListener(OnConnectListener l) { connectListener = l; }
         void setOnEditListener(OnEditListener l) { editListener = l; }
         void setOnDeleteListener(OnDeleteListener l) { deleteListener = l; }
+        void setOnPortForwardListener(OnPortForwardListener l) { portForwardListener = l; }
+        void setOnDuplicateListener(OnDuplicateListener l) { duplicateListener = l; }
         void setOnSettingsClickListener(OnSettingsClickListener l) { settingsListener = l; }
         void setClickable(boolean clickable) { this.clickable = clickable; }
         void setConnecting(int position) { connectingPosition = position; notifyDataSetChanged(); }
@@ -529,12 +568,17 @@ public class MainActivity extends BaseActivity {
                 h.itemView.setOnLongClickListener(v -> {
                     String name = config.getDisplayName();
                     DialogHelper.showListDialog(v.getContext(), name,
-                            new String[]{"编辑", "删除"},
-                            new int[]{R.drawable.ic_edit, R.drawable.ic_delete},
+                            new String[]{"编辑", "端口转发…", "复制", "删除"},
+                            new int[]{R.drawable.ic_edit, R.drawable.ic_tunnel,
+                                    R.drawable.ic_content_copy, R.drawable.ic_delete},
                             (dialog, which) -> {
                                 if (which == 0) {
                                     if (editListener != null) editListener.onEdit(config, dataPos);
                                 } else if (which == 1) {
+                                    if (portForwardListener != null) portForwardListener.onPortForward(config);
+                                } else if (which == 2) {
+                                    if (duplicateListener != null) duplicateListener.onDuplicate(config);
+                                } else if (which == 3) {
                                     if (deleteListener != null) deleteListener.onDelete(dataPos);
                                 }
                             });
