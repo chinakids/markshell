@@ -1,6 +1,9 @@
 package com.ssh.mdreader.util;
 
+import android.content.ClipData;
+import android.content.ClipboardManager;
 import android.content.Context;
+import android.content.Intent;
 import android.text.Layout;
 import android.text.SpannableStringBuilder;
 import android.text.Spanned;
@@ -20,6 +23,8 @@ import android.widget.PopupWindow;
 import android.widget.ScrollView;
 import android.widget.TextView;
 
+import androidx.annotation.NonNull;
+import androidx.annotation.Nullable;
 import androidx.drawerlayout.widget.DrawerLayout;
 import androidx.recyclerview.widget.LinearLayoutManager;
 import androidx.recyclerview.widget.RecyclerView;
@@ -128,6 +133,12 @@ public class AnnotationOverlayHelper {
         });
 
         drawerLayout.setDrawerLockMode(DrawerLayout.LOCK_MODE_LOCKED_CLOSED, drawerView);
+
+        // ── Export (抽屉头部「导出」按钮) ────────────────────────────────────
+        View btnExport = drawerView.findViewById(R.id.btn_annotation_export);
+        if (btnExport != null) {
+            btnExport.setOnClickListener(v -> openExportDialog());
+        }
 
         // ── Tap detection on content ────────────────────────────────────────
         tvContent.setOnTouchListener((v, event) -> {
@@ -493,6 +504,102 @@ public class AnnotationOverlayHelper {
                                 UiUtils.showSnackbar(tvContent, "批注保存失败: " + message));
                     }
                 });
+    }
+
+    // ── Export (导出流程：最新重读 → 格式选择 → 分享/复制) ──────────────────
+
+    /**
+     * 抽屉「导出」入口：先异步重读批注 CSV（回调式，保证导出的是最新数据而非
+     * 内存缓存），空/读取失败时提示，否则弹格式选择对话框。
+     * 结果通过系统分享（ACTION_SEND）或剪贴板交付；不导出为文件、不修改源文档。
+     */
+    private void openExportDialog() {
+        if (!host.isAlive() || annotationFilePath == null) return;
+        SshManager.getInstance().readFile(annotationFilePath,
+                new SshManager.FileContentCallback() {
+                    @Override
+                    public void onSuccess(String content) {
+                        List<AnnotationEntry> latest = AnnotationHelper.parseAnnotationFile(content);
+                        host.runOnUiThread(() -> showExportFormatDialog(latest));
+                    }
+                    @Override
+                    public void onError(String ignored) {
+                        // CSV 不存在（首次打开）→ 视为暂无批注
+                        host.runOnUiThread(() ->
+                                UiUtils.showToast(context, "暂无批注可导出"));
+                    }
+                });
+    }
+
+    private void showExportFormatDialog(@NonNull List<AnnotationEntry> entries) {
+        if (!host.isAlive()) return;
+        if (entries.isEmpty()) {
+            UiUtils.showToast(context, "暂无批注可导出");
+            return;
+        }
+        DialogHelper.showListDialog(context, "导出批注",
+                new String[]{"纯文本报告", "HTML 批注块", "Markdown 附录"},
+                null,
+                (dialog, which) -> onExportFormatSelected(entries, which));
+    }
+
+    private void onExportFormatSelected(@NonNull List<AnnotationEntry> entries, int which) {
+        if (!host.isAlive()) return;
+        AnnotationHelper.ExportFormat format;
+        switch (which) {
+            case 1:  format = AnnotationHelper.ExportFormat.HTML;     break;
+            case 2:  format = AnnotationHelper.ExportFormat.MARKDOWN; break;
+            default: format = AnnotationHelper.ExportFormat.TEXT;
+        }
+        String text = AnnotationHelper.buildExportText(
+                entries, sourceNameForExport(), format);
+        showExportActionDialog(text, format);
+    }
+
+    private void showExportActionDialog(@NonNull String text,
+                                        @NonNull AnnotationHelper.ExportFormat format) {
+        if (!host.isAlive()) return;
+        DialogHelper.showListDialog(context, "导出内容（" + formatLabel(format) + "）",
+                new String[]{"分享…", "复制到剪贴板"},
+                null,
+                (dialog, which) -> {
+                    if (!host.isAlive()) return;
+                    if (which == 0) shareExport(text);
+                    else copyExport(text);
+                });
+    }
+
+    private void shareExport(@NonNull String text) {
+        if (!host.isAlive()) return;
+        Intent intent = new Intent(Intent.ACTION_SEND);
+        intent.setType("text/plain");
+        intent.putExtra(Intent.EXTRA_TEXT, text);
+        context.startActivity(Intent.createChooser(intent, "分享批注"));
+    }
+
+    private void copyExport(@NonNull String text) {
+        ClipboardManager cm = (ClipboardManager)
+                context.getSystemService(Context.CLIPBOARD_SERVICE);
+        if (cm == null) {
+            UiUtils.showToast(context, "复制失败");
+            return;
+        }
+        cm.setPrimaryClip(ClipData.newPlainText("批注导出", text));
+        UiUtils.showToast(context, "批注已复制到剪贴板");
+    }
+
+    /** 导出时展示的来源名：由批注 CSV 路径反推原 Markdown 文件名。 */
+    @Nullable
+    private String sourceNameForExport() {
+        return AnnotationHelper.buildMarkdownFilePath(annotationFilePath);
+    }
+
+    private static String formatLabel(@NonNull AnnotationHelper.ExportFormat format) {
+        switch (format) {
+            case HTML:     return "HTML 批注块";
+            case MARKDOWN: return "Markdown 附录";
+            default:       return "纯文本报告";
+        }
     }
 
     // ── 纯函数（供单测） ───────────────────────────────────────────────────

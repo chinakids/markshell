@@ -177,4 +177,140 @@ public class AnnotationHelperTest {
         assertEquals(1, parsed.get(0).occurrenceIndex);
         assertEquals("换行\n测试", parsed.get(1).text);
     }
+
+    // ── buildMarkdownFilePath ──────────────────────────────────────────────
+
+    @Test
+    public void buildMarkdownPathReversesSuffix() {
+        assertEquals("/sdcard/notes/读书笔记.md",
+                AnnotationHelper.buildMarkdownFilePath("/sdcard/notes/读书笔记_批注.csv"));
+    }
+
+    @Test
+    public void buildMarkdownPathNoSuffixPassthrough() {
+        assertEquals("unknown.csv",
+                AnnotationHelper.buildMarkdownFilePath("unknown.csv"));
+    }
+
+    // ── buildExportText: TEXT ───────────────────────────────────────────────
+
+    @Test
+    public void exportTextFormatBasicWithSource() {
+        List<AnnotationEntry> entries = new java.util.ArrayList<>();
+        entries.add(new AnnotationEntry("a1", "这是批注", "这是原文", 0));
+        entries.add(new AnnotationEntry("a2", "批注2", "原文2", 2));
+
+        String out = AnnotationHelper.buildExportText(
+                entries, "/notes/a.md", AnnotationHelper.ExportFormat.TEXT);
+
+        String expected = "批注导出（共 2 条）\n"
+                + "来源：/notes/a.md\n"
+                + "================================\n"
+                + "\n[1] 原文（第 1 次出现）：「这是原文」\n"
+                + "    批注：「这是批注」\n"
+                + "\n[2] 原文（第 3 次出现）：「原文2」\n"
+                + "    批注：「批注2」\n";
+        assertEquals(expected, out);
+    }
+
+    @Test
+    public void exportTextFormatNoSourceOmitsSourceLine() {
+        List<AnnotationEntry> entries = new java.util.ArrayList<>();
+        entries.add(new AnnotationEntry("a1", "批注1", "原文1", 0));
+
+        String out = AnnotationHelper.buildExportText(
+                entries, AnnotationHelper.ExportFormat.TEXT);
+
+        String expected = "批注导出（共 1 条）\n"
+                + "================================\n"
+                + "\n[1] 原文（第 1 次出现）：「原文1」\n"
+                + "    批注：「批注1」\n";
+        assertEquals(expected, out);
+    }
+
+    @Test
+    public void exportTextEmptyListStillHasHeader() {
+        String out = AnnotationHelper.buildExportText(
+                new java.util.ArrayList<>(), AnnotationHelper.ExportFormat.TEXT);
+        assertEquals("批注导出（共 0 条）\n"
+                + "================================\n", out);
+    }
+
+    @Test
+    public void exportTextNormalizesNewlines() {
+        List<AnnotationEntry> entries = new java.util.ArrayList<>();
+        entries.add(new AnnotationEntry("a1", "第一行\n第二行", "line1\r\nline2", 0));
+
+        String out = AnnotationHelper.buildExportText(
+                entries, AnnotationHelper.ExportFormat.TEXT);
+
+        assertTrue(out.contains("原文（第 1 次出现）：「line1\\nline2」"));
+        assertTrue(out.contains("批注：「第一行\\n第二行」"));
+    }
+
+    // ── buildExportText: HTML ───────────────────────────────────────────────
+
+    @Test
+    public void exportHtmlFormatEmitsBlockquotes() {
+        List<AnnotationEntry> entries = new java.util.ArrayList<>();
+        entries.add(new AnnotationEntry("a1", "批注1", "原文1", 0));
+        entries.add(new AnnotationEntry("a2", "批注2", "原文2", 1));
+
+        String out = AnnotationHelper.buildExportText(
+                entries, "/notes/a.md", AnnotationHelper.ExportFormat.HTML);
+
+        String expected = "<!-- 批注导出（共 2 条）；来源：/notes/a.md -->\n"
+                + "<blockquote>\n"
+                + "<p><strong>批注 1</strong>：批注1</p>\n"
+                + "<p>原文（第 1 次出现）：原文1</p>\n"
+                + "</blockquote>\n"
+                + "<blockquote>\n"
+                + "<p><strong>批注 2</strong>：批注2</p>\n"
+                + "<p>原文（第 2 次出现）：原文2</p>\n"
+                + "</blockquote>\n";
+        assertEquals(expected, out);
+    }
+
+    @Test
+    public void exportHtmlFormatEscapesSpecialChars() {
+        List<AnnotationEntry> entries = new java.util.ArrayList<>();
+        entries.add(new AnnotationEntry("a1", "<b>&\"x\"</b>", "1<2&3", 0));
+
+        String out = AnnotationHelper.buildExportText(
+                entries, AnnotationHelper.ExportFormat.HTML);
+
+        String expected = "<!-- 批注导出（共 1 条） -->\n"
+                + "<blockquote>\n"
+                + "<p><strong>批注 1</strong>：&lt;b&gt;&amp;&quot;x&quot;&lt;/b&gt;</p>\n"
+                + "<p>原文（第 1 次出现）：1&lt;2&amp;3</p>\n"
+                + "</blockquote>\n";
+        assertEquals(expected, out);
+    }
+
+    // ── buildExportText: MARKDOWN ───────────────────────────────────────────
+
+    @Test
+    public void exportMarkdownFormatAppendsNotes() {
+        List<AnnotationEntry> entries = new java.util.ArrayList<>();
+        entries.add(new AnnotationEntry("a1", "批注1", "原文1", 0));
+        entries.add(new AnnotationEntry("a2", "批注2", "原文2", 2));
+
+        String out = AnnotationHelper.buildExportText(
+                entries, "/notes/a.md", AnnotationHelper.ExportFormat.MARKDOWN);
+
+        String expected = "> **批注于 /notes/a.md**：原文「原文1」 → 批注「批注1」\n"
+                + "> **批注于 /notes/a.md**：原文「原文2」 → 批注「批注2」\n";
+        assertEquals(expected, out);
+    }
+
+    @Test
+    public void exportMarkdownFormatWithoutSource() {
+        List<AnnotationEntry> entries = new java.util.ArrayList<>();
+        entries.add(new AnnotationEntry("a1", "批注1", "原文1", 0));
+
+        String out = AnnotationHelper.buildExportText(
+                entries, AnnotationHelper.ExportFormat.MARKDOWN);
+
+        assertEquals("> **批注**：原文「原文1」 → 批注「批注1」\n", out);
+    }
 }

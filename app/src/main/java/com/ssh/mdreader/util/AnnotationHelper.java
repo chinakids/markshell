@@ -147,4 +147,123 @@ public class AnnotationHelper {
     public static String generateId() {
         return Long.toString(System.currentTimeMillis(), 36);
     }
+
+    // ── Export ────────────────────────────────────────────────────────────────
+
+    /** 批注导出格式（纯函数 {@link #buildExportText}，无 Android 依赖）。 */
+    public enum ExportFormat { TEXT, HTML, MARKDOWN }
+
+    /**
+     * 由批注 CSV 路径反推原 Markdown 文件路径（仅用于导出时展示来源；不校验存在性）。
+     * 与 {@link #buildAnnotationFilePath} 互逆。
+     */
+    @NonNull
+    public static String buildMarkdownFilePath(@NonNull String annotationCsvPath) {
+        final String suffix = "_批注.csv";
+        if (annotationCsvPath.endsWith(suffix)) {
+            return annotationCsvPath.substring(0, annotationCsvPath.length() - suffix.length()) + ".md";
+        }
+        return annotationCsvPath;
+    }
+
+    /** 导出批注为文本；来源名省略。 */
+    @NonNull
+    public static String buildExportText(@NonNull List<AnnotationEntry> annotations,
+                                         @NonNull ExportFormat format) {
+        return buildExportText(annotations, null, format);
+    }
+
+    /**
+     * 导出批注为指定格式的纯文本内容（分享/复制用）。
+     *
+     * <ul>
+     *   <li>{@link ExportFormat#TEXT}：纯文本报告，每条含「原文（第 N 次出现）」与批注；</li>
+     *   <li>{@link ExportFormat#HTML}：独立 {@code <blockquote>} 批注块（内容做 HTML 转义）；</li>
+     *   <li>{@link ExportFormat#MARKDOWN}：{@code > **批注于 <path>**：原文"…" → 批注"…"} 附录行。</li>
+     * </ul>
+     *
+     * <p>不修改源文档；位置以 {@link AnnotationEntry#occurrenceIndex} 的出现序号标注。
+     * 条目文本中的换行会被规范化为字面 {@code \n}，避免破坏导出格式。</p>
+     */
+    @NonNull
+    public static String buildExportText(@NonNull List<AnnotationEntry> annotations,
+                                         @Nullable String sourceName,
+                                         @NonNull ExportFormat format) {
+        switch (format) {
+            case TEXT:     return buildTextExport(annotations, sourceName);
+            case HTML:     return buildHtmlExport(annotations, sourceName);
+            case MARKDOWN: return buildMarkdownExport(annotations, sourceName);
+        }
+        throw new IllegalArgumentException("未知导出格式: " + format);
+    }
+
+    private static String buildTextExport(@NonNull List<AnnotationEntry> annotations,
+                                          @Nullable String sourceName) {
+        StringBuilder sb = new StringBuilder();
+        sb.append("批注导出（共 ").append(annotations.size()).append(" 条）\n");
+        if (sourceName != null && !sourceName.isEmpty()) {
+            sb.append("来源：").append(sourceName).append('\n');
+        }
+        sb.append("================================\n");
+        int index = 1;
+        for (AnnotationEntry a : annotations) {
+            sb.append('\n').append('[').append(index).append("] 原文（第 ")
+                    .append(a.occurrenceIndex + 1).append(" 次出现）：「")
+                    .append(normalizeForExport(a.originalText)).append("」\n")
+                    .append("    批注：「").append(normalizeForExport(a.text)).append("」\n");
+            index++;
+        }
+        return sb.toString();
+    }
+
+    private static String buildHtmlExport(@NonNull List<AnnotationEntry> annotations,
+                                          @Nullable String sourceName) {
+        StringBuilder sb = new StringBuilder();
+        sb.append("<!-- 批注导出（共 ").append(annotations.size()).append(" 条）");
+        if (sourceName != null && !sourceName.isEmpty()) {
+            sb.append("；来源：").append(escapeHtml(sourceName));
+        }
+        sb.append(" -->\n");
+        int index = 1;
+        for (AnnotationEntry a : annotations) {
+            sb.append("<blockquote>\n")
+                    .append("<p><strong>批注 ").append(index).append("</strong>：")
+                    .append(escapeHtml(normalizeForExport(a.text))).append("</p>\n")
+                    .append("<p>原文（第 ").append(a.occurrenceIndex + 1).append(" 次出现）：")
+                    .append(escapeHtml(normalizeForExport(a.originalText))).append("</p>\n")
+                    .append("</blockquote>\n");
+            index++;
+        }
+        return sb.toString();
+    }
+
+    private static String buildMarkdownExport(@NonNull List<AnnotationEntry> annotations,
+                                              @Nullable String sourceName) {
+        String where = (sourceName != null && !sourceName.isEmpty())
+                ? "批注于 " + sourceName : "批注";
+        StringBuilder sb = new StringBuilder();
+        for (AnnotationEntry a : annotations) {
+            sb.append("> **").append(where).append("**：原文「")
+                    .append(normalizeForExport(a.originalText)).append("」 → 批注「")
+                    .append(normalizeForExport(a.text)).append("」\n");
+        }
+        return sb.toString();
+    }
+
+    /** 条目文本规范化：统一换行为字面 {@code \n}（两字符），防止破坏导出结构。 */
+    @NonNull
+    private static String normalizeForExport(@Nullable String s) {
+        if (s == null) return "";
+        return s.replace("\r\n", "\n").replace("\r", "\n").replace("\n", "\\n");
+    }
+
+    /** HTML 转义 &lt;&gt;&amp; 与引号，供 HTML 导出使用。 */
+    @NonNull
+    private static String escapeHtml(@NonNull String s) {
+        return s.replace("&", "&amp;")
+                .replace("<", "&lt;")
+                .replace(">", "&gt;")
+                .replace("\"", "&quot;")
+                .replace("'", "&#39;");
+    }
 }

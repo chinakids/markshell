@@ -110,6 +110,17 @@
                 android:textColor="#BB86FC"
                 android:textSize="13sp" />
 
+            <TextView
+                android:id="@+id/btn_annotation_export"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="8dp"
+                android:background="?attr/selectableItemBackground"
+                android:padding="8dp"
+                android:text="导出"
+                android:textColor="#BB86FC"
+                android:textSize="14sp" />
+
         </LinearLayout>
 
         <!-- Separator -->
