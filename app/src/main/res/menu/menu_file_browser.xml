@@ -37,4 +37,10 @@
         android:title="新建"
         app:showAsAction="never" />
 
+    <item
+        android:id="@+id/action_home"
+        android:icon="@drawable/ic_home"
+        android:title="主目录"
+        app:showAsAction="never" />
+
 </menu>

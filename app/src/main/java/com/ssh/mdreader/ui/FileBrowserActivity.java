@@ -54,6 +54,8 @@ public class FileBrowserActivity extends BaseActivity
 
     private final SshManager sshManager = SshManager.getInstance();
     private String currentPath;
+    /** 服务器主目录（连接配置远程路径或 home，「回到主目录」入口用）。 */
+    private String homePath;
     private PreferenceManager prefManager;
     private FileOpsHelper fileOps;
     private PreviewPaneHelper previewHelper;
@@ -89,7 +91,8 @@ public class FileBrowserActivity extends BaseActivity
         String last = config == null ? ""
                 : prefManager.getLastBrowsedDir(
                         config.getHost(), config.getPort(), config.getUsername());
-        String home = sshManager.getHomeDirectory();
+        homePath = sshManager.getHomeDirectory();
+        String home = homePath;
         if (BookmarkHelper.normalizePath(explicitPath).isEmpty() && !last.isEmpty()) {
             // 无显式路径且有上次记录：先校验存在性再决定（恢复语义）
             currentPath = home; // 占位，回调中再切换为上次目录
@@ -201,6 +204,10 @@ public class FileBrowserActivity extends BaseActivity
         }
         if (id == R.id.action_new) {
             showCreateDialog();
+            return true;
+        }
+        if (id == R.id.action_home) {
+            navigateToHome();
             return true;
         }
         return super.onOptionsItemSelected(item);
@@ -843,8 +850,49 @@ public class FileBrowserActivity extends BaseActivity
             adapter.exitSelectionMode();
             return;
         }
-        // 直接关闭，不再逐级返回上级目录
+        // 上一级导航（#20）：非根目录时返回上级目录，到根目录才关闭
+        if (canGoUp()) {
+            goUp();
+            return;
+        }
         super.onBackPressed();
+    }
+
+    // ── 上一级/主目录导航（能力发现循环第十轮 #20）─────────────────────────
+
+    /** 当前目录是否还有上一级（根目录「/」或未知路径时不可再上）。 */
+    private boolean canGoUp() {
+        return currentPath != null && !currentPath.isEmpty() && !"/".equals(currentPath);
+    }
+
+    /** 返回上一级目录：重设当前路径并重新加载（目录切换语义，筛选自动清除）。 */
+    private void goUp() {
+        if (!canGoUp()) return;
+        currentPath = SshManager.parentOf(currentPath);
+        updateToolbarSubtitle();
+        loadFiles();
+    }
+
+    /**
+     * 跳到主目录：连接配置的远程路径优先，其次服务器 home（与启动恢复
+     * {@link LastBrowseHelper#resolveStartPath} 的「显式主目录 > home」语义一致）。
+     * 重设当前根路径并重新加载。
+     */
+    private void navigateToHome() {
+        if (isFinishing() || isDestroyed()) return;
+        SshConfig config = sshManager.getConfig();
+        String target = config != null
+                ? BookmarkHelper.normalizePath(config.getRemotePath()) : "";
+        if (target.isEmpty()) {
+            target = homePath == null ? "" : homePath;
+        }
+        if (target.isEmpty()) {
+            UiUtils.showToast(this, "主目录不可用");
+            return;
+        }
+        currentPath = target;
+        updateToolbarSubtitle();
+        loadFiles();
     }
 
     @Override

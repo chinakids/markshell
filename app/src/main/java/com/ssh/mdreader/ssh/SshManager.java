@@ -1037,7 +1037,7 @@ public class SshManager {
     }
 
     /** 目录部分（不含末级名称），根目录返回 "/"；无斜杠时返回 ""。 */
-    private static String parentOf(String path) {
+    public static String parentOf(String path) {
         String p = path;
         while (p.length() > 1 && p.endsWith("/")) {
             p = p.substring(0, p.length() - 1);

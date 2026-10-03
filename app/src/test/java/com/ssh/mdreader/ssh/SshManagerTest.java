@@ -127,6 +127,32 @@ public class SshManagerTest {
     }
 
     @Test
+    public void parentOf_rootReturnsItself() {
+        // 根目录没有上一级：返回自身（UI 层据此判定「不可再上」）
+        assertEquals("/", SshManager.parentOf("/"));
+    }
+
+    @Test
+    public void parentOf_rootLevelChildReturnsRoot() {
+        assertEquals("/", SshManager.parentOf("/etc"));
+    }
+
+    @Test
+    public void parentOf_nestedReturnsParentDir() {
+        assertEquals("/var/log", SshManager.parentOf("/var/log/nginx"));
+    }
+
+    @Test
+    public void parentOf_trailingSlashStripped() {
+        assertEquals("/a", SshManager.parentOf("/a/b/"));
+    }
+
+    @Test
+    public void parentOf_relativeWithoutSlashReturnsEmpty() {
+        assertEquals("", SshManager.parentOf("relative"));
+    }
+
+    @Test
     public void buildMovePath_joinsTargetDirAndName() {
         assertEquals("/a/b/note.md", SshManager.buildMovePath("/a/c/note.md", "/a/b"));
         assertEquals("/a/b/note.md", SshManager.buildMovePath("/a/c/note.md", "/a/b/"));
