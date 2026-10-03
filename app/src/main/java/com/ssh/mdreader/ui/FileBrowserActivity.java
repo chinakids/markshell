@@ -28,7 +28,9 @@ import com.ssh.mdreader.model.SshConfig;
 import com.ssh.mdreader.ssh.SshManager;
 import com.ssh.mdreader.util.BookmarkHelper;
 import com.ssh.mdreader.util.DialogHelper;
+import com.ssh.mdreader.util.FileMetaHelper;
 import com.ssh.mdreader.util.FileOpsHelper;
+import com.ssh.mdreader.util.FilePropsHelper;
 import com.ssh.mdreader.util.FileSortUtils;
 import com.ssh.mdreader.util.LastBrowseHelper;
 import com.ssh.mdreader.util.NewFileHelper;
@@ -701,13 +703,30 @@ public class FileBrowserActivity extends BaseActivity
         return previewContainer;
     }
 
+    /**
+     * 属性详情对话框（只读）：类型/路径/大小/修改时间/权限（符号串 + 四位八进制）。
+     * 目录大小 SFTP 一般不返回有意义值（子项懒加载不统计），显示「—」占位；
+     * 修改时间复用 FileMetaHelper（未知「—」）。
+     */
+    private void showFileProperties(RemoteFile file) {
+        String type = file.isDirectory() ? "目录" : "文件";
+        String size = file.isDirectory() ? "—" : file.getFormattedSize();
+        String message = "类型：" + type + "\n"
+                + "路径：" + file.getPath() + "\n"
+                + "大小：" + size + "\n"
+                + "修改时间：" + FileMetaHelper.formatMtime(file.getMtime()) + "\n"
+                + "权限：" + FilePropsHelper.formatModeWithOctal(file.getPermissions());
+        DialogHelper.showMessageDialog(this, file.getName(), message, "关闭", d -> { });
+    }
+
     @Override
     public void onFileLongClick(RemoteFile file) {
         DialogHelper.showListDialog(this,
                 file.getName(),
-                new String[]{"多选", "移动", "复制", "复制路径", "重命名", "权限", "删除"},
+                new String[]{"多选", "移动", "复制", "复制路径", "属性", "重命名", "权限", "删除"},
                 new int[]{0, R.drawable.ic_move, R.drawable.ic_copy, R.drawable.ic_content_copy,
-                        R.drawable.ic_edit, R.drawable.ic_lock, R.drawable.ic_delete},
+                        R.drawable.ic_info_outline, R.drawable.ic_edit, R.drawable.ic_lock,
+                        R.drawable.ic_delete},
                 (dialog, which) -> {
                     if (which == 0) {
                         adapter.enterSelectionMode(file);
@@ -718,10 +737,12 @@ public class FileBrowserActivity extends BaseActivity
                     } else if (which == 3) {
                         UiUtils.copyRemotePath(this, file.getPath());
                     } else if (which == 4) {
-                        fileOps.renameFile(file);
+                        showFileProperties(file);
                     } else if (which == 5) {
-                        fileOps.showChmodDialog(file);
+                        fileOps.renameFile(file);
                     } else if (which == 6) {
+                        fileOps.showChmodDialog(file);
+                    } else if (which == 7) {
                         fileOps.confirmDeleteFile(file);
                     }
                 });
@@ -768,10 +789,12 @@ public class FileBrowserActivity extends BaseActivity
                 config.getUsername(), dir.getPath());
         DialogHelper.showListDialog(this,
                 dir.getName(),
-                new String[]{"多选", "移动", "复制", "复制路径", "重命名", "权限", "删除", "设为主目录",
+                new String[]{"多选", "移动", "复制", "复制路径", "属性", "重命名", "权限", "删除",
+                        "设为主目录",
                         bookmarked ? "取消收藏" : "收藏"},
                 new int[]{0, R.drawable.ic_move, R.drawable.ic_copy, R.drawable.ic_content_copy,
-                        R.drawable.ic_edit, R.drawable.ic_lock, R.drawable.ic_delete,
+                        R.drawable.ic_info_outline, R.drawable.ic_edit, R.drawable.ic_lock,
+                        R.drawable.ic_delete,
                         R.drawable.ic_folder_set,
                         bookmarked ? R.drawable.ic_bookmark : R.drawable.ic_bookmark_border},
                 (dialog, which) -> {
@@ -784,17 +807,19 @@ public class FileBrowserActivity extends BaseActivity
                     } else if (which == 3) {
                         UiUtils.copyRemotePath(this, dir.getPath());
                     } else if (which == 4) {
-                        fileOps.renameFile(dir);
+                        showFileProperties(dir);
                     } else if (which == 5) {
-                        fileOps.showChmodDialog(dir);
+                        fileOps.renameFile(dir);
                     } else if (which == 6) {
-                        fileOps.confirmDeleteDirectory(dir);
+                        fileOps.showChmodDialog(dir);
                     } else if (which == 7) {
+                        fileOps.confirmDeleteDirectory(dir);
+                    } else if (which == 8) {
                         prefManager.updateRemotePath(
                                 config.getHost(), config.getPort(),
                                 config.getUsername(), dir.getPath());
                         UiUtils.showToast(this, "已设为主目录");
-                    } else if (which == 8) {
+                    } else if (which == 9) {
                         toggleBookmark(config, dir);
                     }
                 });
