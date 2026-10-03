@@ -1,9 +1,12 @@
 package com.ssh.mdreader.ui;
 
 import android.os.Bundle;
+import android.content.Intent;
 import android.graphics.Typeface;
+import android.net.Uri;
 import android.text.Spanned;
 import android.text.method.ScrollingMovementMethod;
+import android.text.style.URLSpan;
 import android.util.TypedValue;
 import android.view.Menu;
 import android.view.MenuItem;
@@ -26,6 +29,8 @@ import com.ssh.mdreader.ssh.SshManager;
 import com.ssh.mdreader.util.AnnotationHelper;
 import com.ssh.mdreader.util.AnnotationOverlayHelper;
 import com.ssh.mdreader.util.DialogHelper;
+import com.ssh.mdreader.util.LinkTargetHelper;
+import com.ssh.mdreader.util.OpenFileHelper;
 import com.ssh.mdreader.util.PreferenceManager;
 import com.ssh.mdreader.util.TaskCheckboxHelper;
 import com.ssh.mdreader.util.TocHelper;
@@ -134,6 +139,7 @@ public class MarkdownReaderActivity extends BaseActivity implements AnnotationOv
                 annotationFilePath);
         annotationOverlay.init();
         annotationOverlay.setTaskTapListener(this::toggleTaskAt);
+        annotationOverlay.setLinkTapListener(this::onLinkTap);
 
         initTocUi();
 
@@ -586,6 +592,101 @@ public class MarkdownReaderActivity extends BaseActivity implements AnnotationOv
                         });
                     }
                 });
+    }
+
+    // ── Markdown 链接点击（路线图第二轮 #1）─────────────────────────────────
+
+    /**
+     * 阅读态单击命中链接回调（批注优先、链接次之、任务行最后，顺序见
+     * {@link AnnotationOverlayHelper.TaskTapListener} 注释）：按 {@link LinkTargetHelper}
+     * 分类处理三类目标。返回 true=已消费点击。仅阅读态（编辑态有光标/选区，不消费）。
+     *
+     * <p>EXTERNAL_URL=系统浏览器/邮件客户端 ACTION_VIEW（无处理应用时 toast 而非崩溃）；
+     * REMOTE_FILE=先 fileExists 确认存在再打开对应查看器（复用 {@link OpenFileHelper}
+     * 单点分发），不存在 toast；PAGE_ANCHOR=按标题文本精确/slug 匹配跳转（锚点跳转复用
+     * 批注导航落点 jumpToCharOffset，与大纲导航同机制），无匹配 toast 不跳。</p>
+     */
+    private boolean onLinkTap(int charOffset) {
+        if (editMode || markdownContent == null || currentFilePath == null) return false;
+        CharSequence current = tvContent.getText();
+        if (!(current instanceof Spanned)) return false;
+        Spanned spanned = (Spanned) current;
+        URLSpan[] spans = spanned.getSpans(charOffset, charOffset, URLSpan.class);
+        if (spans.length == 0) return false;
+        String link = spans[0].getURL();
+        if (link == null || link.isEmpty()) return false;
+
+        LinkTargetHelper.Resolved target = LinkTargetHelper.classify(link, currentFilePath);
+        switch (target.kind) {
+            case EXTERNAL_URL:
+                openExternalUrl(target.target);
+                return true;
+            case REMOTE_FILE:
+                openRemoteLinkedFile(target.target);
+                return true;
+            case PAGE_ANCHOR:
+                jumpToAnchor(target.target);
+                return true;
+            default:
+                return false;
+        }
+    }
+
+    /** 外部链接 → 系统浏览器/邮件客户端；无处理应用 toast（与 Markwon 默认 resolver 的
+     *  ActivityNotFoundException 防御同语义）。 */
+    private void openExternalUrl(String url) {
+        try {
+            startActivity(new Intent(Intent.ACTION_VIEW, Uri.parse(url)));
+        } catch (android.content.ActivityNotFoundException e) {
+            UiUtils.showToast(this, "未找到可打开该链接的应用");
+        }
+    }
+
+    /** 远端相对/绝对链接 → 先确认存在（异步，stat 口径与 fileExists 一致），再按类型打开。 */
+    private void openRemoteLinkedFile(String remotePath) {
+        SshManager.getInstance().fileExists(remotePath, new SshManager.ExistsCallback() {
+            @Override
+            public void onResult(boolean exists) {
+                runOnUiThread(() -> {
+                    if (isFinishing() || isDestroyed()) return;
+                    if (!exists) {
+                        UiUtils.showToast(MarkdownReaderActivity.this, "链接目标不存在");
+                        return;
+                    }
+                    Intent intent = OpenFileHelper.buildViewerIntent(
+                            MarkdownReaderActivity.this, remotePath);
+                    if (intent == null) {
+                        UiUtils.showToast(MarkdownReaderActivity.this, "暂不支持此文件类型");
+                        return;
+                    }
+                    startActivity(intent);
+                });
+            }
+
+            @Override
+            public void onError(String message) {
+                runOnUiThread(() -> {
+                    if (isFinishing() || isDestroyed()) return;
+                    UiUtils.showToast(MarkdownReaderActivity.this,
+                            "无法打开链接目标: " + message);
+                });
+            }
+        });
+    }
+
+    /** 页内锚点 → 按「标题文本精确（忽略大小写）/slug」匹配当前文档标题，命中跳转并高亮；未命中 toast。 */
+    private void jumpToAnchor(String anchor) {
+        int idx = LinkTargetHelper.findAnchorHeading(currentHeadings, anchor);
+        if (idx < 0) {
+            UiUtils.showToast(this, "未找到锚点对应的标题");
+            return;
+        }
+        int[] range = headingRenderRanges.get(idx);
+        if (range == null) {
+            UiUtils.showToast(this, "无法定位该标题");
+            return;
+        }
+        annotationOverlay.jumpToCharOffset(range[0], range[1]);
     }
 
     // ── Lifecycle ─────────────────────────────────────────────────────────────

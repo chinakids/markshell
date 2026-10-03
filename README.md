@@ -25,16 +25,19 @@
 ## 功能
 
 ### SSH 连接管理
-保存多个服务器配置，快速重连，网络切换自动恢复连接
+保存多个服务器配置，快速重连，网络切换自动恢复连接；连接分组（折叠展示/分组管理）；连接凭据 AES-256-GCM + Android Keystore 加密存储；SSH 密钥认证（私钥+可选口令）；主机指纹校验（known_hosts TOFU/变更告警，SHA-256 指纹）；本地端口转发/隧道规则按服务器隔离保存
 
 ### 远程文件浏览
-树形目录导航，按文件类型显示图标（Markdown / 代码 / 图片 / CSV），下拉刷新
+树形目录导航，按文件类型显示图标（Markdown / 代码 / 图片 / CSV），下拉刷新；文件/目录重命名、移动、复制、删除、权限设置（chmod），单文件与多选批量操作；目录书签/快捷访问；两栏月预览（大屏/折叠屏），文件排序
 
 ### Markdown 渲染
-基于 Markwon 引擎，支持标题、列表、表格、任务列表、代码块、图片，双指缩放调节字体大小
+基于 Markwon 引擎，支持标题、列表、表格、任务列表、代码块、图片，双指缩放调节字体大小；任务清单 checkbox 阅读态点击翻转并写回服务器；大纲（TOC）导航（抽屉「批注/大纲」双 Tab，点击跳转）；页内链接点击（外部 URL 打开浏览器/邮件，相对链接按当前文件目录解析打开对应远端文件，`#锚点` 跳转标题）
 
 ### 文本批注
-选中文本添加批注，黄色虚线下划线标记被批注文本，右侧抽屉管理批注列表，点击快速定位
+选中文本添加批注，黄色虚线下划线标记被批注文本，右侧抽屉管理批注列表，点击快速定位；批注连续导航（上一处/下一处）；批注导出/分享（纯文本/HTML/Markdown 三种格式）；批注与 Markdown 编辑模式协同（编辑后失效批注自动标记）；长文批注定位采用 Aho–Corasick 一次扫描（O(M+命中数)）
+
+### Markdown 远程在线编辑
+阅读/编辑单 Activity 切换，编辑保存写回 SFTP；草稿随界面恢复；无变更保存直接退出
 
 ### 代码查看器
 基于 Prism4j 语法高亮引擎，支持 JS / TS / Java / Python / JSON / CSS / HTML / XML 等 10+ 种语言，行号显示，双指缩放
@@ -77,16 +80,19 @@ app/src/main/java/com/ssh/mdreader/
 ├── ui/               # Activity
 │   ├── MainActivity              # 首页（连接列表 + 快速连接）
 │   ├── ConnectionActivity        # 新建/编辑连接
-│   ├── FileBrowserActivity       # 远程文件浏览
-│   ├── MarkdownReaderActivity    # Markdown 阅读 + 批注
+│   ├── SavedConnectionsActivity  # 保存的连接（分组管理/端口转发入口）
+│   ├── FileBrowserActivity       # 远程文件浏览（书签/多选/两栏预览）
+│   ├── MarkdownReaderActivity    # Markdown 阅读 + 批注 + 编辑 + 大纲 + 链接
 │   ├── CodeViewerActivity        # 代码查看器
 │   ├── ImageViewerActivity       # 图片查看器
 │   ├── CsvReaderActivity         # CSV 阅读器
+│   ├── TextViewerActivity        # 纯文本查看器
 │   └── BaseActivity              # 基类
-├── ssh/              # SSH 管理器（连接/断连/读写/重连）
-├── model/            # 数据模型（SshConfig / RemoteFile / AnnotationEntry）
-├── adapter/          # RecyclerView 适配器（TreeAdapter / AnnotationListAdapter）
-├── util/             # 工具类（AnnotationHelper / CodeHighlighter / DialogHelper 等）
+├── ssh/              # SSH 管理器（连接/断连/读写/重连/密钥/指纹/转发）
+├── model/            # 数据模型（SshConfig / RemoteFile / AnnotationEntry / PortForwardRule）
+├── adapter/          # RecyclerView 适配器（TreeAdapter / AnnotationListAdapter / TocAdapter）
+├── util/             # 工具层（AnnotationHelper / Overlay / TocHelper / TaskCheckboxHelper /
+│                     #   LinkTargetHelper / CodeHighlighter / PreferenceManager 等，多数纯函数可 JVM 测）
 ├── widget/           # 自定义 View（SwipeRevealLayout）
 └── ui/span/          # 自定义 Span（AnnotationSpan）
 ```

@@ -23,6 +23,7 @@ import com.ssh.mdreader.ssh.SshManager;
 import com.ssh.mdreader.util.DialogHelper;
 import com.ssh.mdreader.util.FileOpsHelper;
 import com.ssh.mdreader.util.FileSortUtils;
+import com.ssh.mdreader.util.OpenFileHelper;
 import com.ssh.mdreader.util.PreferenceManager;
 import com.ssh.mdreader.util.PreviewPaneHelper;
 import com.ssh.mdreader.util.SshConnectionHelper;
@@ -363,34 +364,12 @@ public class FileBrowserActivity extends BaseActivity
             return;
         }
 
-        if (file.isMarkdown()) {
-            Intent intent = new Intent(this, MarkdownReaderActivity.class);
-            intent.putExtra("file_path", file.getPath());
-            intent.putExtra("file_name", file.getName());
-            startActivity(intent);
-        } else if (file.isCsv()) {
-            Intent intent = new Intent(this, CsvReaderActivity.class);
-            intent.putExtra("file_path", file.getPath());
-            intent.putExtra("file_name", file.getName());
-            startActivity(intent);
-        } else if (file.isCodeFile()) {
-            Intent intent = new Intent(this, CodeViewerActivity.class);
-            intent.putExtra("file_path", file.getPath());
-            intent.putExtra("file_name", file.getName());
-            startActivity(intent);
-        } else if (file.isImageFile()) {
-            Intent intent = new Intent(this, ImageViewerActivity.class);
-            intent.putExtra("file_path", file.getPath());
-            intent.putExtra("file_name", file.getName());
-            startActivity(intent);
-        } else if (file.isTextFile()) {
-            Intent intent = new Intent(this, TextViewerActivity.class);
-            intent.putExtra("file_path", file.getPath());
-            intent.putExtra("file_name", file.getName());
-            startActivity(intent);
-        } else {
+        Intent intent = OpenFileHelper.buildViewerIntent(this, file.getPath());
+        if (intent == null) {
             UiUtils.showToast(this, "暂不支持此文件类型");
+            return;
         }
+        startActivity(intent);
     }
 
     // ── Two-pane preview (foldable unfolded / tablet) ─────────────────────────────

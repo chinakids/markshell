@@ -8,6 +8,7 @@ import android.text.Layout;
 import android.text.SpannableStringBuilder;
 import android.text.Spanned;
 import android.text.style.BackgroundColorSpan;
+import android.text.style.URLSpan;
 import android.util.DisplayMetrics;
 import android.util.Log;
 import android.view.ActionMode;
@@ -85,6 +86,14 @@ public class AnnotationOverlayHelper {
         boolean onTaskTap(int charOffset);
     }
 
+    /**
+     * 链接点击回调（批注与任务行均未命中时触发；路线图第二轮 #1）。
+     * 返回 true 表示已消费本次点击（与 {@link TaskTapListener} 同语义）。
+     */
+    public interface LinkTapListener {
+        boolean onLinkTap(int charOffset);
+    }
+
     /** 与拆分前一致的 logcat tag（原 MarkdownReaderActivity）。 */
     private static final String TAG = "MarkdownReaderActivity";
     private static final int MENU_ANNOTATE_ID = 0xA1010;
@@ -109,9 +118,21 @@ public class AnnotationOverlayHelper {
     /** 任务行点击回调（未命中批注时触发；见 {@link TaskTapListener}）。 */
     private TaskTapListener taskTapListener;
 
+    /**
+     * 链接点击回调（未命中批注与任务行时触发；见 {@link LinkTapListener}）。
+     * 处理 Markwon 渲染的 {@code LinkSpan}（=URLSpan 子类，javap 实证）：显示为
+     * 下划线文本，无 LinkMovementMethod（与自绘触摸拦截互斥），必须在此检测。
+     */
+    private LinkTapListener linkTapListener;
+
     /** 注册任务行点击回调（checkbox 翻转）；null 可注销。 */
     public void setTaskTapListener(TaskTapListener listener) {
         this.taskTapListener = listener;
+    }
+
+    /** 注册链接点击回调；null 可注销。 */
+    public void setLinkTapListener(LinkTapListener listener) {
+        this.linkTapListener = listener;
     }
 
     // ── 连续导航状态（上一处/下一处）────────────────────────────────────────
@@ -473,6 +494,14 @@ public class AnnotationOverlayHelper {
         if (spans.length > 0) {
             spans[0].onClick(tvContent);
             return;
+        }
+        // 链接优先于任务行：链接文本（下划线/着色）是明确可点击元素；任务行内点
+        // 非链接区域仍可翻转 checkbox。Markwon LinkSpan=URLSpan 子类（javap 实证）。
+        if (linkTapListener != null) {
+            URLSpan[] links = spanned.getSpans(charOffset, charOffset, URLSpan.class);
+            if (links.length > 0 && linkTapListener.onLinkTap(charOffset)) {
+                return;
+            }
         }
         // 未命中批注：交给任务行点击回调（checkbox 翻转；返回 false 表示未处理=无动作）
         if (taskTapListener != null) {
