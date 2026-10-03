@@ -34,10 +34,12 @@ public class MarkdownReaderActivity extends BaseActivity implements AnnotationOv
     private static final int FONT_SIZE_MIN     = 12;
     private static final int FONT_SIZE_MAX     = 40;
     private static final int FONT_SIZE_DEFAULT = 16;
-    private static final int MENU_DRAWER_ID    = 0xA1011;
-    private static final int MENU_EDIT_ID      = 0xA1012;
-    private static final int MENU_SAVE_ID      = 0xA1013;
-    private static final int MENU_ABORT_ID     = 0xA1014;
+    private static final int MENU_DRAWER_ID       = 0xA1011;
+    private static final int MENU_EDIT_ID         = 0xA1012;
+    private static final int MENU_SAVE_ID         = 0xA1013;
+    private static final int MENU_ABORT_ID        = 0xA1014;
+    private static final int MENU_ANNOTATION_PREV_ID = 0xA1015;
+    private static final int MENU_ANNOTATION_NEXT_ID = 0xA1016;
     private static final String KEY_SCROLL_Y   = "scroll_y";
     private static final String KEY_EDIT_MODE  = "edit_mode";
     private static final String KEY_EDIT_DRAFT = "edit_draft";
@@ -123,6 +125,12 @@ public class MarkdownReaderActivity extends BaseActivity implements AnnotationOv
                     .setShowAsAction(MenuItem.SHOW_AS_ACTION_ALWAYS);
             return true;
         }
+        menu.add(Menu.NONE, MENU_ANNOTATION_PREV_ID, Menu.NONE, "上一处")
+                .setIcon(R.drawable.ic_annotation_prev)
+                .setShowAsAction(MenuItem.SHOW_AS_ACTION_IF_ROOM);
+        menu.add(Menu.NONE, MENU_ANNOTATION_NEXT_ID, Menu.NONE, "下一处")
+                .setIcon(R.drawable.ic_annotation_next)
+                .setShowAsAction(MenuItem.SHOW_AS_ACTION_IF_ROOM);
         menu.add(Menu.NONE, MENU_DRAWER_ID, Menu.NONE, "批注列表")
                 .setIcon(R.drawable.ic_annotation_drawer)
                 .setShowAsAction(MenuItem.SHOW_AS_ACTION_IF_ROOM);
@@ -135,6 +143,12 @@ public class MarkdownReaderActivity extends BaseActivity implements AnnotationOv
     @Override
     public boolean onOptionsItemSelected(MenuItem item) {
         switch (item.getItemId()) {
+            case MENU_ANNOTATION_PREV_ID:
+                annotationOverlay.navigateAnnotations(-1);
+                return true;
+            case MENU_ANNOTATION_NEXT_ID:
+                annotationOverlay.navigateAnnotations(1);
+                return true;
             case MENU_DRAWER_ID:
                 if (drawerLayout.isDrawerOpen(drawerView)) {
                     drawerLayout.closeDrawer(drawerView);

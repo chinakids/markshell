@@ -7,6 +7,7 @@ import android.content.Intent;
 import android.text.Layout;
 import android.text.SpannableStringBuilder;
 import android.text.Spanned;
+import android.text.style.BackgroundColorSpan;
 import android.util.DisplayMetrics;
 import android.util.Log;
 import android.view.ActionMode;
@@ -88,6 +89,12 @@ public class AnnotationOverlayHelper {
     private float lastTouchX, lastTouchY;
     private long lastDownTime;
     private float lastDownX, lastDownY;
+
+    // ── 连续导航状态（上一处/下一处）────────────────────────────────────────
+    /** 最近一次导航到的批注起点（字符偏移）；-1 = 尚无。 */
+    private int lastVisitedStart = -1;
+    /** 当前高亮的批注区间（导航目标）；重新渲染/再次导航时替换。 */
+    private BackgroundColorSpan activeHighlight;
 
     public AnnotationOverlayHelper(Context context, Host host,
                                    TextView tvContent, ScrollView scrollView,
@@ -206,6 +213,7 @@ public class AnnotationOverlayHelper {
                         host.runOnUiThread(() -> {
                             annotations.clear();
                             annotations.addAll(AnnotationHelper.parseAnnotationFile(content));
+                            lastVisitedStart = -1;   // 内容重载，访问游标失效
                             applyAnnotationSpans();
                         });
                     }
@@ -284,7 +292,12 @@ public class AnnotationOverlayHelper {
         }
 
         if (charOffset < 0) return;
+        lastVisitedStart = charOffset;   // 抽屉跳转亦属于导航，同步访问游标防重复命中
+        scrollToOffset(charOffset);
+    }
 
+    /** 平滑滚动到指定字符偏移所在行（居中对齐）。 */
+    private void scrollToOffset(int charOffset) {
         final int finalOffset = charOffset;
         tvContent.post(() -> {
             Layout layout = tvContent.getLayout();
@@ -296,6 +309,82 @@ public class AnnotationOverlayHelper {
             int scrollY    = Math.max(0, lineTop + paddingTop - scrollView.getHeight() / 2);
             scrollView.smoothScrollTo(0, scrollY);
         });
+    }
+
+    // ── 连续导航（上一处/下一处）─────────────────────────────────────────────
+
+    /**
+     * 连续导航入口（工具栏「上一处/下一处」调用）：
+     * {@code direction < 0} 上一处、{@code direction > 0} 下一处。
+     *
+     * <p>导航序列 = 文档顺序（{@link AnnotationNavigator#buildNavigable}），当前位置 =
+     * 视口顶部字符偏移 + 最近访问游标（{@link AnnotationNavigator#nextIndex /
+     * previousIndex} 语义）。无批注/无法定位时 toast 提示；到达首尾 <b>不循环</b>，
+     * toast 提示边界（2026-10-03 设计决策：阅读场景循环跳转会丢上下文）。</p>
+     */
+    public void navigateAnnotations(int direction) {
+        if (!host.isAlive()) return;
+        if (annotations.isEmpty()) {
+            UiUtils.showToast(context, "暂无批注");
+            return;
+        }
+
+        String plain = tvContent.getText().toString();
+        List<AnnotationNavigator.NavigableAnnotation> nav =
+                AnnotationNavigator.buildNavigable(annotations, plain);
+        if (nav.isEmpty()) {
+            UiUtils.showToast(context, "暂无可定位的批注");
+            return;
+        }
+
+        int anchor = lastVisitedStart;
+        if (anchor >= 0 && AnnotationNavigator.indexOfStart(nav, anchor) < 0) {
+            anchor = -1;   // 访问游标已失效（内容重载/删除/文本变化）→ 回到视口语义
+        }
+        int viewportTop = viewportTopOffset();
+        if (viewportTop < 0) viewportTop = anchor >= 0 ? anchor : 0;
+
+        int idx = (direction < 0)
+                ? AnnotationNavigator.previousIndex(nav, viewportTop, anchor)
+                : AnnotationNavigator.nextIndex(nav, viewportTop, anchor);
+        if (idx < 0) {
+            UiUtils.showToast(context,
+                    direction < 0 ? "已是第一条批注" : "已是最后一条批注");
+            return;
+        }
+
+        AnnotationNavigator.NavigableAnnotation target = nav.get(idx);
+        lastVisitedStart = target.start;
+        jumpToAnnotation(target);
+    }
+
+    /** 导航落点：关抽屉（若开）、临时高亮批注区间、平滑滚动到目标。 */
+    private void jumpToAnnotation(@NonNull AnnotationNavigator.NavigableAnnotation target) {
+        if (drawerLayout.isDrawerOpen(drawerView)) {
+            drawerLayout.closeDrawer(drawerView);
+        }
+
+        CharSequence current = tvContent.getText();
+        SpannableStringBuilder ssb = new SpannableStringBuilder(current);
+        if (activeHighlight != null) ssb.removeSpan(activeHighlight);
+        // 与批注下划线同色系（#FFD600）40% 透明背景，不遮挡文字阅读
+        activeHighlight = new BackgroundColorSpan(0x66FFD600);
+        ssb.setSpan(activeHighlight, target.start, target.end,
+                Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
+        tvContent.setText(ssb);
+        tvContent.setTextIsSelectable(true);
+
+        scrollToOffset(target.start);
+    }
+
+    /** 视口顶部所在行的行首字符偏移（导航「当前阅读位置」）；布局未就绪时返回 -1。 */
+    private int viewportTopOffset() {
+        Layout layout = tvContent.getLayout();
+        if (layout == null) return -1;
+        int y = scrollView.getScrollY() + tvContent.getTotalPaddingTop();
+        if (y < 0) y = 0;
+        int line = layout.getLineForVertical(y);
+        return layout.getLineStart(line);
     }
 
     /**
@@ -395,6 +484,7 @@ public class AnnotationOverlayHelper {
         if (annotationFilePath == null) return;
 
         annotations.removeIf(a -> a.id.equals(entry.id));
+        lastVisitedStart = -1;   // 删除后位置变化，访问游标失效
 
         if (annotations.isEmpty()) {
             SshManager.getInstance().deleteFile(annotationFilePath,
