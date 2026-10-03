@@ -23,6 +23,7 @@ import com.google.android.material.button.MaterialButton;
 import com.ssh.mdreader.R;
 import com.ssh.mdreader.adapter.TreeAdapter;
 import com.ssh.mdreader.model.RemoteFile;
+import com.ssh.mdreader.model.RecentFileEntry;
 import com.ssh.mdreader.model.SshConfig;
 import com.ssh.mdreader.ssh.SshManager;
 import com.ssh.mdreader.util.DialogHelper;
@@ -135,6 +136,10 @@ public class FileBrowserActivity extends BaseActivity
         }
         if (id == R.id.action_bookmarks) {
             showBookmarksDialog();
+            return true;
+        }
+        if (id == R.id.action_history) {
+            showHistoryDialog();
             return true;
         }
         if (id == R.id.action_new) {
@@ -253,6 +258,71 @@ public class FileBrowserActivity extends BaseActivity
         updateToolbarSubtitle();
         loadFiles();
         UiUtils.showToast(this, "已跳转到 " + path);
+    }
+
+    // ── 最近打开（阅读历史，第五轮能力发现 #13）─────────────────────────────
+
+    /** 顶部「历史」入口：列出当前服务器最近打开的文件，点击重新打开（按服务器隔离）。 */
+    private void showHistoryDialog() {
+        SshConfig config = sshManager.getConfig();
+        if (config == null) return;
+        List<RecentFileEntry> recent = prefManager.getRecentFiles(
+                config.getHost(), config.getPort(), config.getUsername());
+        if (recent.isEmpty()) {
+            UiUtils.showToast(this, "还没有打开记录");
+            return;
+        }
+        String[] items = new String[recent.size()];
+        int[] icons = new int[recent.size()];
+        for (int i = 0; i < recent.size(); i++) {
+            items[i] = recent.get(i).getPath();
+            icons[i] = R.drawable.ic_history;
+        }
+        DialogHelper.showListDialog(this,
+                "最近打开（" + recent.size() + "）",
+                items, icons,
+                (dialog, which) -> openRecentFile(recent.get(which).getPath()));
+    }
+
+    /**
+     * 从历史重新打开文件：先 stat 确认存在（避免打开已删除文件），
+     * 不存在则从历史移除该条并提示；存在按类型分发到查看器。
+     */
+    private void openRecentFile(String path) {
+        if (isFinishing() || isDestroyed()) return;
+        SshConfig config = sshManager.getConfig();
+        if (config == null) return;
+        sshManager.fileExists(path, new SshManager.ExistsCallback() {
+            @Override
+            public void onResult(final boolean exists) {
+                runOnUiThread(() -> {
+                    if (isFinishing() || isDestroyed()) return;
+                    if (!exists) {
+                        prefManager.removeRecentFile(config.getHost(), config.getPort(),
+                                config.getUsername(), path);
+                        UiUtils.showToast(FileBrowserActivity.this,
+                                "文件已不存在，已从历史移除");
+                        return;
+                    }
+                    Intent intent = OpenFileHelper.buildViewerIntent(
+                            FileBrowserActivity.this, path);
+                    if (intent == null) {
+                        UiUtils.showToast(FileBrowserActivity.this, "暂不支持此文件类型");
+                        return;
+                    }
+                    startActivity(intent);
+                });
+            }
+
+            @Override
+            public void onError(String message) {
+                runOnUiThread(() -> {
+                    if (isFinishing() || isDestroyed()) return;
+                    UiUtils.showToast(FileBrowserActivity.this,
+                            "无法打开历史文件: " + message);
+                });
+            }
+        });
     }
 
     private void showSortDialog() {
@@ -539,7 +609,16 @@ public class FileBrowserActivity extends BaseActivity
             UiUtils.showToast(this, "暂不支持此文件类型");
             return;
         }
+        recordRecentOpen(file.getPath());
         startActivity(intent);
+    }
+
+    /** 打开文件时记录「最近打开」（按服务器隔离，仅真实打开时记录，预览不记录）。 */
+    private void recordRecentOpen(String path) {
+        SshConfig config = sshManager.getConfig();
+        if (config == null) return;
+        prefManager.recordRecentFile(config.getHost(), config.getPort(),
+                config.getUsername(), path);
     }
 
     // ── Two-pane preview (foldable unfolded / tablet) ─────────────────────────────

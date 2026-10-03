@@ -28,6 +28,7 @@ import androidx.recyclerview.widget.RecyclerView;
 
 import com.ssh.mdreader.R;
 import com.ssh.mdreader.adapter.TocAdapter;
+import com.ssh.mdreader.model.SshConfig;
 import com.ssh.mdreader.ssh.SshManager;
 import com.ssh.mdreader.util.AnnotationHelper;
 import com.ssh.mdreader.util.AnnotationOverlayHelper;
@@ -703,6 +704,7 @@ public class MarkdownReaderActivity extends BaseActivity implements AnnotationOv
                         UiUtils.showToast(MarkdownReaderActivity.this, "暂不支持此文件类型");
                         return;
                     }
+                    recordRecentOpen(remotePath);
                     startActivity(intent);
                 });
             }
@@ -716,6 +718,14 @@ public class MarkdownReaderActivity extends BaseActivity implements AnnotationOv
                 });
             }
         });
+    }
+
+    /** 链接打开远端文件时记录「最近打开」（按服务器隔离，与 FileBrowser 打开同埋点）。 */
+    private void recordRecentOpen(String path) {
+        SshConfig config = SshManager.getInstance().getConfig();
+        if (config == null) return;
+        prefManager.recordRecentFile(config.getHost(), config.getPort(),
+                config.getUsername(), path);
     }
 
     /** 页内锚点 → 按「标题文本精确（忽略大小写）/slug」匹配当前文档标题，命中跳转并高亮；未命中 toast。 */

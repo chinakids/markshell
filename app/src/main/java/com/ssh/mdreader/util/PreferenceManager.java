@@ -5,6 +5,7 @@ import android.content.SharedPreferences;
 import android.util.Log;
 
 import com.ssh.mdreader.model.PortForwardRule;
+import com.ssh.mdreader.model.RecentFileEntry;
 import com.ssh.mdreader.model.SshConfig;
 
 import org.json.JSONArray;
@@ -31,6 +32,8 @@ public class PreferenceManager implements HostKeyStore {
     private static final String KEY_CONNECTION_GROUPS = "connection_groups";
     /** 端口转发规则（按服务器连接键隔离，JSON 结构见 {@link #readPortForwardRules()}）。 */
     private static final String KEY_PORT_FORWARD_RULES = "port_forward_rules";
+    /** 最近打开文件（阅读历史，按服务器 host+port+username 隔离）。 */
+    private static final String KEY_RECENT_FILES = "recent_files";
 
     private final SharedPreferences prefs;
     /** Keystore 密钥（懒加载）。null=Keystore 不可用，降级明文（保持功能可用）。 */
@@ -294,6 +297,127 @@ public class PreferenceManager implements HostKeyStore {
 
     private void writeBookmarks(JSONArray arr) {
         prefs.edit().putString(KEY_BOOKMARKS, arr.toString()).apply();
+    }
+
+    // ── 最近打开（阅读历史，按服务器 host+port+username 隔离）────────────────
+
+    /**
+     * 读取指定服务器最近打开的文件列表（按「最近在前」）。
+     * JSON 结构：{@code [{"host":..,"port":..,"username":..,"files":[{"path":..,"ts":..},..]},..]}；
+     * 损坏数据按空列表容错（同书签）。
+     */
+    public List<RecentFileEntry> getRecentFiles(String host, int port, String username) {
+        JSONArray arr = readRecentFiles();
+        for (int i = 0; i < arr.length(); i++) {
+            JSONObject obj = arr.optJSONObject(i);
+            if (obj != null && matchesServer(obj, host, port, username)) {
+                return entriesFrom(obj.optJSONArray("files"));
+            }
+        }
+        return new ArrayList<>();
+    }
+
+    /**
+     * 记录一次打开（规范化后置顶、去重、上限 {@link RecentFilesHelper#MAX_RECENT}），
+     * 立即持久化。时间戳=当前系统时间。
+     */
+    public void recordRecentFile(String host, int port, String username, String path) {
+        if (host == null || username == null) return;
+        long ts = System.currentTimeMillis();
+        JSONArray arr = readRecentFiles();
+        for (int i = 0; i < arr.length(); i++) {
+            JSONObject obj = arr.optJSONObject(i);
+            if (obj != null && matchesServer(obj, host, port, username)) {
+                List<RecentFileEntry> updated = RecentFilesHelper.record(
+                        entriesFrom(obj.optJSONArray("files")), path, ts);
+                if (putEntries(obj, updated)) writeRecentFiles(arr);
+                return;
+            }
+        }
+        // 该服务器尚无历史记录：新建条目
+        JSONObject obj = new JSONObject();
+        try {
+            obj.put("host", host)
+                    .put("port", port)
+                    .put("username", username);
+            obj.put("files", entriesToJson(RecentFilesHelper.record(null, path, ts)));
+            arr.put(obj);
+            writeRecentFiles(arr);
+        } catch (JSONException e) {
+            Log.w(TAG, "保存最近打开失败", e);
+        }
+    }
+
+    /** 移除单条历史（文件已不存在等场景）；该服务器历史清空后删除整条记录。 */
+    public void removeRecentFile(String host, int port, String username, String path) {
+        JSONArray arr = readRecentFiles();
+        for (int i = 0; i < arr.length(); i++) {
+            JSONObject obj = arr.optJSONObject(i);
+            if (obj == null || !matchesServer(obj, host, port, username)) continue;
+            List<RecentFileEntry> updated = RecentFilesHelper.remove(
+                    entriesFrom(obj.optJSONArray("files")), path);
+            if (updated.isEmpty()) {
+                arr.remove(i);
+            } else if (!putEntries(obj, updated)) {
+                return;
+            }
+            writeRecentFiles(arr);
+            return;
+        }
+    }
+
+    private JSONArray readRecentFiles() {
+        String json = prefs.getString(KEY_RECENT_FILES, "");
+        if (json.isEmpty()) return new JSONArray();
+        try {
+            return new JSONArray(json);
+        } catch (JSONException e) {
+            Log.w(TAG, "读取最近打开失败，已忽略损坏的数据", e);
+            return new JSONArray();
+        }
+    }
+
+    private void writeRecentFiles(JSONArray arr) {
+        prefs.edit().putString(KEY_RECENT_FILES, arr.toString()).apply();
+    }
+
+    private static List<RecentFileEntry> entriesFrom(JSONArray files) {
+        List<RecentFileEntry> list = new ArrayList<>();
+        if (files != null) {
+            for (int i = 0; i < files.length(); i++) {
+                JSONObject obj = files.optJSONObject(i);
+                if (obj == null) continue;
+                String p = obj.optString("path", "");
+                if (p.isEmpty()) continue;
+                list.add(new RecentFileEntry(p, obj.optLong("ts", 0L)));
+            }
+        }
+        return list;
+    }
+
+    private static JSONArray entriesToJson(List<RecentFileEntry> entries) {
+        JSONArray arr = new JSONArray();
+        for (RecentFileEntry e : entries) {
+            if (e == null) continue;
+            JSONObject obj = new JSONObject();
+            try {
+                obj.put("path", e.getPath()).put("ts", e.getTs());
+            } catch (JSONException ex) {
+                continue;
+            }
+            arr.put(obj);
+        }
+        return arr;
+    }
+
+    private static boolean putEntries(JSONObject obj, List<RecentFileEntry> entries) {
+        try {
+            obj.put("files", entriesToJson(entries));
+            return true;
+        } catch (JSONException e) {
+            Log.w(TAG, "序列化最近打开失败", e);
+            return false;
+        }
     }
 
     private static boolean matchesServer(JSONObject obj, String host, int port, String username) {
