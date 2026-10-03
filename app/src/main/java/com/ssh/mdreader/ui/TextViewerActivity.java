@@ -1,11 +1,15 @@
 package com.ssh.mdreader.ui;
 
 import android.os.Bundle;
+import android.text.SpannableStringBuilder;
+import android.text.Spanned;
+import android.text.style.BackgroundColorSpan;
 import android.view.Menu;
 import android.view.MenuItem;
 import android.view.MotionEvent;
 import android.view.ScaleGestureDetector;
 import android.view.View;
+import android.text.InputType;
 import android.widget.ScrollView;
 import android.widget.TextView;
 
@@ -14,6 +18,9 @@ import androidx.annotation.NonNull;
 
 import com.ssh.mdreader.R;
 import com.ssh.mdreader.ssh.SshManager;
+import com.ssh.mdreader.util.DialogHelper;
+import com.ssh.mdreader.util.GoToLineHelper;
+import com.ssh.mdreader.util.LineNumberHelper;
 import com.ssh.mdreader.util.UiUtils;
 import com.ssh.mdreader.util.ViewerFindBar;
 import com.ssh.mdreader.widget.LineNumberGutterView;
@@ -23,6 +30,8 @@ public class TextViewerActivity extends BaseActivity {
     private static final String KEY_SCROLL_Y = "scroll_y";
     private static final int MENU_COPY_PATH_ID = 0xA2001;
     private static final int MENU_FIND_ID = 0xA2002;
+    private static final int MENU_GOTO_LINE_ID = 0xA2003;
+    private static final int GOTO_HIGHLIGHT_COLOR = 0x66FFD600;
 
     private TextView textContent;
     private LineNumberGutterView lineNumberGutter;
@@ -103,6 +112,8 @@ public class TextViewerActivity extends BaseActivity {
         menu.add(Menu.NONE, MENU_COPY_PATH_ID, Menu.NONE, "复制路径")
                 .setIcon(R.drawable.ic_content_copy)
                 .setShowAsAction(MenuItem.SHOW_AS_ACTION_IF_ROOM);
+        menu.add(Menu.NONE, MENU_GOTO_LINE_ID, Menu.NONE, "转到行号…")
+                .setShowAsAction(MenuItem.SHOW_AS_ACTION_NEVER);
         return true;
     }
 
@@ -116,7 +127,47 @@ public class TextViewerActivity extends BaseActivity {
             viewerFindBar.show();
             return true;
         }
+        if (item.getItemId() == MENU_GOTO_LINE_ID) {
+            showGoToLineDialog();
+            return true;
+        }
         return super.onOptionsItemSelected(item);
+    }
+
+    /** 「转到行号…」：数字输入对话框（markor showGoToLineDialog 同型）+ 行首跳转。 */
+    private void showGoToLineDialog() {
+        CharSequence text = textContent.getText();
+        if (text == null || text.length() == 0) {
+            UiUtils.showToast(this, "内容尚未加载完成");
+            return;
+        }
+        int total = LineNumberHelper.countLines(text);
+        DialogHelper.showInputDialog(this, "转到行号",
+                "输入行号（1-" + total + "）", "跳转", "取消",
+                InputType.TYPE_CLASS_NUMBER, null,
+                input -> {
+                    int line = GoToLineHelper.parseLineNumber(input);
+                    if (line < 0) {
+                        UiUtils.showToast(this, "请输入有效行号");
+                        return;
+                    }
+                    jumpToLine(line);
+                });
+    }
+
+    /** 跳转到逻辑行行首：整行临时高亮（markor 文本编辑器无高亮仅滚到可见，查看器沿用查找同色系）+ 居中滚动。 */
+    private void jumpToLine(int lineNumber) {
+        CharSequence text = textContent.getText();
+        int[] range = GoToLineHelper.lineHighlightRange(text, lineNumber);
+        if (range[1] > range[0]) {
+            SpannableStringBuilder ssb = new SpannableStringBuilder(text);
+            // 与查找栏同色系临时高亮；跳转后保留（与 ViewerFindBar 行为一致）
+            ssb.setSpan(new BackgroundColorSpan(GOTO_HIGHLIGHT_COLOR),
+                    range[0], range[1], Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
+            textContent.setText(ssb);
+            textContent.setTextIsSelectable(true);
+        }
+        UiUtils.scrollToOffsetCenter(scrollView, textContent, range[0]);
     }
 
     private void loadTextFile(String filePath) {

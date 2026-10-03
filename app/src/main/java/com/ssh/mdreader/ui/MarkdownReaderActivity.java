@@ -74,6 +74,7 @@ public class MarkdownReaderActivity extends BaseActivity implements AnnotationOv
     private static final int MENU_ANNOTATION_PREV_ID = 0xA1015;
     private static final int MENU_ANNOTATION_NEXT_ID = 0xA1016;
     private static final int MENU_FIND_ID            = 0xA1017;
+    private static final int MENU_COPY_PATH_ID       = 0xA1018;
     private static final String KEY_SCROLL_Y   = "scroll_y";
     private static final String KEY_EDIT_MODE  = "edit_mode";
     private static final String KEY_EDIT_DRAFT = "edit_draft";
@@ -260,6 +261,8 @@ public class MarkdownReaderActivity extends BaseActivity implements AnnotationOv
         menu.add(Menu.NONE, MENU_EDIT_ID, Menu.NONE, "编辑")
                 .setIcon(R.drawable.ic_edit)
                 .setShowAsAction(MenuItem.SHOW_AS_ACTION_IF_ROOM);
+        menu.add(Menu.NONE, MENU_COPY_PATH_ID, Menu.NONE, "复制路径")
+                .setShowAsAction(MenuItem.SHOW_AS_ACTION_NEVER);
         return true;
     }
 
@@ -285,6 +288,11 @@ public class MarkdownReaderActivity extends BaseActivity implements AnnotationOv
                 return true;
             case MENU_EDIT_ID:
                 enterEditMode();
+                return true;
+            case MENU_COPY_PATH_ID:
+                if (currentFilePath != null) {
+                    UiUtils.copyRemotePath(this, currentFilePath);
+                }
                 return true;
             case MENU_SAVE_ID:
                 saveEdits();
