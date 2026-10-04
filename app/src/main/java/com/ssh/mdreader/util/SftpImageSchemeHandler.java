@@ -99,6 +99,10 @@ public final class SftpImageSchemeHandler extends SchemeHandler {
         if (bitmap == null) {
             throw new IllegalStateException("无法解码图片: " + remotePath);
         }
+        // EXIF 方向修正（#42）：BitmapFactory 忽略 Orientation 标签，竖拍照片会横置；
+        // 与图片查看器/预览 pane 同一语义源 ImageExifHelper，失败静默回退。
+        bitmap = ImageExifHelper.rotateBitmap(bitmap,
+                ImageExifHelper.orientationDegrees(bytes));
         return ImageItem.withResult(new BitmapDrawable(appContext.getResources(), bitmap));
     }
 

@@ -332,6 +332,11 @@ public class PreviewPaneHelper {
             return;
         }
 
+        // EXIF 方向修正（#42）：与图片查看器/Markdown 内嵌图同一语义——无方向标签
+        // 的图零开销，带标签的竖拍照片按角度旋转，失败静默回退原图。
+        bitmap = ImageExifHelper.rotateBitmap(bitmap,
+                ImageExifHelper.orientationDegrees(bytes));
+
         ImageView iv = new ImageView(context);
         iv.setScaleType(ImageView.ScaleType.FIT_CENTER);
         iv.setImageBitmap(bitmap);

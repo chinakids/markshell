@@ -24,6 +24,7 @@ import android.widget.TextView;
 import com.ssh.mdreader.R;
 import com.ssh.mdreader.ssh.SshManager;
 import com.ssh.mdreader.util.DialogHelper;
+import com.ssh.mdreader.util.ImageExifHelper;
 import com.ssh.mdreader.util.UiUtils;
 
 import java.io.File;
@@ -337,6 +338,13 @@ public class ImageViewerActivity extends BaseActivity {
             tvError.setVisibility(View.VISIBLE);
             tvError.setText("图片解码失败");
             return;
+        }
+
+        // EXIF 方向修正（#42）：相机/DSLR 竖拍照片带 Orientation 标签，BitmapFactory
+        // 解码时忽略 → 横置显示；按标签旋转位图，失败静默回退原图。
+        int exifDegrees = ImageExifHelper.orientationDegrees(bytes);
+        if (exifDegrees != 0 && currentBitmap != null) {
+            currentBitmap = ImageExifHelper.rotateBitmap(currentBitmap, exifDegrees);
         }
 
         if (loadingOverlay != null) {
