@@ -11,7 +11,9 @@ import com.jcraft.jsch.LsTestFactory;
 import com.jcraft.jsch.SftpATTRS;
 import com.jcraft.jsch.SftpException;
 import com.ssh.mdreader.model.RemoteFile;
+import com.ssh.mdreader.model.SearchResult;
 import com.ssh.mdreader.model.SshConfig;
+import com.ssh.mdreader.util.LargeFileHelper;
 
 import org.junit.Test;
 
@@ -367,6 +369,66 @@ public class SshManagerTest {
         assertEquals(0x1A4, f.getPermissions());
         assertEquals(42, f.getSize());
         assertEquals(1_700_000_000L, f.getMtime());
+    }
+
+    // ---- toSearchResult：搜索结果 size 传导（大文件护栏 #33 的 path-only 入口数据源） ----
+
+    @Test
+    public void toSearchResult_file_carriesRealSize() {
+        // 超过护栏阈值（4MB）的文件：size 必须原样传导，否则搜索打开入口绕过护栏
+        long big = LargeFileHelper.LARGE_FILE_THRESHOLD_BYTES + 1;
+        ChannelSftp.LsEntry entry = LsTestFactory.entry("big.log", 0x81A4, big, 1_700_000_000);
+        SearchResult r = SshManager.toSearchResult("/srv/logs", "/srv/logs", entry);
+        assertEquals("big.log", r.getName());
+        assertEquals("/srv/logs/big.log", r.getPath());
+        assertEquals("big.log", r.getRelativePath());
+        assertFalse(r.isDirectory());
+        assertEquals(big, r.getSize());
+        assertTrue(LargeFileHelper.isLargeFile(r.getSize()));
+    }
+
+    @Test
+    public void toSearchResult_directory_sizeAlwaysZero() {
+        // 目录 attrs 大小无业务语义：恒 0，与列表内目录展示「—」同口径
+        ChannelSftp.LsEntry entry = LsTestFactory.entry("conf", 0x41ED, 4096, 1_700_000_000);
+        SearchResult r = SshManager.toSearchResult("/r", "/r", entry);
+        assertTrue(r.isDirectory());
+        assertEquals(0, r.getSize());
+    }
+
+    @Test
+    public void toSearchResult_nestedDirectory_relativePath() {
+        ChannelSftp.LsEntry entry = LsTestFactory.entry("error.log", 0x81A4, 2048, 1_700_000_000);
+        SearchResult r = SshManager.toSearchResult("/var/log", "/var/log/nginx", entry);
+        assertEquals("/var/log/nginx/error.log", r.getPath());
+        assertEquals("nginx/error.log", r.getRelativePath());
+        assertEquals(2048, r.getSize());
+    }
+
+    @Test
+    public void toSearchResult_rootParent_noDoubleSlash() {
+        ChannelSftp.LsEntry entry = LsTestFactory.entry("etc", 0x41ED, 4096, 1_700_000_000);
+        SearchResult r = SshManager.toSearchResult("/", "/", entry);
+        assertEquals("/etc", r.getPath());
+        assertEquals("etc", r.getRelativePath());
+    }
+
+    @Test
+    public void toSearchResult_symlink_treatedAsFile_sizeFromAttrs() {
+        // 符号链接按文件处理（与 toRemoteFile 同口径）：size 取 attrs 原值（0 → 护栏放行）
+        ChannelSftp.LsEntry entry = LsTestFactory.entry("link.md", 0xA1FF, 0, 1_700_000_000);
+        SearchResult r = SshManager.toSearchResult("/r", "/r", entry);
+        assertFalse(r.isDirectory());
+        assertEquals(0, r.getSize());
+        assertFalse(LargeFileHelper.isLargeFile(r.getSize()));
+    }
+
+    @Test
+    public void toSearchResult_emptyFile_sizeZero_guardPasses() {
+        ChannelSftp.LsEntry entry = LsTestFactory.entry("empty.txt", 0x81A4, 0, 1_700_000_000);
+        SearchResult r = SshManager.toSearchResult("/r", "/r", entry);
+        assertEquals(0, r.getSize());
+        assertFalse(LargeFileHelper.isLargeFile(r.getSize()));
     }
 
     // ── attrs 位语义探针：递归搜索依赖 isDir/isLink 判定（LsTestFactory 构造的 attrs） ──

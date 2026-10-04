@@ -133,11 +133,11 @@ public class RecursiveSearchHelperTest {
     // ── sortResults：目录恒前 + relPath 大小写不敏感升序 ────────────────────────
 
     private static SearchResult file(String rel) {
-        return new SearchResult("f", "/r/" + rel, rel, false);
+        return new SearchResult("f", "/r/" + rel, rel, false, 100);
     }
 
     private static SearchResult dir(String rel) {
-        return new SearchResult("d", "/r/" + rel, rel, true);
+        return new SearchResult("d", "/r/" + rel, rel, true, 0);
     }
 
     @Test
@@ -190,7 +190,7 @@ public class RecursiveSearchHelperTest {
 
     @Test
     public void sortResults_nullRelPathSortedFirstDefensive() {
-        SearchResult nullRel = new SearchResult("n", "/r/n", null, false);
+        SearchResult nullRel = new SearchResult("n", "/r/n", null, false, 0);
         List<SearchResult> out = RecursiveSearchHelper.sortResults(
                 Arrays.asList(file("b.md"), nullRel));
         assertSame(nullRel, out.get(0));

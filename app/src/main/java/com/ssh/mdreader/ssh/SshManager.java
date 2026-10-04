@@ -632,6 +632,28 @@ public class SshManager {
         );
     }
 
+    /**
+     * Converts one {@link ChannelSftp.LsEntry} into a {@link SearchResult}
+     * (recursive-search hit). Pure function (no instance state) so the search
+     * result mapping can be unit tested without a live SFTP connection.
+     * Package-private for unit tests.
+     *
+     * <p>{@code size} 直接取自 ls 结果的 attrs（已获取的数据全量传导）：文件=真实大小
+     * （打开时供大文件护栏 #33 判定）；目录恒 0（SFTP 目录 attrs 大小无业务语义，
+     * 与列表内目录展示「—」同口径；目录结果显示/跳转不经护栏）。符号链接按文件处理
+     * （与 {@link #toRemoteFile} 同口径）：size 取 attrs 原值。</p>
+     */
+    static SearchResult toSearchResult(String rootPath, String parentPath,
+                                       ChannelSftp.LsEntry entry) {
+        String name = entry.getFilename();
+        SftpATTRS attrs = entry.getAttrs();
+        boolean isDir = attrs.isDir();
+        String childPath = buildChildPath(parentPath, name);
+        return new SearchResult(name, childPath,
+                RecursiveSearchHelper.relativePath(rootPath, childPath), isDir,
+                isDir ? 0 : attrs.getSize());
+    }
+
     /** 递归搜索的待处理目录（path + 0 基深度）。 */
     private static final class SearchDir {
         final String path;
@@ -710,8 +732,7 @@ public class SshManager {
                         pending.add(new SearchDir(childPath, current.depth + 1));
                     }
                     if (FileFilterHelper.matchesName(name, query)) {
-                        results.add(new SearchResult(name, childPath,
-                                RecursiveSearchHelper.relativePath(rootPath, childPath), isDir));
+                        results.add(toSearchResult(rootPath, current.path, entry));
                     }
                 }
             }
@@ -1145,14 +1166,17 @@ public class SshManager {
 
     /**
      * 探测远端路径类型：stat 丢失不返回（与 {@link #fileExists} 两个渠道同口径），
-     * 存在→{@link StatCallback#onResult(boolean)}（true=目录/false=文件），
+     * 存在→{@link StatCallback#onResult(boolean, long)}（true=目录/false=文件；
+     * size=stat 返回的字节大小，仅文件有业务语义，供 path-only 入口大文件护栏 #33
+     * 判定——数据一次 stat 即得，无需额外往返）、
      * 不存在→{@link StatCallback#onNotFound()}，其余异常经 onError 上报。
      * 只读类操作，疑似断线时重连重试一次（与 fileExists/listFiles 同口径）。
      */
     public void statPath(String path, StatCallback callback) {
         sftpExecutor.execute(() -> runOp("检查路径", true, channel -> {
             try {
-                callback.onResult(channel.stat(path).isDir());
+                SftpATTRS attrs = channel.stat(path);
+                callback.onResult(attrs.isDir(), attrs.getSize());
             } catch (SftpException e) {
                 if (e.id == ChannelSftp.SSH_FX_NO_SUCH_FILE) {
                     callback.onNotFound();
@@ -1164,8 +1188,13 @@ public class SshManager {
     }
 
     public interface StatCallback {
-        /** 路径存在：true=目录，false=文件。 */
-        void onResult(boolean isDirectory);
+        /**
+         * 路径存在：true=目录，false=文件。
+         *
+         * @param size stat 返回的字节大小（仅文件有业务语义；目录为 attrs 原值，
+         *             调用方按需取用——大文件护栏判定仅对文件生效）
+         */
+        void onResult(boolean isDirectory, long size);
         /** 路径不存在（SSH_FX_NO_SUCH_FILE）。 */
         void onNotFound();
         void onError(String message);

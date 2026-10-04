@@ -403,32 +403,42 @@ public class FileBrowserActivity extends BaseActivity
     }
 
     /**
-     * 从历史重新打开文件：先 stat 确认存在（避免打开已删除文件），
-     * 不存在则从历史移除该条并提示；存在按类型分发到查看器。
+     * 从历史重新打开文件：stat 确认存在并取类型/大小（一次往返，替代原 fileExists
+     * 两渠道并补齐 size），不存在则从历史移除该条并提示；文件分支经大文件护栏 #33
+     * （真实 size 判定）后按类型分发到查看器（全屏打开语义保持不变，不记录历史置顶）。
      */
     private void openRecentFile(String path) {
         if (isFinishing() || isDestroyed()) return;
         SshConfig config = sshManager.getConfig();
         if (config == null) return;
-        sshManager.fileExists(path, new SshManager.ExistsCallback() {
+        sshManager.statPath(path, new SshManager.StatCallback() {
             @Override
-            public void onResult(final boolean exists) {
+            public void onResult(final boolean isDirectory, final long size) {
                 runOnUiThread(() -> {
                     if (isFinishing() || isDestroyed()) return;
-                    if (!exists) {
-                        prefManager.removeRecentFile(config.getHost(), config.getPort(),
-                                config.getUsername(), path);
-                        UiUtils.showToast(FileBrowserActivity.this,
-                                "文件已不存在，已从历史移除");
-                        return;
-                    }
-                    Intent intent = OpenFileHelper.buildViewerIntent(
-                            FileBrowserActivity.this, path);
-                    if (intent == null) {
-                        UiUtils.showToast(FileBrowserActivity.this, "暂不支持此文件类型");
-                        return;
-                    }
-                    startActivity(intent);
+                    RemoteFile file = new RemoteFile(
+                            GoToPathHelper.fileName(path), path, isDirectory, size, 0, 0);
+                    maybeConfirmLargeFile(file, () -> {
+                        Intent intent = OpenFileHelper.buildViewerIntent(
+                                FileBrowserActivity.this, path);
+                        if (intent == null) {
+                            UiUtils.showToast(FileBrowserActivity.this,
+                                    "暂不支持此文件类型");
+                            return;
+                        }
+                        startActivity(intent);
+                    });
+                });
+            }
+
+            @Override
+            public void onNotFound() {
+                runOnUiThread(() -> {
+                    if (isFinishing() || isDestroyed()) return;
+                    prefManager.removeRecentFile(config.getHost(), config.getPort(),
+                            config.getUsername(), path);
+                    UiUtils.showToast(FileBrowserActivity.this,
+                            "文件已不存在，已从历史移除");
                 });
             }
 
@@ -600,19 +610,21 @@ public class FileBrowserActivity extends BaseActivity
         }
     }
 
-    /** 结果列表：相对路径展示，目录带「（目录）」标注（目录恒前排序见纯函数层）。 */
+    /** 结果列表：相对路径展示，目录带「（目录）」标注，文件附可读大小（已取数据全量展出）。 */
     private void showSearchResults(String query, List<SearchResult> results) {
         String[] labels = new String[results.size()];
         for (int i = 0; i < results.size(); i++) {
             SearchResult r = results.get(i);
-            labels[i] = r.getRelativePath() + (r.isDirectory() ? "  （目录）" : "");
+            labels[i] = r.getRelativePath()
+                    + (r.isDirectory() ? "  （目录）"
+                    : "  · " + DownloadHelper.formatBytes(r.getSize()));
         }
         DialogHelper.showListDialog(this,
                 "找到 " + results.size() + " 个「" + query + "」结果", labels, null,
                 (dialog, which) -> openSearchResult(results.get(which)));
     }
 
-    /** 点结果：目录 → 直接跳转并加载；文件 → 复用 onFileClick（单一语义源）。 */
+    /** 点结果：目录 → 直接跳转并加载；文件 → 复用 onFileClick（单一语义源，size 真实传导）。 */
     private void openSearchResult(SearchResult result) {
         if (isFinishing() || isDestroyed()) return;
         if (result.isDirectory()) {
@@ -621,7 +633,8 @@ public class FileBrowserActivity extends BaseActivity
             loadFiles();
             UiUtils.showToast(this, "已跳转到 " + result.getPath());
         } else {
-            onFileClick(new RemoteFile(result.getName(), result.getPath(), false, 0, 0, 0));
+            onFileClick(new RemoteFile(result.getName(), result.getPath(), false,
+                    result.getSize(), 0, 0));
         }
     }
 
@@ -651,7 +664,7 @@ public class FileBrowserActivity extends BaseActivity
         if (isFinishing() || isDestroyed()) return;
         sshManager.statPath(target, new SshManager.StatCallback() {
             @Override
-            public void onResult(boolean isDirectory) {
+            public void onResult(boolean isDirectory, long size) {
                 runOnUiThread(() -> {
                     if (isFinishing() || isDestroyed()) return;
                     if (isDirectory) {
@@ -661,7 +674,7 @@ public class FileBrowserActivity extends BaseActivity
                         UiUtils.showToast(FileBrowserActivity.this, "已跳转到 " + target);
                     } else {
                         onFileClick(new RemoteFile(
-                                GoToPathHelper.fileName(target), target, false, 0, 0, 0));
+                                GoToPathHelper.fileName(target), target, false, size, 0, 0));
                     }
                 });
             }
