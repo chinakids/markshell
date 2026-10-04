@@ -5,6 +5,7 @@ import android.content.Intent;
 import android.graphics.Typeface;
 import android.net.Uri;
 import android.text.Editable;
+import android.text.InputFilter;
 import android.text.Selection;
 import android.text.Spanned;
 import android.text.TextWatcher;
@@ -39,6 +40,7 @@ import com.ssh.mdreader.util.DialogHelper;
 import com.ssh.mdreader.util.EditHistoryHelper;
 import com.ssh.mdreader.util.FindHelper;
 import com.ssh.mdreader.util.LinkTargetHelper;
+import com.ssh.mdreader.util.MarkdownAutoIndentFilter;
 import com.ssh.mdreader.util.MarkdownFormatHelper;
 import com.ssh.mdreader.util.OpenFileHelper;
 import com.ssh.mdreader.util.PreferenceManager;
@@ -485,6 +487,10 @@ public class MarkdownReaderActivity extends BaseActivity implements AnnotationOv
         formatBarScroll = findViewById(R.id.format_bar_scroll);
 
         etEditor.setMovementMethod(new ScrollingMovementMethod());
+
+        // 回车自动续行（能力发现 #50）：markor AutoTextFormatter 同型 InputFilter——列表/缩进行按回车
+        // 自动续前缀（有序=编号递增、任务=新未勾选项、无序=原 marker、代码块=缩进保留）
+        etEditor.setFilters(new InputFilter[]{new MarkdownAutoIndentFilter()});
 
         // 编辑撤销/重做（能力发现 #23）：按钮接线 + 历史初始化 + 观察者挂载
         editHistory = new EditHistoryHelper.EditHistory(EDIT_HISTORY_MAX_SIZE);

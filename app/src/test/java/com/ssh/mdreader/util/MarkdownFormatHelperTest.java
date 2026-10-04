@@ -501,4 +501,148 @@ public class MarkdownFormatHelperTest {
         assertEquals("`code`", MarkdownFormatHelper.wrapSelection("code", 0, 4, "`", "`").text);
         assertEquals("code", MarkdownFormatHelper.wrapSelection("`code`", 0, 6, "`", "`").text);
     }
+
+    // ── 回车自动续行（迭代82：markor AutoTextFormatter.autoIndent 行为语义对位）──
+
+    @Test
+    public void newline_ordered_continuesWithNextNumber() {
+        assertEquals("2. ", MarkdownFormatHelper.newlineContinuation("1. hello", 7));
+        assertEquals("8. ", MarkdownFormatHelper.newlineContinuation("7. hello", 7));
+        assertEquals("13. ", MarkdownFormatHelper.newlineContinuation("12. long", 8));
+    }
+
+    @Test
+    public void newline_ordered_zeroPadded_parsesAsNumber() {
+        // markor tryParseInt("01")=1 → 2（不保留前导零；getNextOrderedValue 数字分支同型）
+        assertEquals("2. ", MarkdownFormatHelper.newlineContinuation("01. x", 5));
+    }
+
+    @Test
+    public void newline_ordered_preservesIndent() {
+        assertEquals("   2. ", MarkdownFormatHelper.newlineContinuation("   1. hello", 11));
+        assertEquals("\t2. ", MarkdownFormatHelper.newlineContinuation("\t1. hello", 8));
+    }
+
+    @Test
+    public void newline_ordered_cursorMidLine_stillContinues() {
+        // 光标在行内容中部（markor 条件仅需求「光标位于前缀之后」）
+        assertEquals("2. ", MarkdownFormatHelper.newlineContinuation("1. hello world", 9));
+    }
+
+    @Test
+    public void newline_ordered_cursorInsidePrefix_doesNotContinue() {
+        // 光标落于前缀（数字/分隔符）之内：markor dend>=groupEnd 不满足→仅缩进（此处无缩进=空）
+        assertEquals("", MarkdownFormatHelper.newlineContinuation("1. hello", 2));
+    }
+
+    @Test
+    public void newline_ordered_prefixOnlyLine_doesNotContinue() {
+        // 行=恰好只有前缀「1. 」：markor lineEnd==groupEnd=不续（detectPrefix 去尾空白后 P_NONE 天然对齐）
+        assertEquals("", MarkdownFormatHelper.newlineContinuation("1. \nnext", 3));
+    }
+
+    @Test
+    public void newline_ordered_prefixOnlyWithTrailingSpaces_doesNotContinue() {
+        // 行=前缀+尾随空格：markor 视为「有内容」会续（lineEnd!=groupEnd）；
+        // 本项目 detectPrefix 于去尾空白后识别=不续（差异=更保守，落档已标注）
+        assertEquals("", MarkdownFormatHelper.newlineContinuation("1.  \nx", 4));
+    }
+
+    @Test
+    public void newline_unordered_keepsOriginalMarker() {
+        assertEquals("- ", MarkdownFormatHelper.newlineContinuation("- hello", 7));
+        assertEquals("* ", MarkdownFormatHelper.newlineContinuation("* hello", 7));
+        assertEquals("+ ", MarkdownFormatHelper.newlineContinuation("+ hello", 7));
+    }
+
+    @Test
+    public void newline_unordered_preservesIndent() {
+        assertEquals("  - ", MarkdownFormatHelper.newlineContinuation("  - hello", 9));
+    }
+
+    @Test
+    public void newline_task_unchecked_continuesUnchecked() {
+        assertEquals("- [ ] ", MarkdownFormatHelper.newlineContinuation("- [ ] todo", 10));
+    }
+
+    @Test
+    public void newline_task_checked_continuesUnchecked() {
+        // 新项=未勾选（markor newItemPrefix 同型：PREFIX_CHECKBOX_LIST 左右组拼装，「x」/「X」同族）
+        assertEquals("- [ ] ", MarkdownFormatHelper.newlineContinuation("- [x] done", 9));
+        assertEquals("- [ ] ", MarkdownFormatHelper.newlineContinuation("- [X] done", 9));
+    }
+
+    @Test
+    public void newline_task_keepsMarkerChar() {
+        assertEquals("* [ ] ", MarkdownFormatHelper.newlineContinuation("* [x] done", 9));
+    }
+
+    @Test
+    public void newline_task_preservesIndent() {
+        assertEquals("  - [ ] ", MarkdownFormatHelper.newlineContinuation("  - [ ] todo", 12));
+    }
+
+    @Test
+    public void newline_quote_doesNotContinueQuote() {
+        // markor：autoIndent 仅处理有序/无序/任务，引用/标题=else 分支=仅前导缩进（此处无缩进）
+        assertEquals("", MarkdownFormatHelper.newlineContinuation("> quote", 7));
+    }
+
+    @Test
+    public void newline_heading_doesNotContinue() {
+        assertEquals("", MarkdownFormatHelper.newlineContinuation("# title", 7));
+    }
+
+    @Test
+    public void newline_plain_doesNotAddAnything() {
+        assertEquals("", MarkdownFormatHelper.newlineContinuation("hello", 5));
+    }
+
+    @Test
+    public void newline_indentedPlain_preservesIndent() {
+        // 代码块内按回车=缩进保留（markor「智能缩进」同型）
+        assertEquals("    ", MarkdownFormatHelper.newlineContinuation("    code", 8));
+        assertEquals("\t", MarkdownFormatHelper.newlineContinuation("\tcode", 5));
+    }
+
+    @Test
+    public void newline_indentedQuote_preservesIndentOnly() {
+        // 引用带缩进：续=仅缩进，不续「> 」（markor 同）
+        assertEquals("    ", MarkdownFormatHelper.newlineContinuation("    > quote", 11));
+    }
+
+    @Test
+    public void newline_emptyAndNull() {
+        assertEquals("", MarkdownFormatHelper.newlineContinuation("", 0));
+        assertEquals("", MarkdownFormatHelper.newlineContinuation(null, 0));
+    }
+
+    @Test
+    public void newline_cursorOutOfRange_clamps() {
+        // cursor 越界 clamp 到文末（其余逻辑不变）
+        assertEquals("2. ", MarkdownFormatHelper.newlineContinuation("1. a", 99));
+    }
+
+    @Test
+    public void newline_atSecondLine_usesThatLine() {
+        assertEquals("2. ", MarkdownFormatHelper.newlineContinuation("line1\n1. item", 11));
+        assertEquals("", MarkdownFormatHelper.newlineContinuation("line1\nplain", 11));
+    }
+
+    @Test
+    public void newline_onlyWhitespaceLine_preservesIndent() {
+        // 全空白行：本项目保留其缩进（markor 空行 indentEnd=0 不保留——差异=更符合代码块内回车直觉，落档已标注）
+        assertEquals("    ", MarkdownFormatHelper.newlineContinuation("    ", 4));
+    }
+
+    @Test
+    public void newline_atTextEndWithoutTrailingNewline() {
+        assertEquals("2. ", MarkdownFormatHelper.newlineContinuation("1. item", 7));
+    }
+
+    @Test
+    public void newline_orderedParenthesesDelimiter() {
+        // 分隔符「)」保留（markor delimiter 同型）
+        assertEquals("2) ", MarkdownFormatHelper.newlineContinuation("1) item", 7));
+    }
 }

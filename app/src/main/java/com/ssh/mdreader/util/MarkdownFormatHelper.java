@@ -177,6 +177,66 @@ public final class MarkdownFormatHelper {
         return renumberOrderedList(r.text, r.selStart, r.selEnd);
     }
 
+    // ── 回车自动续行（迭代82：markor AutoTextFormatter.autoIndent 行为语义对位）────
+
+    /**
+     * 回车自动续行（markor AutoTextFormatter.autoIndent 源码语义）：输入换行时（由 UI 层按
+     * markor isNewLine 条件判定）计算<b>应追加在输入之后的续行内容</b>。
+     *
+     * <ul>
+     *   <li>解析光标所在行（markor ListLine 同型：行首缩进原文保留、行内容前缀识别复用 {@link #detectPrefix}）；</li>
+     *   <li>行是有序列表且行有内容且光标位于前缀之后：追加=缩进 + 下一个编号 + 分隔符 + 空格
+     *       （编号=当前数字+1，markor getNextOrderedValue(value,false) 数字分支；字母列表分支当前
+     *       前缀正则不可达=本项目仅数字，迭代81 同注）；</li>
+     *   <li>行是任务清单（勾选/未勾选同族）：追加=缩进 + 原 marker + &quot;[ ] &quot;（新项=未勾选，
+     *       markor newItemPrefix 同型：PREFIX_CHECKBOX_LIST 左右组拼装）；</li>
+     *   <li>行是无序列表：追加=缩进 + 原 marker + 空格；</li>
+     *   <li>其它行（普通/引用/标题等）：追加=仅行前导缩进（markor 引用不续 &gt;、标题不续 #、代码块
+     *       缩进保留，colloquially「智能缩进」）；</li>
+     *   <li>返回空串=无需追加（调用方原样返回输入）。</li>
+     * </ul>
+     *
+     * <p><b>与 markor 的差异（如实标注）</b>：markor 续项条件为
+     * {@code lineEnd != groupEnd && dend >= groupEnd}，其中行尾空白也算「有内容」；本项目判定
+     * 「行有内容」基于 detectPrefix 去尾空白后的前缀（行=前缀+尾随空格如 {@code "1.  "} 视为无内容
+     * 不续，行为更保守）。行=恰好只有前缀（{@code "1. "}）两者一致=不续。</p>
+     */
+    public static String newlineContinuation(String text, int cursor) {
+        if (text == null) return "";
+        int n = text.length();
+        if (n == 0) return "";
+        int pos = clamp(cursor, 0, n);
+        int lineStart = lineStartOf(text, pos);
+        int lineEnd = text.indexOf('\n', lineStart);
+        if (lineEnd < 0) lineEnd = n;
+        String line = text.substring(lineStart, lineEnd);
+        // 行首缩进原文保留（markor line.substring(0, indentEnd) 同型；空白=空格+制表，制表按 1 字符保留）
+        int wsEnd = 0;
+        while (wsEnd < line.length() && (line.charAt(wsEnd) == ' ' || line.charAt(wsEnd) == '\t')) wsEnd++;
+        String indent = line.substring(0, wsEnd);
+        int[] p = detectPrefix(stripTrailingWs(line.substring(wsEnd)));
+        int type = p[0];
+        int prefixEnd = wsEnd + p[2];   // 前缀结束（绝对坐标；detectPrefix markerEnd 对去除前导空白后的内容）
+        // markor autoIndent 分支门：列表续项需要「行有内容且光标在前缀之后」
+        //（lineEnd != groupEnd && dend >= groupEnd——本项目用原行长度与光标位置对位）
+        boolean canContinue = prefixEnd < line.length() && pos >= prefixEnd;
+        if (canContinue) {
+            if (type == P_ORDERED) {
+                // 数字串=[wsEnd, prefixEnd-2)（digits + divider + space）；分隔符在 prefixEnd-2
+                String value = line.substring(wsEnd, prefixEnd - 2);
+                char delimiter = line.charAt(prefixEnd - 2);
+                return indent + nextOrderedValue(value, false) + delimiter + " ";
+            }
+            if (type == P_UNCHECKED || type == P_CHECKED) {
+                return indent + line.charAt(wsEnd) + " [ ] ";   // 新项=未勾选（markor newItemPrefix 同）
+            }
+            if (type == P_UNORDERED) {
+                return indent + line.charAt(wsEnd) + " ";
+            }
+        }
+        return indent;
+    }
+
     // ── 有序列表自动重编号（迭代81：markor AutoTextFormatter.renumberOrderedList 对齐）────
 
     /** 列表层级容差：缩进差 <=2 视作同级，>2 视作子列表（markor indentSlack 同值）。 */
