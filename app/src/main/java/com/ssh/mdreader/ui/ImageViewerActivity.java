@@ -25,6 +25,7 @@ import com.ssh.mdreader.R;
 import com.ssh.mdreader.ssh.SshManager;
 import com.ssh.mdreader.util.DialogHelper;
 import com.ssh.mdreader.util.ImageExifHelper;
+import com.ssh.mdreader.util.ImageSaveHelper;
 import com.ssh.mdreader.util.UiUtils;
 
 import java.io.File;
@@ -49,8 +50,10 @@ public class ImageViewerActivity extends BaseActivity {
     private final PointF lastTouch = new PointF();
 
     private static final int MENU_COPY_PATH_ID = 0xA4001;
+    private static final int MENU_SAVE_IMAGE_ID = 0xA4002;
 
     private Bitmap currentBitmap;
+    private byte[] originalBytes;
     private String fileName;
     private ValueAnimator currentAnimator;
 
@@ -101,6 +104,9 @@ public class ImageViewerActivity extends BaseActivity {
         // 与 Text/Code/CSV 查看器组能力一致（走查 #31：图片查看器复制路径入口缺失）。
         menu.add(Menu.NONE, MENU_COPY_PATH_ID, Menu.NONE, "复制路径")
                 .setShowAsAction(MenuItem.SHOW_AS_ACTION_NEVER);
+        // 保存入口发现性（第十五轮观察：长按无可见按钮）：溢出菜单常驻入口，与长按同一语义。
+        menu.add(Menu.NONE, MENU_SAVE_IMAGE_ID, Menu.NONE, "保存图片")
+                .setShowAsAction(MenuItem.SHOW_AS_ACTION_NEVER);
         return true;
     }
 
@@ -112,6 +118,14 @@ public class ImageViewerActivity extends BaseActivity {
                 UiUtils.showToast(this, "路径不可用");
             } else {
                 UiUtils.copyRemotePath(this, path);
+            }
+            return true;
+        }
+        if (item.getItemId() == MENU_SAVE_IMAGE_ID) {
+            if (currentBitmap == null) {
+                UiUtils.showToast(this, "图片尚未加载完成");
+            } else {
+                showSaveDialog();
             }
             return true;
         }
@@ -130,21 +144,32 @@ public class ImageViewerActivity extends BaseActivity {
     private void saveImageToGallery() {
         if (currentBitmap == null) return;
 
-        try {
-            String displayName = fileName != null ? fileName : "image_" + System.currentTimeMillis();
-            if (!displayName.contains(".")) displayName += ".png";
+        // #44 原图直存：保存 readFileBytes 原始字节（零重编码）→ 保原分辨率/EXIF 元数据/
+        // 原格式与体积，且文件名-内容-MIME 三方一致；旧实现为降采样位图+PNG 重编码+
+        // displayName 保留 .jpg+MIME 硬编码 image/png（内容被改、三方不一致）。
+        // MIME 按 magic bytes 判定；raw=false 仅在 MIME 无法识别时回退位图压缩（理论不可达，
+        // 查看器仅接受位图集，防御性兜底保持旧行为）。
+        String mime = ImageSaveHelper.sniffMime(originalBytes);
+        String displayName = ImageSaveHelper.ensureDisplayName(
+                fileName != null ? fileName : "image_" + System.currentTimeMillis(), mime);
+        boolean raw = mime != null && originalBytes != null;
 
+        try {
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
                 // Android 10+ : MediaStore
                 ContentValues values = new ContentValues();
                 values.put(MediaStore.Images.Media.DISPLAY_NAME, displayName);
-                values.put(MediaStore.Images.Media.MIME_TYPE, "image/png");
+                values.put(MediaStore.Images.Media.MIME_TYPE, raw ? mime : "image/png");
                 values.put(MediaStore.Images.Media.RELATIVE_PATH, Environment.DIRECTORY_PICTURES);
 
                 Uri uri = getContentResolver().insert(MediaStore.Images.Media.EXTERNAL_CONTENT_URI, values);
                 if (uri != null) {
                     try (OutputStream os = getContentResolver().openOutputStream(uri)) {
-                        currentBitmap.compress(Bitmap.CompressFormat.PNG, 100, os);
+                        if (raw) {
+                            os.write(originalBytes, 0, originalBytes.length);
+                        } else {
+                            currentBitmap.compress(Bitmap.CompressFormat.PNG, 100, os);
+                        }
                         UiUtils.showToast(this, "已保存到相册");
                     }
                 }
@@ -153,7 +178,11 @@ public class ImageViewerActivity extends BaseActivity {
                 File picturesDir = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_PICTURES);
                 File imageFile = new File(picturesDir, displayName);
                 try (FileOutputStream fos = new FileOutputStream(imageFile)) {
-                    currentBitmap.compress(Bitmap.CompressFormat.PNG, 100, fos);
+                    if (raw) {
+                        fos.write(originalBytes, 0, originalBytes.length);
+                    } else {
+                        currentBitmap.compress(Bitmap.CompressFormat.PNG, 100, fos);
+                    }
                     UiUtils.showToast(this, "已保存到相册");
                 }
 
@@ -289,6 +318,9 @@ public class ImageViewerActivity extends BaseActivity {
                 new SshManager.FileBytesCallback() {
                     @Override
                     public void onSuccess(byte[] bytes) {
+                        // #44 原图直存：保留原始字节引用（保存时直接写入，零重编码、
+                        // 保 EXIF/分辨率/格式），仅显示走降采样解码。
+                        originalBytes = bytes;
                         runOnUiThread(() -> decodeAndDisplay(bytes));
                     }
 
