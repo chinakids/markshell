@@ -501,6 +501,11 @@ public class MarkdownReaderActivity extends BaseActivity implements AnnotationOv
         findViewById(R.id.btn_format_h2).setOnClickListener(v -> applyFormat(2, 2));
         findViewById(R.id.btn_format_h3).setOnClickListener(v -> applyFormat(2, 3));
         findViewById(R.id.btn_format_list).setOnClickListener(v -> applyFormat(3, 0));
+        findViewById(R.id.btn_format_ordered).setOnClickListener(v -> applyFormat(4, 0));
+        findViewById(R.id.btn_format_task).setOnClickListener(v -> applyFormat(5, 0));
+        findViewById(R.id.btn_format_quote).setOnClickListener(v -> applyFormat(6, 0));
+        findViewById(R.id.btn_format_strike).setOnClickListener(v -> applyFormat(7, 0));
+        findViewById(R.id.btn_format_code).setOnClickListener(v -> applyFormat(8, 0));
 
         scaleDetector = new ScaleGestureDetector(this,
                 new ScaleGestureDetector.SimpleOnScaleGestureListener() {
@@ -987,6 +992,11 @@ public class MarkdownReaderActivity extends BaseActivity implements AnnotationOv
             case 1:  r = MarkdownFormatHelper.wrapSelection(text, s, e, "_", "_"); break;
             case 2:  r = MarkdownFormatHelper.toggleHeading(text, s, e, level); break;
             case 3:  r = MarkdownFormatHelper.toggleUnorderedList(text, s, e); break;
+            case 4:  r = MarkdownFormatHelper.toggleOrderedList(text, s, e); break;
+            case 5:  r = MarkdownFormatHelper.toggleTaskList(text, s, e); break;
+            case 6:  r = MarkdownFormatHelper.toggleQuote(text, s, e); break;
+            case 7:  r = MarkdownFormatHelper.wrapSelection(text, s, e, "~~", "~~"); break;
+            case 8:  r = MarkdownFormatHelper.wrapSelection(text, s, e, "`", "`"); break;
             default: return;
         }
         etEditor.setText(r.text);

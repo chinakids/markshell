@@ -40,11 +40,23 @@ public final class MarkdownFormatHelper {
     private static final int P_UNORDERED = 2;
     private static final int P_QUOTE = 3;
     private static final int P_ORDERED = 4;
+    private static final int P_UNCHECKED = 5;   // [-*+] [ ]
+    private static final int P_CHECKED = 6;     // [-*+] [x] / [X]
     private static final int P_NONE = 0;
 
     /** 识别 rest（去前导空白后的行内容）开头的 markdown 行前缀。返回 {type, level(仅 ATX), markerEnd}。 */
     private static int[] detectPrefix(String rest) {
         if (rest.isEmpty()) return new int[]{P_NONE, 0, 0};
+        // 任务清单：[-*+] [ ] / [-*+] [xX]（必须在无序列表之前判定，markor PREFIX_PATTERNS 同序）
+        char c0 = rest.charAt(0);
+        // 结构（6 字符前缀）：0=marker 1=' ' 2='[' 3=box 4=']' 5=' '（markor [\sxX] 字符集同序）
+        if ((c0 == '-' || c0 == '*' || c0 == '+') && rest.length() >= 6
+                && rest.charAt(1) == ' ' && rest.charAt(2) == '[' && rest.charAt(3) != ']'
+                && rest.charAt(4) == ']' && rest.charAt(5) == ' ') {
+            char box = rest.charAt(3);
+            if (box == ' ') return new int[]{P_UNCHECKED, 0, 6};
+            if (box == 'x' || box == 'X') return new int[]{P_CHECKED, 0, 6};
+        }
         // 有序列表：\d+[.)]\s
         int i = 0;
         while (i < rest.length() && Character.isDigit(rest.charAt(i))) i++;
@@ -66,7 +78,6 @@ public final class MarkdownFormatHelper {
             return new int[]{P_QUOTE, 0, (rest.length() > 1 && rest.charAt(1) == ' ') ? 2 : 1};
         }
         // 无序列表：[-*+]\s
-        char c0 = rest.charAt(0);
         if ((c0 == '-' || c0 == '*' || c0 == '+') && rest.length() > 1 && rest.charAt(1) == ' ') {
             return new int[]{P_UNORDERED, 0, 2};
         }
@@ -146,25 +157,44 @@ public final class MarkdownFormatHelper {
         StringBuilder marker = new StringBuilder();
         for (int i = 0; i < level; i++) marker.append('#');
         marker.append(' ');
-        return toggleLinePrefix(text, start, end, P_ATX, level, marker.toString());
+        return toggleLinePrefix(text, start, end, P_ATX, level, marker.toString(), "");
     }
 
     /** 无序列表切换：已是无序列表则移除，其它前缀替换为「- 」，无前缀则插入（markor 同款）。 */
     public static Result toggleUnorderedList(String text, int start, int end) {
-        return toggleLinePrefix(text, start, end, P_UNORDERED, 0, "- ");
+        return toggleLinePrefix(text, start, end, P_UNORDERED, 0, "- ", "");
+    }
+
+    /** 引用切换：已是引用（&gt; ）则移除，其它前缀替换为「&gt; 」，无前缀则插入（markor toggleQuote 同款）。 */
+    public static Result toggleQuote(String text, int start, int end) {
+        return toggleLinePrefix(text, start, end, P_QUOTE, 0, "> ", "");
+    }
+
+    /** 有序列表切换：已是有序列表则移除，其它前缀替换为「1. 」，无前缀则插入（markor replaceWithOrderedListPrefixOrRemovePrefix 同款）。 */
+    public static Result toggleOrderedList(String text, int start, int end) {
+        return toggleLinePrefix(text, start, end, P_ORDERED, 0, "1. ", "");
+    }
+
+    /**
+     * 任务清单切换（markor toggleToCheckedOrUncheckedListPrefix 同款）：目标=未勾选「- [ ] 」；
+     * 已是未勾选→改为「- [x] 」，已是勾选→改回「- [ ] 」，其它前缀/无前缀→设为「- [ ] 」。
+     * 行前导缩进保留；不提供「移除任务前缀」路径（与 markor 一致：按钮只翻转状态）。
+     */
+    public static Result toggleTaskList(String text, int start, int end) {
+        return toggleLinePrefix(text, start, end, P_UNCHECKED, 0, "- [ ] ", "- [x] ");
     }
 
     /**
      * 行级前缀切换核心：作用于选区覆盖的所有行（空选区=光标所在行）。
      * 每行独立判定（detectPrefix）：
      * <ul>
-     *   <li>已是目标前缀：移除（不符合级别则先替换成目标级别再视为已是）。</li>
-     *   <li>是其它已知前缀（标题/列表/引用/有序）：替换为目标前缀。</li>
+     *   <li>已是目标前缀：应用 alternative（默认空串=移除；任务清单场景=替换为勾选态）。</li>
+     *   <li>是其它已知前缀（标题/列表/引用/有序/任务）：替换为目标前缀。</li>
      *   <li>无前缀：在前导空白之后插入目标前缀。</li>
      * </ul>
      * 前导空白（行首缩进）与行尾换行保留；选区随编辑位移换算。
      */
-    private static Result toggleLinePrefix(String text, int start, int end, int targetType, int targetLevel, String targetMarker) {
+    private static Result toggleLinePrefix(String text, int start, int end, int targetType, int targetLevel, String targetMarker, String altMarker) {
         if (text == null) return new Result(null, start, end);
         int n = text.length();
         int s = clamp(start, 0, n);
@@ -192,7 +222,7 @@ public final class MarkdownFormatHelper {
                 if (p[0] == P_ATX && p[1] != targetLevel) {
                     rep = targetMarker;              // 标题不同级别 → 替换
                 } else {
-                    rep = "";                        // 已是目标 → 移除
+                    rep = altMarker;                 // 已是目标 → 应用替代（默认移除/任务=勾选态）
                 }
             } else {
                 rep = targetMarker;                  // 其它前缀/无前缀 → 替换/插入

@@ -263,4 +263,157 @@ public class MarkdownFormatHelperTest {
         MarkdownFormatHelper.Result r = MarkdownFormatHelper.toggleUnorderedList("abc", -5, 999);
         assertEquals("- abc", r.text);
     }
+
+    // ── toggleQuote（迭代80：markor toggleQuote 对齐）────────────────────────
+
+    @Test
+    public void quote_plainLine_insertsQuote() {
+        assertEquals("> text", MarkdownFormatHelper.toggleQuote("text", 0, 0).text);
+    }
+
+    @Test
+    public void quote_alreadyQuote_removes() {
+        assertEquals("text", MarkdownFormatHelper.toggleQuote("> text", 0, 0).text);
+        // 无分隔空格形态同样识别为引用并移除
+        assertEquals("text", MarkdownFormatHelper.toggleQuote(">text", 0, 0).text);
+    }
+
+    @Test
+    public void quote_otherPrefix_replacedByQuote() {
+        assertEquals("> h", MarkdownFormatHelper.toggleQuote("# h", 0, 0).text);
+        assertEquals("> x", MarkdownFormatHelper.toggleQuote("- x", 0, 0).text);
+        assertEquals("> x", MarkdownFormatHelper.toggleQuote("1. x", 0, 0).text);
+    }
+
+    @Test
+    public void quote_taskLine_wholePrefixReplaced() {
+        // checkbox 前缀整体替换为引用（markor PREFIX_PATTERNS 同序：task 前缀先于被 unordered 误判）
+        assertEquals("> x", MarkdownFormatHelper.toggleQuote("- [ ] x", 0, 0).text);
+        assertEquals("> x", MarkdownFormatHelper.toggleQuote("- [x] x", 0, 0).text);
+    }
+
+    @Test
+    public void quote_preservesIndent() {
+        assertEquals("  > text", MarkdownFormatHelper.toggleQuote("  text", 0, 0).text);
+        assertEquals("  text", MarkdownFormatHelper.toggleQuote("  > text", 0, 0).text);
+    }
+
+    @Test
+    public void quote_multiLine_togglesEach() {
+        String text = "a\nb";
+        assertEquals("> a\n> b", MarkdownFormatHelper.toggleQuote(text, 0, text.length()).text);
+        assertEquals("a\nb", MarkdownFormatHelper.toggleQuote("> a\n> b", 0, 9).text);
+    }
+
+    // ── toggleOrderedList（迭代80：markor replaceWithOrderedListPrefixOrRemovePrefix 对齐）──
+
+    @Test
+    public void ordered_plainLine_insertsOrdered() {
+        assertEquals("1. text", MarkdownFormatHelper.toggleOrderedList("text", 0, 0).text);
+    }
+
+    @Test
+    public void ordered_alreadyOrdered_removes() {
+        assertEquals("text", MarkdownFormatHelper.toggleOrderedList("1. text", 0, 0).text);
+        assertEquals("text", MarkdownFormatHelper.toggleOrderedList("1) text", 0, 0).text);
+        assertEquals("text", MarkdownFormatHelper.toggleOrderedList("12. text", 0, 0).text);
+    }
+
+    @Test
+    public void ordered_otherPrefix_replaced() {
+        assertEquals("1. x", MarkdownFormatHelper.toggleOrderedList("- x", 0, 0).text);
+        assertEquals("1. h", MarkdownFormatHelper.toggleOrderedList("# h", 0, 0).text);
+        assertEquals("1. q", MarkdownFormatHelper.toggleOrderedList("> q", 0, 0).text);
+        assertEquals("1. x", MarkdownFormatHelper.toggleOrderedList("- [ ] x", 0, 0).text);
+    }
+
+    @Test
+    public void ordered_preservesIndent() {
+        assertEquals("  1. text", MarkdownFormatHelper.toggleOrderedList("  text", 0, 0).text);
+        assertEquals("  text", MarkdownFormatHelper.toggleOrderedList("  1. text", 0, 0).text);
+    }
+
+    @Test
+    public void ordered_multiLine_togglesEach() {
+        assertEquals("1. a\n1. b", MarkdownFormatHelper.toggleOrderedList("a\nb", 0, 3).text);
+    }
+
+    // ── toggleTaskList（迭代80：markor toggleToCheckedOrUncheckedListPrefix 对齐）────
+
+    @Test
+    public void task_unchecked_becomesChecked() {
+        assertEquals("- [x] a", MarkdownFormatHelper.toggleTaskList("- [ ] a", 0, 0).text);
+    }
+
+    @Test
+    public void task_checked_becomesUnchecked() {
+        assertEquals("- [ ] a", MarkdownFormatHelper.toggleTaskList("- [x] a", 0, 0).text);
+        assertEquals("- [ ] a", MarkdownFormatHelper.toggleTaskList("- [X] a", 0, 0).text);
+    }
+
+    @Test
+    public void task_plainLine_insertsUnchecked() {
+        assertEquals("- [ ] text", MarkdownFormatHelper.toggleTaskList("text", 0, 0).text);
+    }
+
+    @Test
+    public void task_otherPrefix_replacedByUnchecked() {
+        assertEquals("- [ ] x", MarkdownFormatHelper.toggleTaskList("1. x", 0, 0).text);
+        assertEquals("- [ ] q", MarkdownFormatHelper.toggleTaskList("> q", 0, 0).text);
+        assertEquals("- [ ] h", MarkdownFormatHelper.toggleTaskList("# h", 0, 0).text);
+        assertEquals("- [ ] y", MarkdownFormatHelper.toggleTaskList("* y", 0, 0).text);
+    }
+
+    @Test
+    public void task_preservesIndent() {
+        assertEquals("  - [ ] text", MarkdownFormatHelper.toggleTaskList("  text", 0, 0).text);
+        assertEquals("  - [x] text", MarkdownFormatHelper.toggleTaskList("  - [ ] text", 0, 0).text);
+    }
+
+    @Test
+    public void task_multiLine_togglesEach() {
+        assertEquals("- [ ] a\n- [ ] b", MarkdownFormatHelper.toggleTaskList("a\nb", 0, 3).text);
+        // 混合状态逐行独立翻转
+        assertEquals("- [x] a\n- [ ] b",
+                MarkdownFormatHelper.toggleTaskList("- [ ] a\n- [x] b", 0, 13).text);
+    }
+
+    @Test
+    public void task_selectionMappedAcrossInsertions() {
+        // 选区 [1,3) 跨行0末尾到文末（e-1=2 落在行1故两行都处理），位移换算回归同型
+        MarkdownFormatHelper.Result r = MarkdownFormatHelper.toggleTaskList("a\nb", 1, 3);
+        assertEquals("- [ ] a\n- [ ] b", r.text);
+        assertEquals(7, r.selStart);
+        assertEquals(15, r.selEnd);
+    }
+
+    // ── detectPrefix 扩展回归（迭代80：checkbox 先于无序列表判定，markor PREFIX_PATTERNS 同序）──
+
+    @Test
+    public void unordered_taskLine_wholePrefixReplacedByDash() {
+        // 之前 checkbox 行被误识别为无序列表（markerEnd=2），导致仅移除「- 」剩「[ ] a」；
+        // 对齐 markor 后整段任务前缀替换为「- 」
+        assertEquals("- a", MarkdownFormatHelper.toggleUnorderedList("- [ ] a", 0, 0).text);
+        assertEquals("- a", MarkdownFormatHelper.toggleUnorderedList("- [x] a", 0, 0).text);
+    }
+
+    @Test
+    public void heading_taskLine_wholePrefixReplacedByHeading() {
+        assertEquals("# a", MarkdownFormatHelper.toggleHeading("- [ ] a", 0, 0, 1).text);
+        assertEquals("## b", MarkdownFormatHelper.toggleHeading("- [x] b", 0, 0, 2).text);
+    }
+
+    // ── 包裹动作扩展（迭代80：删除线/行内代码=wrapSelection 复用）───────────────
+
+    @Test
+    public void wrap_strikeout_toggles() {
+        assertEquals("~~gone~~", MarkdownFormatHelper.wrapSelection("gone", 0, 4, "~~", "~~").text);
+        assertEquals("gone", MarkdownFormatHelper.wrapSelection("~~gone~~", 0, 8, "~~", "~~").text);
+    }
+
+    @Test
+    public void wrap_inlineCode_toggles() {
+        assertEquals("`code`", MarkdownFormatHelper.wrapSelection("code", 0, 4, "`", "`").text);
+        assertEquals("code", MarkdownFormatHelper.wrapSelection("`code`", 0, 6, "`", "`").text);
+    }
 }
