@@ -69,6 +69,18 @@
                 android:ellipsize="end" />
         </LinearLayout>
 
+        <!-- Per-row edit icon -->
+        <ImageView
+            android:id="@+id/btn_annotation_edit"
+            android:layout_width="40dp"
+            android:layout_height="40dp"
+            android:src="@drawable/ic_edit"
+            android:scaleType="centerInside"
+            android:padding="8dp"
+            android:contentDescription="编辑批注"
+            android:background="?attr/selectableItemBackgroundBorderless"
+            android:layout_marginStart="4dp" />
+
         <!-- Per-row delete icon -->
         <ImageView
             android:id="@+id/btn_annotation_delete"
@@ -79,7 +91,7 @@
             android:padding="8dp"
             android:contentDescription="删除批注"
             android:background="?attr/selectableItemBackgroundBorderless"
-            android:layout_marginStart="8dp" />
+            android:layout_marginStart="4dp" />
     </LinearLayout>
 
     <!-- Divider -->

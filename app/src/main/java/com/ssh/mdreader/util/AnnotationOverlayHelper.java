@@ -187,6 +187,10 @@ public class AnnotationOverlayHelper {
             drawerLayout.closeDrawer(drawerView);
             confirmDeleteAnnotation(entry);
         });
+        annotationListAdapter.setOnItemEditListener(entry -> {
+            drawerLayout.closeDrawer(drawerView);
+            showEditAnnotationDialog(entry);
+        });
 
         drawerLayout.setDrawerLockMode(DrawerLayout.LOCK_MODE_LOCKED_CLOSED, drawerView);
 
@@ -622,6 +626,58 @@ public class AnnotationOverlayHelper {
                         }
                     });
         }
+    }
+
+    // ── 编辑批注（#45 能力发现第三十三轮：CRUD 完整性——添加/定位/删除/导出齐备，唯编辑缺失）──
+
+    /**
+     * 编辑批注入口（抽屉条目「编辑」按钮）：预填当前内容并全选；空输入或内容未变不写。
+     */
+    private void showEditAnnotationDialog(AnnotationEntry entry) {
+        if (!host.isAlive()) return;
+        DialogHelper.showInputDialog(context, "编辑批注", "请输入批注内容…", "保存", "取消",
+                0, entry.text, input -> {
+                    if (input.isEmpty() || input.equals(entry.text)) return;
+                    applyEditAnnotation(entry, input);
+                });
+    }
+
+    /**
+     * 编辑写回：内存替换（纯函数 {@link AnnotationHelper#replaceById}）→ CSV 全量重写 →
+     * 成功后刷新抽屉列表并重建 span（span 持有旧条目引用，正文点击弹窗须换新对象）。
+     * 失败恢复内存并提示。原文片段/出现序号不变=正文定位与失效状态均不变。
+     */
+    private void applyEditAnnotation(AnnotationEntry entry, String newText) {
+        if (annotationFilePath == null) return;
+        List<AnnotationEntry> replaced =
+                AnnotationHelper.replaceById(annotations, entry.withText(newText));
+        if (replaced == annotations) return;   // 防御：未命中不写
+
+        annotations.clear();
+        annotations.addAll(replaced);
+        String csv = AnnotationHelper.formatAnnotationFile(annotations);
+        SshManager.getInstance().writeFile(annotationFilePath, csv, false,
+                new SshManager.WriteFileCallback() {
+                    @Override
+                    public void onSuccess() {
+                        host.runOnUiThread(() -> {
+                            refreshAnnotationDrawer();
+                            applyAnnotationSpans();
+                            UiUtils.showToast(context, "批注已更新");
+                        });
+                    }
+                    @Override
+                    public void onError(String message) {
+                        host.runOnUiThread(() -> {
+                            List<AnnotationEntry> rollback =
+                                    AnnotationHelper.replaceById(annotations, entry);
+                            annotations.clear();
+                            annotations.addAll(rollback);
+                            refreshAnnotationDrawer();
+                            UiUtils.showSnackbar(tvContent, "批注更新失败: " + message);
+                        });
+                    }
+                });
     }
 
     private void showAnnotationInputDialog(int tvSelStart, int tvSelEnd) {

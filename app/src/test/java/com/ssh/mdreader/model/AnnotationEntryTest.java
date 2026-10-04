@@ -92,4 +92,24 @@ public class AnnotationEntryTest {
         assertEquals(e.originalText, back.originalText);
         assertEquals(e.occurrenceIndex, back.occurrenceIndex);
     }
+
+    @Test
+    public void withTextKeepsIdentityAndReplacesText() {
+        AnnotationEntry e = new AnnotationEntry("id10", "旧内容", "原文片段", 3);
+        AnnotationEntry updated = e.withText("新内容");
+        assertEquals("id10", updated.id);
+        assertEquals("新内容", updated.text);
+        assertEquals("原文片段", updated.originalText);
+        assertEquals(3, updated.occurrenceIndex);
+        // 原条目不可变（编辑不破坏既有对象）
+        assertEquals("旧内容", e.text);
+    }
+
+    @Test
+    public void withTextEmptyAllowedForEditSemantics() {
+        // 编辑语义由调用方过滤空输入；此处保证纯函数本身可承载任意文本
+        AnnotationEntry e = new AnnotationEntry("id11", "a", "orig", 0);
+        assertEquals("", e.withText("").text);
+        assertEquals("a", e.withText("a").text);
+    }
 }

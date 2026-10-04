@@ -28,14 +28,20 @@ public class AnnotationListAdapter
         void onItemDelete(AnnotationEntry entry);
     }
 
+    public interface OnItemEditListener {
+        void onItemEdit(AnnotationEntry entry);
+    }
+
     private final List<AnnotationEntry> items = new ArrayList<>();
     /** 与 {@link #items} 同序的定位标注状态（{@link AnnotationHelper.AnnotationStatus}）。 */
     private final List<AnnotationHelper.AnnotationStatus> statuses = new ArrayList<>();
     private OnItemClickListener  clickListener;
     private OnItemDeleteListener deleteListener;
+    private OnItemEditListener   editListener;
 
     public void setOnItemClickListener(OnItemClickListener l)  { clickListener  = l; }
     public void setOnItemDeleteListener(OnItemDeleteListener l){ deleteListener = l; }
+    public void setOnItemEditListener(OnItemEditListener l)    { editListener   = l; }
 
     public void setData(List<AnnotationEntry> data) {
         setData(data, null);
@@ -86,6 +92,11 @@ public class AnnotationListAdapter
             if (clickListener != null) clickListener.onItemClick(entry);
         });
 
+        // Per-row edit icon → edit annotation text
+        holder.btnEdit.setOnClickListener(v -> {
+            if (editListener != null) editListener.onItemEdit(entry);
+        });
+
         // Per-row delete icon → confirm-and-delete (same path as long-press)
         holder.btnDelete.setOnClickListener(v -> {
             if (deleteListener != null) deleteListener.onItemDelete(entry);
@@ -104,6 +115,7 @@ public class AnnotationListAdapter
         final TextView  tvOriginal;
         final TextView  tvText;
         final TextView  tvStatus;
+        final ImageView btnEdit;
         final ImageView btnDelete;
 
         VH(@NonNull View itemView) {
@@ -111,6 +123,7 @@ public class AnnotationListAdapter
             tvOriginal = itemView.findViewById(R.id.tv_annotation_original);
             tvText     = itemView.findViewById(R.id.tv_annotation_text);
             tvStatus   = itemView.findViewById(R.id.tv_annotation_status);
+            btnEdit    = itemView.findViewById(R.id.btn_annotation_edit);
             btnDelete  = itemView.findViewById(R.id.btn_annotation_delete);
         }
     }

@@ -142,6 +142,25 @@ public class AnnotationHelper {
         return sb.toString();
     }
 
+    // ── Entry mutation（编辑批注内容：#45 CRUD 完整性）────────────────────────
+
+    /**
+     * 按 id 替换列表中的条目（编辑批注内容用）：命中时返回替换后的新列表副本
+     * （原列表不变，纯函数），未命中返回原列表——调用方应以返回值写回状态。
+     */
+    @NonNull
+    public static List<AnnotationEntry> replaceById(@NonNull List<AnnotationEntry> entries,
+                                                    @NonNull AnnotationEntry updated) {
+        List<AnnotationEntry> out = new ArrayList<>(entries);
+        for (int i = 0; i < out.size(); i++) {
+            if (out.get(i).id.equals(updated.id)) {
+                out.set(i, updated);
+                return out;
+            }
+        }
+        return entries;
+    }
+
     // ── ID generation ─────────────────────────────────────────────────────────
 
     /** Generates a short unique ID as a base-36 timestamp string. */

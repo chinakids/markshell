@@ -39,6 +39,15 @@ public class AnnotationEntry {
         this.occurrenceIndex = occurrenceIndex;
     }
 
+    /**
+     * 返回批注内容替换后的等价条目（id / originalText / occurrenceIndex 均不变）——
+     * 编辑接口：正文定位只依赖原文片段与出现序号，改内容不影响定位与失效状态。
+     */
+    @NonNull
+    public AnnotationEntry withText(@NonNull String newText) {
+        return new AnnotationEntry(id, newText, originalText, occurrenceIndex);
+    }
+
     /** Serialises to four-column CSV: "id","text","originalText","occurrenceIndex" */
     @NonNull
     public String format() {

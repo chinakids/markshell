@@ -486,4 +486,37 @@ public class AnnotationHelperTest {
         assertTrue(AnnotationHelper.drawerStatuses(
                 new java.util.ArrayList<>(), empty).isEmpty());
     }
+
+    // ── replaceById（编辑批注内容：#45）──────────────────────────────────────
+
+    @Test
+    public void replaceByIdSwapsMatchingEntryAndKeepsOthers() {
+        List<AnnotationEntry> entries = new java.util.ArrayList<>();
+        entries.add(entry("a1", "aaa", 0));
+        entries.add(entry("a2", "bbb", 0));
+        AnnotationEntry updated = new AnnotationEntry("a2", "新内容", "bbb", 0);
+        List<AnnotationEntry> out = AnnotationHelper.replaceById(entries, updated);
+        assertEquals(2, out.size());
+        assertEquals("a1", out.get(0).id);
+        assertEquals("新内容", out.get(1).text);
+        assertEquals("bbb", out.get(1).originalText);
+        assertEquals(0, out.get(1).occurrenceIndex);
+        // 原列表不变（纯函数语义）
+        assertEquals("注释", entries.get(1).text);
+    }
+
+    @Test
+    public void replaceByIdNoMatchReturnsSameInstance() {
+        List<AnnotationEntry> entries = new java.util.ArrayList<>();
+        entries.add(entry("a1", "aaa", 0));
+        AnnotationEntry updated = new AnnotationEntry("zzz", "x", "y", 0);
+        assertTrue(AnnotationHelper.replaceById(entries, updated) == entries);
+    }
+
+    @Test
+    public void replaceByIdEmptyListKeepsContentsNone() {
+        List<AnnotationEntry> empty = new java.util.ArrayList<>();
+        AnnotationEntry updated = new AnnotationEntry("a1", "x", "y", 0);
+        assertTrue(AnnotationHelper.replaceById(empty, updated) == empty);
+    }
 }
