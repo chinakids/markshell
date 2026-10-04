@@ -76,7 +76,12 @@ public class RemoteFile {
                 || lower.endsWith(".html") || lower.endsWith(".htm")
                 || lower.endsWith(".css")
                 || lower.endsWith(".java")
-                || lower.endsWith(".xml") || lower.endsWith(".svg");
+                || lower.endsWith(".xml") || lower.endsWith(".svg")
+                // C/C++ 族（能力发现循环第卅五轮 #47：Prism4j clike 语法正确高亮）
+                || lower.endsWith(".c") || lower.endsWith(".h")
+                || lower.endsWith(".cpp") || lower.endsWith(".cc")
+                || lower.endsWith(".cxx") || lower.endsWith(".hh")
+                || lower.endsWith(".hpp");
     }
 
     public boolean isImageFile() {
@@ -92,9 +97,37 @@ public class RemoteFile {
     public boolean isTextFile() {
         if (directory) return false;
         String lower = name.toLowerCase();
+        // 运维高频文本/配置/脚本扩展名（第卅五轮 #47：nagios/nginx/.env/docker-compose
+        // 等点击不再「暂不支持此文件类型」；对标 markor PlaintextTextConverter
+        // EXT_TEXT+EXT_CODE_HL 按文本打开的惯例，无对应高亮语法则走纯文本查看器）
         return lower.endsWith(".txt")
                 || lower.endsWith(".log")
-                || lower.endsWith(".text");
+                || lower.endsWith(".text")
+                || lower.endsWith(".yaml") || lower.endsWith(".yml")
+                || lower.endsWith(".conf") || lower.endsWith(".config")
+                || lower.endsWith(".properties") || lower.endsWith(".ini")
+                || lower.endsWith(".cfg") || lower.endsWith(".toml")
+                || lower.endsWith(".env")
+                || lower.endsWith(".sh") || lower.endsWith(".bash") || lower.endsWith(".zsh")
+                || lower.endsWith(".sql")
+                || lower.endsWith(".pl") || lower.endsWith(".pm") || lower.endsWith(".rb")
+                || lower.endsWith(".go") || lower.endsWith(".kt") || lower.endsWith(".php")
+                || lower.endsWith(".rs") || lower.endsWith(".swift") || lower.endsWith(".lua")
+                || lower.endsWith(".srt") || lower.endsWith(".lrc")
+                || lower.endsWith(".m3u") || lower.endsWith(".m3u8")
+                // 无扩展名静态说明/构建文件特判（README/Dockerfile/Makefile 等，git 仓库高频）
+                || isCommonPlainName();
+    }
+
+    /** 无扩展名但可确定是文本内容的常见文件名（大小写不敏感特判）。 */
+    private boolean isCommonPlainName() {
+        String n = name.toLowerCase();
+        return n.equals("readme")
+                || n.equals("dockerfile")
+                || n.equals("makefile")
+                || n.equals("license")
+                || n.equals("changelog")
+                || n.equals("authors");
     }
 
     public boolean isViewable() {

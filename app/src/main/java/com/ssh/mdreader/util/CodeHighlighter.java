@@ -123,6 +123,12 @@ public class CodeHighlighter {
         if (lower.endsWith(".ts") || lower.endsWith(".tsx"))
                                                          return "typescript";
         if (lower.endsWith(".java"))                     return "java";
+        // C/C++ 族（能力发现循环第卅五轮 #47：与 RemoteFile.isCodeFile 扩展名表同步，
+        // Prism4j clike 为基础的正确高亮——cpp 官方语法基于 clike）
+        if (lower.endsWith(".c") || lower.endsWith(".h")
+                || lower.endsWith(".cpp") || lower.endsWith(".cc")
+                || lower.endsWith(".cxx") || lower.endsWith(".hh")
+                || lower.endsWith(".hpp"))               return "clike";
         return "javascript"; // sensible default
     }
 

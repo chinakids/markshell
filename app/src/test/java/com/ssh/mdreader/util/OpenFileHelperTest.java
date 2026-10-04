@@ -88,7 +88,7 @@ public class OpenFileHelperTest {
         assertKind(OpenFileHelper.ViewerKind.IMAGE, "/img/x.webp");
     }
 
-    // ── Text ──────────────────────────────────────────────────────────────
+    // ── Text（第卅五轮 #47：运维高频配置/脚本/说明文件补齐） ───────────────
 
     @Test
     public void textTxt() {
@@ -98,6 +98,88 @@ public class OpenFileHelperTest {
     @Test
     public void textLogUpper() {
         assertKind(OpenFileHelper.ViewerKind.TEXT, "/LOG/daily.LOG");
+    }
+
+    @Test
+    public void textYaml() {
+        assertKind(OpenFileHelper.ViewerKind.TEXT, "/docker/conf.yaml");
+    }
+
+    @Test
+    public void textYml() {
+        assertKind(OpenFileHelper.ViewerKind.TEXT, "/app/docker-compose.yml");
+    }
+
+    @Test
+    public void textConf() {
+        assertKind(OpenFileHelper.ViewerKind.TEXT, "/etc/nginx/nginx.conf");
+    }
+
+    @Test
+    public void textProperties() {
+        assertKind(OpenFileHelper.ViewerKind.TEXT, "/app/application.properties");
+    }
+
+    @Test
+    public void textIni() {
+        assertKind(OpenFileHelper.ViewerKind.TEXT, "/etc/php.ini");
+    }
+
+    @Test
+    public void textToml() {
+        assertKind(OpenFileHelper.ViewerKind.TEXT, "/app/pyproject.toml");
+    }
+
+    @Test
+    public void textEnv() {
+        assertKind(OpenFileHelper.ViewerKind.TEXT, "/app/.env");
+    }
+
+    @Test
+    public void textShellScript() {
+        assertKind(OpenFileHelper.ViewerKind.TEXT, "/opt/deploy.sh");
+    }
+
+    @Test
+    public void textSql() {
+        assertKind(OpenFileHelper.ViewerKind.TEXT, "/db/backup.sql");
+    }
+
+    @Test
+    public void textReadmeNoExtension() {
+        assertKind(OpenFileHelper.ViewerKind.TEXT, "/a/README");
+    }
+
+    @Test
+    public void textDockerfile() {
+        assertKind(OpenFileHelper.ViewerKind.TEXT, "/app/Dockerfile");
+    }
+
+    @Test
+    public void textMakefile() {
+        assertKind(OpenFileHelper.ViewerKind.TEXT, "/src/Makefile");
+    }
+
+    @Test
+    public void textLicense() {
+        assertKind(OpenFileHelper.ViewerKind.TEXT, "/LICENSE");
+    }
+
+    // ── Code C/C++（第卅五轮 #47：clike 语法正确高亮） ──────────────────────
+
+    @Test
+    public void codeCFile() {
+        assertKind(OpenFileHelper.ViewerKind.CODE, "/src/main.c");
+    }
+
+    @Test
+    public void codeHeader() {
+        assertKind(OpenFileHelper.ViewerKind.CODE, "/include/util.h");
+    }
+
+    @Test
+    public void codeCpp() {
+        assertKind(OpenFileHelper.ViewerKind.CODE, "/src/main.cpp");
     }
 
     // ── Unsupported ───────────────────────────────────────────────────────
@@ -113,13 +195,14 @@ public class OpenFileHelperTest {
     }
 
     @Test
-    public void unsupportedYaml() {
-        assertNull(OpenFileHelper.detectViewerKind("/a/conf.yaml"));
+    public void unsupportedDocx() {
+        assertNull(OpenFileHelper.detectViewerKind("/a/doc.docx"));
     }
 
     @Test
-    public void noExtension() {
-        assertNull(OpenFileHelper.detectViewerKind("/a/README"));
+    public void unsupportedUnknownBinary() {
+        // 无扩展名非已知说明文件（sshd_config 等尚未覆盖=后继候选，如实标注）
+        assertNull(OpenFileHelper.detectViewerKind("/etc/ssh/sshd_config"));
     }
 
     @Test
