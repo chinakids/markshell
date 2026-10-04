@@ -28,6 +28,7 @@ import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.Properties;
 import java.util.Vector;
 import java.util.concurrent.ExecutorService;
@@ -108,6 +109,16 @@ public class SshManager {
 
     public interface SearchCallback {
         void onSuccess(List<SearchResult> results);
+
+        /**
+         * 搜索被用户取消（第二十四轮能力发现 #35）：不交付部分结果（markor
+         * {@code onCancelled} 同型——{@code onPostExecute !isCancelled()} 才回调）。
+         * {@code partialCount}=取消时已匹配数量（UI 可提示「已找到 N 个」，
+         * 0=尚未找到任何匹配）。回调在 sftp worker 线程（纪律：UI 层必须
+         * runOnUiThread）。
+         */
+        void onCancelled(int partialCount);
+
         void onError(String message);
     }
 
@@ -643,9 +654,18 @@ public class SshManager {
      * 目录（权限/断链）记录日志后<b>跳过继续</b>（markor {@code dir.canRead()}
      * 同型），不整体失败；根目录不存在/非目录 → onError。</p>
      *
+     * <p><b>取消（第二十四轮能力发现 #35）</b>：{@code cancelToken} 非 null 时，
+     * 每个目录处理前检查一次（AtomicBoolean 跨线程可见）；取消后<b>立即中止</b>
+     * 并回调 {@link SearchCallback#onCancelled(int)}（不交付部分结果——
+     * {@link RecursiveSearchHelper#deliverResults} 单一语义源，markor
+     * {@code while (... && !isCancelled())}+{@code onCancelled} 同型）。取消只中止
+     * 搜索任务本身，不中断 SFTP 通道（当前 ls 调用自然完成）；单 worker 串行队列
+     * 因此尽快释放，后续操作不被长期占队。null=不可取消（旧语义兼容）。</p>
+     *
      * <p>回调在 sftp worker 线程（纪律：UI 层必须 runOnUiThread）。</p>
      */
-    public void searchFiles(String rootPath, String query, int maxDepth, SearchCallback callback) {
+    public void searchFiles(String rootPath, String query, int maxDepth,
+                            AtomicBoolean cancelToken, SearchCallback callback) {
         sftpExecutor.execute(() -> runOp("递归搜索", true, channel -> {
             SftpATTRS rootAttrs;
             try {
@@ -663,6 +683,12 @@ public class SshManager {
             pending.add(new SearchDir(rootPath, 0));
 
             while (!pending.isEmpty()) {
+                if (cancelToken != null && cancelToken.get()) {
+                    Log.i(TAG, "递归搜索被取消（已匹配 " + results.size() + " 个）: "
+                            + rootPath);
+                    callback.onCancelled(results.size());
+                    return;
+                }
                 SearchDir current = pending.poll();
                 if (!RecursiveSearchHelper.shouldDescend(current.depth, maxDepth)) {
                     continue;
@@ -689,7 +715,7 @@ public class SshManager {
                     }
                 }
             }
-            callback.onSuccess(RecursiveSearchHelper.sortResults(results));
+            callback.onSuccess(RecursiveSearchHelper.deliverResults(false, results));
         }, callback::onError));
     }
 

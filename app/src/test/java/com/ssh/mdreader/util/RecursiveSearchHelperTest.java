@@ -195,4 +195,55 @@ public class RecursiveSearchHelperTest {
                 Arrays.asList(file("b.md"), nullRel));
         assertSame(nullRel, out.get(0));
     }
+
+    // ── deliverResults（第二十四轮 #35 取消交付语义；markor onPostExecute 同型） ──
+
+    @Test
+    public void deliverResults_cancelledDiscardsPartialResults() {
+        // 取消后不交付部分结果（markor !isCancelled() 才回调）：无论已匹配多少
+        List<SearchResult> in = Arrays.asList(file("a.md"), file("b.md"));
+        assertNull(RecursiveSearchHelper.deliverResults(true, in));
+        assertNull(RecursiveSearchHelper.deliverResults(true, new ArrayList<>()));
+    }
+
+    @Test
+    public void deliverResults_cancelledWithNullInputStillNull() {
+        assertNull(RecursiveSearchHelper.deliverResults(true, null));
+    }
+
+    @Test
+    public void deliverResults_notCancelledSortsAndReturns() {
+        List<SearchResult> in = Arrays.asList(file("z.md"), dir("a_dir"), file("a.md"));
+        List<SearchResult> out = RecursiveSearchHelper.deliverResults(false, in);
+        assertTrue(out.get(0).isDirectory());
+        assertEquals("a.md", out.get(1).getRelativePath());
+    }
+
+    @Test
+    public void deliverResults_notCancelledEmptyAndNullDefensive() {
+        assertTrue(RecursiveSearchHelper.deliverResults(false, new ArrayList<>()).isEmpty());
+        assertTrue(RecursiveSearchHelper.deliverResults(false, null).isEmpty());
+    }
+
+    @Test
+    public void deliverResults_notCancelledDoesNotMutateInput() {
+        List<SearchResult> in = new ArrayList<>(Arrays.asList(file("z"), file("a")));
+        List<SearchResult> out = RecursiveSearchHelper.deliverResults(false, in);
+        assertNotSame(in, out);
+        assertEquals("z", in.get(0).getRelativePath());
+        // 成功路径=原 sortResults 语义：目录恒前+大小写不敏感升序（单点不漂移）
+        List<SearchResult> mixed = Arrays.asList(file("B.md"), file("a.md"), dir("m"));
+        List<SearchResult> sorted = RecursiveSearchHelper.deliverResults(false, mixed);
+        assertTrue(sorted.get(0).isDirectory());
+        assertEquals("a.md", sorted.get(1).getRelativePath());
+        assertEquals("B.md", sorted.get(2).getRelativePath());
+    }
+
+    @Test
+    public void deliverResults_singleElementPassthrough() {
+        List<SearchResult> single = RecursiveSearchHelper.deliverResults(
+                false, Arrays.asList(file("only.md")));
+        assertEquals(1, single.size());
+        assertEquals("only.md", single.get(0).getRelativePath());
+    }
 }

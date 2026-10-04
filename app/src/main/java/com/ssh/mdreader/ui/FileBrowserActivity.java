@@ -20,6 +20,7 @@ import androidx.recyclerview.widget.RecyclerView;
 import androidx.swiperefreshlayout.widget.SwipeRefreshLayout;
 
 import com.google.android.material.button.MaterialButton;
+import com.google.android.material.snackbar.Snackbar;
 import com.ssh.mdreader.R;
 import com.ssh.mdreader.adapter.TreeAdapter;
 import com.ssh.mdreader.model.RemoteFile;
@@ -47,6 +48,7 @@ import com.ssh.mdreader.util.UiUtils;
 import com.ssh.mdreader.util.UploadHelper;
 
 import java.util.List;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 public class FileBrowserActivity extends BaseActivity
         implements TreeAdapter.OnFileActionListener, FileOpsHelper.Host, PreviewPaneHelper.Host {
@@ -64,6 +66,10 @@ public class FileBrowserActivity extends BaseActivity
     private String currentPath;
     /** 全局递归搜索进行中标志（SshManager 单 worker 串行，防重复触发）。 */
     private boolean isSearching;
+    /** 搜索取消令牌（第二十四轮 #35；null=当前无搜索，onDestroy 时置 true 防 worker 泄漏）。 */
+    private AtomicBoolean searchCancelToken;
+    /** 搜索进行中 Snackbar（markor bindSnackBar 同型；完成/取消时报错前统一 dismiss）。 */
+    private Snackbar searchSnackbar;
     /** 服务器主目录（连接配置远程路径或 home，「回到主目录」入口用）。 */
     private String homePath;
     private PreferenceManager prefManager;
@@ -527,16 +533,30 @@ public class FileBrowserActivity extends BaseActivity
             return;
         }
         isSearching = true;
+        searchCancelToken = new AtomicBoolean(false);
         progressBar.setVisibility(View.VISIBLE);
+        // markor bindSnackBar 同型：搜索中常驻 Snackbar + 「取消」动作（非模态可中止）
+        searchSnackbar = UiUtils.showSnackbarIndefiniteWithAction(
+                findViewById(android.R.id.content),
+                "正在搜索「" + query + "」…",
+                "取消",
+                () -> {
+                    AtomicBoolean token = searchCancelToken;
+                    if (token != null) {
+                        token.set(true);
+                    }
+                });
         final String root = currentPath;
+        final AtomicBoolean token = searchCancelToken;
         sshManager.searchFiles(root, query, RecursiveSearchHelper.resolveMaxDepth(depthOption),
+                token,
                 new SshManager.SearchCallback() {
                     @Override
                     public void onSuccess(List<SearchResult> results) {
                         runOnUiThread(() -> {
                             isSearching = false;
                             if (isFinishing() || isDestroyed()) return;
-                            progressBar.setVisibility(View.GONE);
+                            dismissSearchUi();
                             if (results.isEmpty()) {
                                 UiUtils.showToast(FileBrowserActivity.this,
                                         "未找到匹配「" + query + "」的文件或目录");
@@ -547,15 +567,37 @@ public class FileBrowserActivity extends BaseActivity
                     }
 
                     @Override
+                    public void onCancelled(int partialCount) {
+                        runOnUiThread(() -> {
+                            isSearching = false;
+                            if (isFinishing() || isDestroyed()) return;
+                            dismissSearchUi();
+                            UiUtils.showToast(FileBrowserActivity.this,
+                                    partialCount > 0
+                                            ? "已取消搜索（已找到 " + partialCount + " 个匹配未展示）"
+                                            : "已取消搜索");
+                        });
+                    }
+
+                    @Override
                     public void onError(String message) {
                         runOnUiThread(() -> {
                             isSearching = false;
                             if (isFinishing() || isDestroyed()) return;
-                            progressBar.setVisibility(View.GONE);
+                            dismissSearchUi();
                             UiUtils.showToast(FileBrowserActivity.this, "搜索失败：" + message);
                         });
                     }
                 });
+    }
+
+    /** 搜索结束（成功/取消/失败）统一收尾：停进度条 + 收起搜索 Snackbar。 */
+    private void dismissSearchUi() {
+        progressBar.setVisibility(View.GONE);
+        if (searchSnackbar != null) {
+            searchSnackbar.dismiss();
+            searchSnackbar = null;
+        }
     }
 
     /** 结果列表：相对路径展示，目录带「（目录）」标注（目录恒前排序见纯函数层）。 */
@@ -1308,6 +1350,12 @@ public class FileBrowserActivity extends BaseActivity
     protected void onDestroy() {
         super.onDestroy();
         fileOps.dismissActivePicker();
+        // 搜索在进行中则取消：SshManager 单 worker 串行，退页不取消会让遍历继续
+        // 占用队列直至结束（第二十四轮 #35；拼接的 token 为当前搜索的引用）。
+        AtomicBoolean token = searchCancelToken;
+        if (token != null) {
+            token.set(true);
+        }
         if (isFinishing()) {
             sshManager.disconnect();
         }

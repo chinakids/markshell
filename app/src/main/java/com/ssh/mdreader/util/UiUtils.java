@@ -26,6 +26,19 @@ public class UiUtils {
     }
 
     /**
+     * 常驻 Snackbar + 动作按钮（markor FileSearchEngine.bindSnackBar 同型：
+     * {@code Snackbar LENGTH_INDEFINITE + setAction(cancel)}——后台长操作的非模态
+     * 可中止提示）。返回实例供调用方在操作完成/取消时 dismiss。
+     */
+    public static Snackbar showSnackbarIndefiniteWithAction(View view, String message,
+                                                            String action, Runnable onAction) {
+        Snackbar snackbar = Snackbar.make(view, message, Snackbar.LENGTH_INDEFINITE);
+        snackbar.setAction(action, v -> onAction.run());
+        snackbar.show();
+        return snackbar;
+    }
+
+    /**
      * Returns a non-null, human-readable error message for {@code t}:
      * its message if present, otherwise the class simple name, otherwise a
      * generic fallback. Prevents callers from surfacing "失败: null" to the

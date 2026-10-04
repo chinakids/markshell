@@ -98,6 +98,19 @@ public final class RecursiveSearchHelper {
     }
 
     /**
+     * 搜索终止交付语义（第二十四轮能力发现 #35 取消支持；markor
+     * {@code onPostExecute: if (!isCancelled() && _callback != null) callback(ret)}
+     * 同型）：<b>取消则不交付部分结果</b>（返回 null，调用方走 {@code onCancelled}）；
+     * 未取消则返回 {@link #sortResults} 排序后的结果（null 入参 → 空列表）。
+     * 取消/未取消的交付决策集中于此=单一语义源，防止调用方出现「取消后仍交付部分结果」
+     * 或「未取消却丢弃结果」的漂移。
+     */
+    public static List<SearchResult> deliverResults(boolean cancelled, List<SearchResult> results) {
+        if (cancelled) return null;
+        return sortResults(results);
+    }
+
+    /**
      * 结果排序：目录恒前（与文件列表视觉一致）；组内按相对路径大小写不敏感升序
      * （markor {@code keySort(_result, relPath.toLowerCase())} 同型）。返回<b>新</b>
      * 列表，不修改入参（项目纯函数风格）；入参 null → 空列表。
