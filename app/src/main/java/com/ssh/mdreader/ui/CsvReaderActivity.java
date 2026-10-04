@@ -6,6 +6,8 @@ import android.text.Editable;
 import android.text.TextWatcher;
 import android.view.Menu;
 import android.view.MenuItem;
+import android.view.MotionEvent;
+import android.view.ScaleGestureDetector;
 import android.view.View;
 import android.view.ViewGroup;
 import android.view.inputmethod.EditorInfo;
@@ -27,6 +29,7 @@ import com.ssh.mdreader.util.CsvFindHelper;
 import com.ssh.mdreader.util.PreferenceManager;
 import com.ssh.mdreader.util.ShareHelper;
 import com.ssh.mdreader.util.UiUtils;
+import com.ssh.mdreader.util.ViewerTextSizeHelper;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -39,6 +42,8 @@ public class CsvReaderActivity extends BaseActivity {
     private static final int MENU_FIND_ID = 0xA2002;
     private static final int MENU_SHARE_ID = 0xA2003;
     private static final int FIND_HIGHLIGHT_COLOR = 0x66FFD600;
+    /** 单元格默认字号（sp）：历史行为一致（renderCsv 原硬编码 13）。 */
+    private static final float DEFAULT_CELL_TEXT_SIZE = 13f;
 
     private TableLayout tableLayout;
     private View loadingOverlay;
@@ -49,6 +54,12 @@ public class CsvReaderActivity extends BaseActivity {
     private PreferenceManager prefManager;
     /** 走查 #40：本次创建是否带旋转恢复态（onCreate 记录；seed 数据仅在无旋转态时使用）。 */
     private boolean hasInstanceState;
+
+    // ── 查看器字号缩放（走查 #52）──────────────────────────────────────────────
+    /** 双指缩放检测器（与 Text/Code 查看器同款范式）。 */
+    private ScaleGestureDetector scaleDetector;
+    /** 当前字号（sp）；clamp 与持久化全部委托 ViewerTextSizeHelper=单一语义源。 */
+    private float currentTextSize;
 
     /** 最近一次渲染的结构化数据（查找扫描源）与对应视图引用（跳转落点）。 */
     private List<List<String>> rows = Collections.emptyList();
@@ -88,7 +99,50 @@ public class CsvReaderActivity extends BaseActivity {
         initFindBar();
 
         prefManager = new PreferenceManager(this);
+        // 走查 #52：CSV 查看器补齐同组缩放（Text/Code 查看器迭代71 #38 已实现，
+        // CSV 无=同组能力不一致）——读取上次保存的查看器字号，无记录回退默认 13sp
+        // （历史行为一致）；与 Text/Code 共用 KEY_VIEWER_TEXT_SIZE 全局一键
+        // （markor pref_key__view_font_size 等价物，迭代71 范围裁剪同语义）。
+        currentTextSize = ViewerTextSizeHelper.clamp(
+                prefManager.getViewerTextSize(DEFAULT_CELL_TEXT_SIZE));
+        scaleDetector = new ScaleGestureDetector(this,
+                new ScaleGestureDetector.SimpleOnScaleGestureListener() {
+                    @Override
+                    public boolean onScale(ScaleGestureDetector detector) {
+                        float newSize = ViewerTextSizeHelper.clamp(
+                                currentTextSize * detector.getScaleFactor());
+                        if (ViewerTextSizeHelper.shouldApply(currentTextSize, newSize)) {
+                            currentTextSize = newSize;
+                            applyCellTextSize();
+                        }
+                        return true;
+                    }
+
+                    @Override
+                    public void onScaleEnd(ScaleGestureDetector detector) {
+                        // 手势结束即持久化：下次打开/换文件恢复上次字号（与 Text/Code 同款）
+                        prefManager.saveViewerTextSize(currentTextSize);
+                    }
+                });
         loadContent();
+    }
+
+    /**
+     * 把当前字号应用到全部单元格（双指缩放实时；TableLayout 对子项 wrap_content
+     * 高度自动重测量，行高随字号增长）。渲染建单元格时也直接使用 {@link #currentTextSize}。
+     */
+    private void applyCellTextSize() {
+        for (List<TextView> cells : cellViews) {
+            for (TextView cell : cells) {
+                cell.setTextSize(currentTextSize);
+            }
+        }
+    }
+
+    @Override
+    public boolean dispatchTouchEvent(MotionEvent ev) {
+        scaleDetector.onTouchEvent(ev);
+        return super.dispatchTouchEvent(ev);
     }
 
     @Override
@@ -320,7 +374,8 @@ public class CsvReaderActivity extends BaseActivity {
                 // 与 Markdown 阅读器 ScrollView 内 selectable 为同一平台机制（同类已验证）。
                 tv.setTextIsSelectable(true);
                 tv.setPadding(pad, pad / 2, pad, pad / 2);
-                tv.setTextSize(13);
+                // 走查 #52：字号=查看器持久化值（双指缩放同源；原硬编码 13 改为默认常量）
+                tv.setTextSize(currentTextSize);
                 if (isHeader) {
                     tv.setTextColor(getResources().getColor(R.color.md_theme_primary, getTheme()));
                     tv.setTypeface(android.graphics.Typeface.DEFAULT_BOLD);
