@@ -401,6 +401,85 @@ public class FileOpsHelper {
                 })));
     }
 
+    /** 批量复制：目录选择器（多源，复制语义校验），确认后探测目标同名冲突——无冲突直接复制；有冲突经列表对话框选择「全部覆盖 / 跳过同名 / 取消」（对标 Termius SFTP 多选复制 + markor copy_move_conflict 冲突策略）。 */
+    public void copySelectedFiles(List<RemoteFile> files) {
+        if (files.isEmpty()) return;
+        List<String> paths = pathsOf(files);
+        final List<String> names = new ArrayList<>(files.size());
+        Set<String> dirPaths = new HashSet<>();
+        for (RemoteFile f : files) {
+            names.add(f.getName());
+            if (f.isDirectory()) dirPaths.add(f.getPath());
+        }
+        activePicker = DirectoryPickerDialog.show(context, paths, dirPaths, true,
+                targetDir -> ssh.checkTargetsExist(targetDir, names, new SshManager.TargetNamesCallback() {
+                    @Override
+                    public void onResult(List<String> existingNames) {
+                        if (existingNames.isEmpty()) {
+                            runBatchCopy(paths, targetDir, 0);
+                        } else {
+                            MAIN.post(() -> showCopyConflictChooser(paths, names, targetDir, existingNames));
+                        }
+                    }
+
+                    @Override
+                    public void onError(String message) {
+                        MAIN.post(() -> {
+                            if (!host.isAlive()) return;
+                            UiUtils.showToast(context, "检查目标失败: " + message);
+                        });
+                    }
+                }));
+    }
+
+    /** 同名冲突三选：全部覆盖 / 跳过同名 / 取消（与单项复制「覆盖/跳过」语义同源，批量一次决策避免逐项弹窗）。 */
+    private void showCopyConflictChooser(List<String> paths, List<String> names,
+                                         String targetDir, List<String> existingNames) {
+        if (!host.isAlive()) return;
+        int conflictCount = existingNames.size();
+        int rest = paths.size() - conflictCount;
+        DialogHelper.showListDialog(context,
+                "目标目录已存在 " + conflictCount + " 个同名项",
+                new String[]{"全部覆盖（" + conflictCount + " 项）",
+                        "跳过同名（复制其余 " + rest + " 项）", "取消"},
+                null,
+                (dialog, which) -> {
+                    if (which == 0) {
+                        runBatchCopy(paths, targetDir, 0);
+                    } else if (which == 1) {
+                        List<String> toCopy = new ArrayList<>();
+                        for (int i = 0; i < paths.size(); i++) {
+                            if (!existingNames.contains(names.get(i))) toCopy.add(paths.get(i));
+                        }
+                        runBatchCopy(toCopy, targetDir, conflictCount);
+                    }
+                    // which == 2：取消，无操作
+                });
+    }
+
+    /** 执行批量复制（worker 回调投递主线程）；{@code skippedCount>0} 时追加「跳过 N 个同名项」提示。 */
+    private void runBatchCopy(List<String> toCopy, String targetDir, int skippedCount) {
+        if (toCopy.isEmpty()) {
+            if (host.isAlive()) {
+                UiUtils.showToast(context, "所选项目在目标目录均已存在，未复制");
+                host.onSelectionExited();
+            }
+            return;
+        }
+        ssh.batchCopy(toCopy, targetDir, (ok, fail, first) -> MAIN.post(() -> {
+            if (!host.isAlive()) return;
+            String suffix = skippedCount > 0 ? "（跳过 " + skippedCount + " 个同名项）" : "";
+            if (fail == 0) {
+                UiUtils.showToast(context, "已复制 " + ok + " 项到 " + targetDir + suffix);
+            } else {
+                UiUtils.showToast(context,
+                        ok > 0 ? ("部分失败：成功 " + ok + " 项，失败 " + fail + " 项：" + first)
+                               : ("复制失败：" + first));
+            }
+            host.onSelectionExited();
+        }));
+    }
+
     /** 删除目录的危险确认（含全部内容）。 */
     public void confirmDeleteDirectory(RemoteFile dir) {
         DialogHelper.showDangerConfirmDialog(context,

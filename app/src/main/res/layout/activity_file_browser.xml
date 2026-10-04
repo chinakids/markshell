@@ -135,7 +135,7 @@
         android:indeterminateTint="@color/md_theme_primary"
         android:visibility="gone" />
 
-    <!-- 多选模式底部操作栏：批量移动 / 权限 / 删除 -->
+    <!-- 多选模式底部操作栏：批量移动 / 复制 / 权限 / 删除 -->
     <LinearLayout
         android:id="@+id/layout_selection_bar"
         android:layout_width="match_parent"
@@ -156,6 +156,18 @@
             android:text="移动"
             android:textSize="12sp"
             app:icon="@drawable/ic_move"
+            app:iconGravity="textStart" />
+
+        <com.google.android.material.button.MaterialButton
+            android:id="@+id/btn_select_copy"
+            style="@style/Widget.Material3.Button.TextButton"
+            android:layout_width="0dp"
+            android:layout_height="56dp"
+            android:layout_weight="1"
+            android:maxLines="1"
+            android:text="复制"
+            android:textSize="12sp"
+            app:icon="@drawable/ic_content_copy"
             app:iconGravity="textStart" />
 
         <com.google.android.material.button.MaterialButton

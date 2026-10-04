@@ -960,6 +960,57 @@ public class SshManager {
     }
 
     /**
+     * 批量复制到同一目标目录（递归复制，源文件名不变；目录=合并语义、文件=覆盖，与单项复制同）。
+     * 调用方须先经 {@link #validateBatchCopy} 拦截同位置/自指；目标同名冲突由调用方经
+     * {@link #checkTargetsExist} 探测并选择覆盖/跳过策略（本方法总是复制/覆盖）。
+     * 单项失败记录第一条错误并继续。与 {@link #batchMove} 同型（runOp retryable=false 写操作口径）。
+     */
+    public void batchCopy(List<String> srcPaths, String targetDir, BatchOperationCallback callback) {
+        sftpExecutor.execute(() -> runOp("批量复制", false, channel -> {
+            int ok = 0, fail = 0;
+            String first = null;
+            for (String p : srcPaths) {
+                try {
+                    copyNodeSync(channel, p, buildCopyPath(p, targetDir));
+                    ok++;
+                } catch (Exception e) {
+                    fail++;
+                    if (first == null) first = UiUtils.errorMessage(e);
+                }
+            }
+            callback.onResult(ok, fail, first);
+        }, err -> callback.onResult(0, srcPaths.size(), err)));
+    }
+
+    /**
+     * 批量探测目标目录下哪些名称已存在（用于复制冲突策略：覆盖/跳过）。
+     * 单条 runOp 内逐项 stat（与 {@link #fileExists} 同口径：NO_SUCH_FILE=不存在）；
+     * 结果保输入顺序。只读操作，疑似断线时重连重试一次（与 fileExists/listFiles 同口径）。
+     */
+    public void checkTargetsExist(String targetDir, List<String> names, TargetNamesCallback callback) {
+        sftpExecutor.execute(() -> runOp("检查目标", true, channel -> {
+            List<String> existing = new ArrayList<>();
+            for (String name : names) {
+                try {
+                    channel.stat(buildMovePath(name, targetDir));
+                    existing.add(name);
+                } catch (SftpException e) {
+                    if (e.id != ChannelSftp.SSH_FX_NO_SUCH_FILE) throw e;
+                }
+            }
+            callback.onResult(existing);
+        }, callback::onError));
+    }
+
+    /** 目标名称存在性探测结果回调（回调在 worker 线程，调用方自行投递主线程）。 */
+    public interface TargetNamesCallback {
+        /** @param existingNames 已存在的名称（保输入顺序；空列表=无冲突）。 */
+        void onResult(List<String> existingNames);
+
+        void onError(String message);
+    }
+
+    /**
      * 批量移动到同一目标目录（JSch rename；源文件名不变）。调用方须先经
      * {@link #validateBatchMove} 拦截同位置/自指/同名冲突；本方法只负责执行，
      * 单项失败记录第一条错误并继续（目标已存在等服务器错误按失败项上报）。
@@ -1024,6 +1075,33 @@ public class SshManager {
             String dst = buildMovePath(src, targetDir);
             if (!targets.add(dst)) {
                 return "移动后目标重名冲突: " + dst;
+            }
+        }
+        return null;
+    }
+
+    /**
+     * 批量复制校验（纯函数，便于单测）：任一源与目标同位置、目录源复制到自身内部（递归死循环）、
+     * 或两个源复制到同一目标后同名时返回错误消息；全部通过返回 null。
+     * UI 层据此拦截并提示，不发起复制。与 {@link #validateBatchMove} 同型（文案按复制语义）。
+     *
+     * @param dirSrcPaths 目录类型的源路径集合（用于自指校验；文件源不在其中）
+     */
+    public static String validateBatchCopy(List<String> srcPaths, java.util.Set<String> dirSrcPaths,
+                                           String targetDir) {
+        if (srcPaths == null || srcPaths.isEmpty()) return "没有可复制的项目";
+        java.util.Set<String> targets = new java.util.HashSet<>();
+        for (String src : srcPaths) {
+            if (isMoveSameLocation(src, targetDir)) {
+                return "所选项目有与目标位置相同的项";
+            }
+            if (dirSrcPaths != null && dirSrcPaths.contains(src)
+                    && isMoveIntoItself(src, targetDir)) {
+                return "不能把目录复制到自身内部";
+            }
+            String dst = buildCopyPath(src, targetDir);
+            if (!targets.add(dst)) {
+                return "复制后目标重名冲突: " + dst;
             }
         }
         return null;

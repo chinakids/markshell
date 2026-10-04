@@ -702,6 +702,8 @@ public class FileBrowserActivity extends BaseActivity
         selectionBar = findViewById(R.id.layout_selection_bar);
         findViewById(R.id.btn_select_move).setOnClickListener(
                 v -> fileOps.moveSelectedFiles(adapter.getSelectedFiles()));
+        findViewById(R.id.btn_select_copy).setOnClickListener(
+                v -> fileOps.copySelectedFiles(adapter.getSelectedFiles()));
         findViewById(R.id.btn_select_chmod).setOnClickListener(
                 v -> fileOps.chmodSelectedFiles(adapter.getSelectedFiles()));
         findViewById(R.id.btn_select_delete).setOnClickListener(

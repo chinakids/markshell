@@ -277,6 +277,42 @@ public class SshManagerTest {
         assertNotNull(SshManager.validateBatchMove(null, new HashSet<>(), "/dest"));
     }
 
+    @Test
+    public void validateBatchCopy_okWhenAllValid() {
+        List<String> srcs = Arrays.asList("/a/x.txt", "/b/y.txt");
+        Set<String> dirs = new HashSet<>();
+        assertNull(SshManager.validateBatchCopy(srcs, dirs, "/dest"));
+    }
+
+    @Test
+    public void validateBatchCopy_rejectsSameLocation() {
+        List<String> srcs = Arrays.asList("/a/x.txt");
+        assertNotNull(SshManager.validateBatchCopy(srcs, new HashSet<>(), "/a"));
+    }
+
+    @Test
+    public void validateBatchCopy_rejectsCopyIntoItself() {
+        // 目录源复制到自身子目录 = 递归死循环，必须拦截
+        List<String> srcs = Arrays.asList("/a/b");
+        Set<String> dirs = new HashSet<>(Arrays.asList("/a/b"));
+        assertNotNull(SshManager.validateBatchCopy(srcs, dirs, "/a/b/data"));
+        // 目录源未在 dirSrcPaths 中时不做自指判断（与单源语义一致，由调用方保证）
+        assertNull(SshManager.validateBatchCopy(srcs, new HashSet<>(), "/a/b/data"));
+    }
+
+    @Test
+    public void validateBatchCopy_rejectsTargetNameClash() {
+        // 两个不同父目录下的同名文件复制到同一目标 → 冲突
+        List<String> srcs = Arrays.asList("/a/x.txt", "/b/x.txt");
+        assertNotNull(SshManager.validateBatchCopy(srcs, new HashSet<>(), "/dest"));
+    }
+
+    @Test
+    public void validateBatchCopy_rejectsEmpty() {
+        assertNotNull(SshManager.validateBatchCopy(new ArrayList<>(), new HashSet<>(), "/dest"));
+        assertNotNull(SshManager.validateBatchCopy(null, new HashSet<>(), "/dest"));
+    }
+
     // ---- listFiles 解析：toRemoteFile（单条 LsEntry → RemoteFile 纯函数，无需真实 SFTP 连接） ----
 
     @Test

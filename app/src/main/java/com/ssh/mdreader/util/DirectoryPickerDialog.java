@@ -103,12 +103,13 @@ public class DirectoryPickerDialog extends Dialog {
     private DirectoryPickerDialog(@NonNull Context context,
                                   @NonNull List<String> srcPaths,
                                   @NonNull Set<String> dirSrcPaths,
+                                  boolean copyMode,
                                   @NonNull OnDirectoryPickedListener listener) {
         super(context, R.style.BrandDialog);
         this.srcPath = srcPaths.get(0);
         this.srcName = null;
         this.srcIsDir = false;
-        this.copyMode = false;
+        this.copyMode = copyMode;
         this.listener = listener;
         this.batchSrcPaths = new ArrayList<>(srcPaths);
         this.batchDirSrcPaths = new HashSet<>(dirSrcPaths);
@@ -136,15 +137,16 @@ public class DirectoryPickerDialog extends Dialog {
                 .setOnClickListener(v -> dismiss());
         view.findViewById(R.id.dialog_picker_btn_move)
                 .setOnClickListener(v -> onConfirmPicked());
-        ((TextView) view.findViewById(R.id.dialog_picker_btn_move)).setText("移动到此");
+        ((TextView) view.findViewById(R.id.dialog_picker_btn_move))
+                .setText(copyMode ? "复制到此" : "移动到此");
 
         setCancelable(true);
     }
 
-    /** 标题：批量模式显示「移动『N 项』到」，单源模式沿用「移动/复制『名称』到」。 */
+    /** 标题：批量模式显示「移动/复制『N 项』到」，单源模式沿用「移动/复制『名称』到」。 */
     private String buildTitle(boolean singleSource) {
         if (!singleSource) {
-            return "移动「" + batchSrcPaths.size() + " 项」到";
+            return (copyMode ? "复制「" : "移动「") + batchSrcPaths.size() + " 项」到";
         }
         return (copyMode ? "复制「" : "移动「") + srcName + "」到";
     }
@@ -177,8 +179,17 @@ public class DirectoryPickerDialog extends Dialog {
                                              @NonNull List<String> srcPaths,
                                              @NonNull Set<String> dirSrcPaths,
                                              @NonNull OnDirectoryPickedListener listener) {
+        return show(context, srcPaths, dirSrcPaths, false, listener);
+    }
+
+    /** 弹出批量「移动/复制」模式对话框（多源；{@code copyMode=true} 时为批量复制语义：标题/按钮/校验文案区分）。 */
+    public static DirectoryPickerDialog show(@NonNull Context context,
+                                             @NonNull List<String> srcPaths,
+                                             @NonNull Set<String> dirSrcPaths,
+                                             boolean copyMode,
+                                             @NonNull OnDirectoryPickedListener listener) {
         DirectoryPickerDialog dialog =
-                new DirectoryPickerDialog(context, srcPaths, dirSrcPaths, listener);
+                new DirectoryPickerDialog(context, srcPaths, dirSrcPaths, copyMode, listener);
         dialog.loadDirs();
         dialog.show();
         return dialog;
@@ -186,7 +197,9 @@ public class DirectoryPickerDialog extends Dialog {
 
     private void onConfirmPicked() {
         if (batchSrcPaths != null) {
-            String error = SshManager.validateBatchMove(batchSrcPaths, batchDirSrcPaths, currentDir);
+            String error = copyMode
+                    ? SshManager.validateBatchCopy(batchSrcPaths, batchDirSrcPaths, currentDir)
+                    : SshManager.validateBatchMove(batchSrcPaths, batchDirSrcPaths, currentDir);
             if (error != null) {
                 UiUtils.showToast(getContext(), error);
                 return;
