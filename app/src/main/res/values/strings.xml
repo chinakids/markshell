@@ -55,6 +55,7 @@
     <!-- Large-screen two-pane preview -->
     <string name="preview_empty_hint">选择文件以预览</string>
     <string name="preview_unsupported">暂不支持预览此文件类型</string>
+    <string name="preview_open_action">打开</string>
 
     <!-- Menu -->
     <string name="action_settings">设置</string>

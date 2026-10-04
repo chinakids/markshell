@@ -1296,6 +1296,21 @@ public class FileBrowserActivity extends BaseActivity
         adapter.exitSelectionMode();
     }
 
+    // ── PreviewPaneHelper.Host 回调实现 ────────────────────────────────────
+
+    /** 预览 pane 工具栏「打开」（#37）：经 OpenFileHelper 单点分发进入全量查看器。 */
+    @Override
+    public void onPreviewOpenRequested(RemoteFile file) {
+        if (isFinishing() || isDestroyed()) return;
+        Intent intent = OpenFileHelper.buildViewerIntent(this, file.getPath());
+        if (intent == null) {
+            UiUtils.showToast(this, "暂不支持此文件类型");
+            return;
+        }
+        recordRecentOpen(file.getPath());
+        startActivity(intent);
+    }
+
     @Override
     public void onBackPressed() {
         // 多选模式下返回键 = 退出多选模式

@@ -50,6 +50,9 @@ public class PreviewPaneHelper {
 
         /** 等价原 Activity.runOnUiThread（保持同线程即时执行语义）。 */
         void runOnUiThread(Runnable r);
+
+        /** 预览 pane 工具栏「打开」被点击（#37：预览是只读子集，全量能力经此进入对应查看器）。 */
+        void onPreviewOpenRequested(RemoteFile file);
     }
 
     /** 与拆分前一致的 logcat tag（原 FileBrowserActivity）。 */
@@ -131,6 +134,19 @@ public class PreviewPaneHelper {
         if (!supported) {
             showPreviewMessage(body, context.getString(R.string.preview_unsupported));
             return;
+        }
+
+        // #37：预览 pane「打开」出口——预览为只读子集，全量查看器能力（批注/编辑/大纲/
+        // 查找/复制路径/缩放保存等）只能经此进入；不支持类型 no-op（按钮不铺出）。
+        if (OpenFileHelper.detectViewerKind(file.getPath()) != null) {
+            previewBar.inflateMenu(R.menu.menu_preview_pane);
+            previewBar.setOnMenuItemClickListener(item -> {
+                if (item.getItemId() == R.id.action_preview_open) {
+                    host.onPreviewOpenRequested(file);
+                    return true;
+                }
+                return false;
+            });
         }
 
         ProgressBar pb = new ProgressBar(context);

@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 两栏预览 pane 工具栏菜单（能力发现循环 #37）：仅「打开」一项——预览是只读子集，
+     全量能力（批注/编辑/大纲/查找/复制路径/缩放保存等）经此进入对应查看器。 -->
+<menu xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto">
+
+    <item
+        android:id="@+id/action_preview_open"
+        android:title="@string/preview_open_action"
+        app:showAsAction="always" />
+
+</menu>
