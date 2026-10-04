@@ -335,8 +335,93 @@ public class MarkdownFormatHelperTest {
 
     @Test
     public void ordered_multiLine_togglesEach() {
-        assertEquals("1. a\n1. b", MarkdownFormatHelper.toggleOrderedList("a\nb", 0, 3).text);
+        // 迭代81 起：切换后自动重编号（markor runRenumberOrderedListIfRequired 对齐），不再恒置「1. 」
+        assertEquals("1. a\n2. b", MarkdownFormatHelper.toggleOrderedList("a\nb", 0, 3).text);
+        assertEquals("1. a\n2. b\n3. c", MarkdownFormatHelper.toggleOrderedList("a\nb\nc", 0, 5).text);
     }
+
+    // ── renumberOrderedList（迭代81：markor AutoTextFormatter.renumberOrderedList 对齐）────
+
+    @Test
+    public void renumber_fixesOffNumbersInWholeList() {
+        assertEquals("1. a\n2. b", MarkdownFormatHelper.renumberOrderedList("3. a\n5. b", 0, 0).text);
+        assertEquals("1. a\n2. b\n3. c", MarkdownFormatHelper.renumberOrderedList("7. a\n1. b\n1. c", 0, 0).text);
+    }
+
+    @Test
+    public void renumber_fromMiddleLine_fixesWholeList() {
+        // 选区/光标在中间行：getOrderedListStart 向上取列表顶，整段重编（markor 同型）
+        MarkdownFormatHelper.Result r = MarkdownFormatHelper.renumberOrderedList("3. a\n4. b\n5. c", 5, 5);
+        assertEquals("1. a\n2. b\n3. c", r.text);
+        assertEquals(5, r.selStart);
+        assertEquals(5, r.selEnd);
+    }
+
+    @Test
+    public void renumber_nestedSubLists_renumberIndependently() {
+        // 子列表（缩进差>2）从 1 独立重编，父列表续编（markor 栈语义）
+        assertEquals("1. a\n    1. x\n    2. y\n2. b",
+                MarkdownFormatHelper.renumberOrderedList("9. a\n    5. x\n    7. y\n4. b", 0, 0).text);
+    }
+
+    @Test
+    public void renumber_emptyLine_doesNotBreakList() {
+        // 空行是任何层子级，不中断编号（markor isEmpty 语义）
+        assertEquals("1. a\n\n2. b", MarkdownFormatHelper.renumberOrderedList("5. a\n\n8. b", 0, 0).text);
+    }
+
+    @Test
+    public void renumber_differentDelimiter_isSeparateListUntouched() {
+        // 同级不同分隔符（. vs )）不匹配 firstLine：遍历停止，该行不动（markor isMatchingList 同型）
+        assertEquals("1. a\n3) b", MarkdownFormatHelper.renumberOrderedList("1. a\n3) b", 0, 0).text);
+        assertEquals("1. a\n7) b", MarkdownFormatHelper.renumberOrderedList("7. a\n7) b", 0, 0).text);
+    }
+
+    @Test
+    public void renumber_sameLevelPlainLine_breaksTraversal() {
+        // 同级普通行不是列表项也不是更深子级：遍历停止，其后列表行不重编（markor while 条件同型）
+        assertEquals("1. a\nplain\n5. b", MarkdownFormatHelper.renumberOrderedList("3. a\nplain\n5. b", 0, 0).text);
+    }
+
+    @Test
+    public void renumber_deeperPlainLine_keepsListButNotNumbered() {
+        // 更深缩进普通行：保留父层栈、不编号，其后同级列表续编（markor 层级处理同型）
+        assertEquals("1. a\n    plain\n2. b", MarkdownFormatHelper.renumberOrderedList("1. a\n    plain\n3. b", 0, 0).text);
+    }
+
+    @Test
+    public void renumber_indentUpToSlack_sameList() {
+        // markor indentSlack=2：缩进差<=2 视作同级，编码连续
+        assertEquals("1. a\n  2. b", MarkdownFormatHelper.renumberOrderedList("5. a\n  3. b", 0, 0).text);
+    }
+
+    @Test
+    public void renumber_firstLineNotOrdered_noop() {
+        // 光标所在（向上取到的）首行非有序且非空：整体 no-op（markor !firstLine.isOrderedList 同型）
+        assertEquals("hello\n5. a", MarkdownFormatHelper.renumberOrderedList("hello\n5. a", 0, 0).text);
+    }
+
+    @Test
+    public void renumber_cursorOnListBelowPlainLine_renumbersFromThatList() {
+        // 光标行自身有序：从该列表段顶开始重编（顶层普通行不是其父级，markor getParent 同型）
+        assertEquals("hello\n1. a", MarkdownFormatHelper.renumberOrderedList("hello\n5. a", 6, 6).text);
+    }
+
+    @Test
+    public void renumber_numberLengthens_shiftSelectionBeforeEdit() {
+        // 编辑整体位于选区端点之前时位移（markor shifts 同型；'10'->'2' 缩短 1）
+        MarkdownFormatHelper.Result r = MarkdownFormatHelper.renumberOrderedList("9. a\n10. b", 9, 10);
+        assertEquals("1. a\n2. b", r.text);
+        assertEquals(8, r.selStart);
+        assertEquals(9, r.selEnd);
+    }
+
+    @Test
+    public void renumber_alreadySequential_noEdit() {
+        MarkdownFormatHelper.Result r = MarkdownFormatHelper.renumberOrderedList("1. a\n2. b\n3. c", 0, 0);
+        assertSame("1. a\n2. b\n3. c", r.text);
+    }
+
 
     // ── toggleTaskList（迭代80：markor toggleToCheckedOrUncheckedListPrefix 对齐）────
 

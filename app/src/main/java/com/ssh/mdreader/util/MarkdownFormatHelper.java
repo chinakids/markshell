@@ -170,10 +170,244 @@ public final class MarkdownFormatHelper {
         return toggleLinePrefix(text, start, end, P_QUOTE, 0, "> ", "");
     }
 
-    /** 有序列表切换：已是有序列表则移除，其它前缀替换为「1. 」，无前缀则插入（markor replaceWithOrderedListPrefixOrRemovePrefix 同款）。 */
+    /** 有序列表切换：已是有序列表则移除，其它前缀替换为「1. 」，无前缀则插入；随后对受影响列表段自动重编号（markor replaceWithOrderedListPrefixOrRemovePrefix + runRenumberOrderedListIfRequired）。 */
     public static Result toggleOrderedList(String text, int start, int end) {
-        return toggleLinePrefix(text, start, end, P_ORDERED, 0, "1. ", "");
+        Result r = toggleLinePrefix(text, start, end, P_ORDERED, 0, "1. ", "");
+        if (r.text == null || r.text.equals(text)) return r;
+        return renumberOrderedList(r.text, r.selStart, r.selEnd);
     }
+
+    // ── 有序列表自动重编号（迭代81：markor AutoTextFormatter.renumberOrderedList 对齐）────
+
+    /** 列表层级容差：缩进差 <=2 视作同级，>2 视作子列表（markor indentSlack 同值）。 */
+    private static final int INDENT_SLACK = 2;
+
+    /**
+     * 有序列表自动重编号（markor AutoTextFormatter.renumberOrderedList 语义对位）：
+     * <ul>
+     *   <li>从选区起始行向上求所属列表顶（getOrderedListStart + getLevelStart 同型：逐级父级、同级向左扩展）；</li>
+     *   <li>自顶向下遍历：同级连续有序项按 1..N 递增；更深缩进（差&gt;2）=子列表独立从 1；更浅=弹栈回父层；</li>
+     *   <li>同级不同分隔符（. 与 )）=新列表从 1 重编号；空行不打断；列表外普通行弹空栈=整体放弃（markor 同）；</li>
+     *   <li>首行不是有序行时 no-op（markor {@code !firstLine.isOrderedList} 同）；</li>
+     *   <li>编号数字长度变化时选区位移换算（编辑整体位于端点之前才位移，markor shifts 同型）。</li>
+     * </ul>
+     */
+    public static Result renumberOrderedList(String text, int selStart, int selEnd) {
+        if (text == null) return new Result(null, selStart, selEnd);
+        int n = text.length();
+        int s = clamp(selStart, 0, n);
+        int e = clamp(selEnd, 0, n);
+        if (e < s) { int t = s; s = e; e = t; }
+
+        java.util.List<OrderedLine> lines = parseOrderedLines(text);
+        if (lines.isEmpty()) return new Result(text, s, e);
+        int startIdx = lineIndexOf(lines, s);
+        if (startIdx < 0) return new Result(text, s, e);
+
+        int top = orderedListStart(lines, startIdx);
+        OrderedLine first = lines.get(top);
+        if (!first.isOrdered) return new Result(text, s, e);
+
+        java.util.List<int[]> edits = new java.util.ArrayList<>();   // {numStart, numEnd}（原文本坐标）
+        java.util.List<String> reps = new java.util.ArrayList<>();
+        java.util.List<OrderedLine> stack = new java.util.ArrayList<>();
+        stack.add(first);
+        int delta0 = 0, delta1 = 0;
+
+        for (int idx = top; idx < lines.size(); idx++) {
+            OrderedLine line = lines.get(idx);
+            // 遍历条件：自列表顶向下（markor firstLine.isParentLevelOf||isMatchingList 同型）
+            if (!(first.isParentLevelOf(line) || first.isMatchingList(line))) break;
+            OrderedLine peek = stack.get(stack.size() - 1);
+            if (line.isOrdered) {
+                if (line.isChildLevelOf(peek)) {
+                    stack.add(line);
+                } else if (line.isParentLevelOf(peek)) {
+                    while (stack.get(stack.size() - 1).isChildLevelOf(line)) {
+                        stack.remove(stack.size() - 1);
+                    }
+                }
+                peek = stack.get(stack.size() - 1);
+                if (line != peek && !peek.isMatchingList(line)) {
+                    stack.remove(stack.size() - 1);
+                    stack.add(line);
+                }
+            } else if (!line.isEmpty) {
+                while (!stack.isEmpty() && !stack.get(stack.size() - 1).isParentLevelOf(line)) {
+                    stack.remove(stack.size() - 1);
+                }
+                if (stack.isEmpty()) return new Result(text, s, e);   // markor EmptyStackException=整体放弃重编号（编辑不应用）
+            }
+
+            if (line.isOrdered) {
+                peek = stack.get(stack.size() - 1);
+                String newValue = nextOrderedValue(peek.value, line == peek);
+                if (!newValue.equals(line.value)) {
+                    int lenDiff = newValue.length() - line.value.length();
+                    if (line.numEnd < s) delta0 += lenDiff;
+                    if (line.numEnd < e) delta1 += lenDiff;
+                    edits.add(new int[]{line.numStart, line.numEnd});
+                    reps.add(newValue);
+                    line.value = newValue;
+                }
+                stack.remove(stack.size() - 1);
+                stack.add(line);
+            }
+        }
+
+        if (edits.isEmpty()) return new Result(text, s, e);
+        StringBuilder sb = new StringBuilder(text);
+        for (int i = edits.size() - 1; i >= 0; i--) {
+            int[] ed = edits.get(i);
+            sb.replace(ed[0], ed[1], reps.get(i));
+        }
+        return new Result(sb.toString(), clamp(s + delta0, 0, sb.length()), clamp(e + delta1, 0, sb.length()));
+    }
+
+    /** markor getNextOrderedValue 数字分支（检测仅识别数字前缀；字母列表分支当前正则不可达）。 */
+    private static String nextOrderedValue(String current, boolean restart) {
+        if (restart) return "1";
+        if (current == null || current.isEmpty()) return "1";
+        int v = 0;
+        try { v = Integer.parseInt(current); } catch (NumberFormatException ignored) { /* 非数字=0，markor tryParseInt 同型 */ }
+        return String.valueOf(v + 1);
+    }
+
+    /** 行模型（markor ListLine/OrderedListLine 语义对位）。 */
+    private static final class OrderedLine {
+        final int lineStart, lineEnd;    // 行范围 [lineStart, lineEnd)，不含换行符
+        final boolean isEmpty;           // 行内容全空白
+        final int indent;                // 空格*1 + 制表*4（markor countChars 同型）
+        final boolean isTopLevel;
+        final boolean isOrdered;
+        final char delimiter;            // '.' / ')'
+        final int numStart, numEnd;      // 编号数字串范围（原文本坐标）
+        String value;                    // 当前编号值（重编号中可更新）
+
+        OrderedLine(int lineStart, int lineEnd, boolean isEmpty, int indent,
+                    boolean isOrdered, char delimiter, int numStart, int numEnd, String value) {
+            this.lineStart = lineStart;
+            this.lineEnd = lineEnd;
+            this.isEmpty = isEmpty;
+            this.indent = indent;
+            this.isTopLevel = indent <= INDENT_SLACK;
+            this.isOrdered = isOrdered;
+            this.delimiter = delimiter;
+            this.numStart = numStart;
+            this.numEnd = numEnd;
+            this.value = value;
+        }
+
+        /** 本行是 line 的父级层（line 为空行=任何层子级；line 缩进更深>slack 也是子级）——markor isParentLevelOf 同型。 */
+        boolean isParentLevelOf(OrderedLine line) {
+            return line.isEmpty || (!isEmpty && (line.indent - indent) > INDENT_SLACK);
+        }
+
+        /** 本行是 line 的子级层（本行为空=任何层子级；本行缩进更深>slack）——markor isChildLevelOf 同型。 */
+        boolean isChildLevelOf(OrderedLine line) {
+            return isEmpty || (!line.isEmpty && (indent - line.indent) > INDENT_SLACK);
+        }
+
+        /** 同级同分隔符的有序列表（markor isMatchingList 同型）。 */
+        boolean isMatchingList(OrderedLine line) {
+            return isOrdered && line.isOrdered && delimiter == line.delimiter
+                    && Math.abs(indent - line.indent) <= INDENT_SLACK;
+        }
+    }
+
+    /** 按行解析全文（含空行）；行界=LF，行范围不含换行符。 */
+    private static java.util.List<OrderedLine> parseOrderedLines(String text) {
+        java.util.List<OrderedLine> out = new java.util.ArrayList<>();
+        int n = text.length();
+        int pos = 0;
+        while (pos <= n) {
+            int lineEnd = text.indexOf('\n', pos);
+            if (lineEnd < 0) lineEnd = n;
+            int wsEnd = pos;
+            while (wsEnd < lineEnd && (text.charAt(wsEnd) == ' ' || text.charAt(wsEnd) == '\t')) wsEnd++;
+            boolean isEmpty = wsEnd >= lineEnd;
+            int indent = 0;
+            for (int k = pos; k < wsEnd; k++) indent += (text.charAt(k) == '\t') ? 4 : 1;
+            boolean isOrdered = false;
+            char delimiter = 0;
+            int numStart = -1, numEnd = -1;
+            String value = "";
+            if (!isEmpty) {
+                int[] p = detectPrefix(stripTrailingWs(text.substring(wsEnd, lineEnd)));
+                if (p[0] == P_ORDERED) {
+                    isOrdered = true;
+                    numStart = wsEnd;
+                    int i = wsEnd;
+                    while (i < lineEnd && Character.isDigit(text.charAt(i))) i++;
+                    numEnd = i;
+                    delimiter = (i < lineEnd) ? text.charAt(i) : 0;
+                    value = text.substring(numStart, numEnd);
+                }
+            }
+            out.add(new OrderedLine(pos, lineEnd, isEmpty, indent, isOrdered, delimiter, numStart, numEnd, value));
+            if (lineEnd == n) break;
+            pos = lineEnd + 1;
+        }
+        return out;
+    }
+
+    /** 行索引：pos 所在行（markor getLineStart 同型；lines 非空）。 */
+    private static int lineIndexOf(java.util.List<OrderedLine> lines, int pos) {
+        if (pos <= 0) return 0;
+        int j = 0;
+        while (j + 1 < lines.size() && lines.get(j + 1).lineStart <= pos) j++;
+        return j;
+    }
+
+    /** markor OrderedListLine.getParent：向上找第一个「更浅（差&gt;slack）或空行承担父级」的行；首行/顶层非空行无父。 */
+    private static int parentIdx(java.util.List<OrderedLine> lines, int idx) {
+        OrderedLine self = lines.get(idx);
+        if (self.lineStart <= 0) return -1;
+        if (!(self.isEmpty || !self.isTopLevel)) return -1;
+        int position = self.lineStart - 1;
+        while (true) {
+            int j = lineIndexOf(lines, position);
+            OrderedLine cand = lines.get(j);
+            int nextP = cand.lineStart - 1;
+            if (cand.isParentLevelOf(self) || nextP <= 0) return j;
+            position = nextP;
+        }
+    }
+
+    /** markor getLevelStart：自 idx 向上扩展，同类同分隔符连续有序行的最顶。 */
+    private static int levelStart(java.util.List<OrderedLine> lines, int idx) {
+        OrderedLine self = lines.get(idx);
+        int listStart = idx;
+        if (self.lineStart <= INDENT_SLACK) return idx;
+        int lineIdx = idx;
+        while (true) {
+            int prev = lineIndexOf(lines, lines.get(lineIdx).lineStart - 1);
+            OrderedLine prevLine = lines.get(prev);
+            boolean matching = self.isMatchingList(prevLine);
+            if (matching) listStart = prev;
+            if (prevLine.lineStart <= INDENT_SLACK || (!matching && !self.isParentLevelOf(prevLine))) break;
+            lineIdx = prev;
+        }
+        return listStart;
+    }
+
+    /** markor getOrderedListStart：向上逐级父级取最顶有序行；顶行有序/空行再向左取同级起点。 */
+    private static int orderedListStart(java.util.List<OrderedLine> lines, int idx) {
+        int listStart = idx;
+        int line = idx;
+        while (true) {
+            int p = parentIdx(lines, line);
+            if (p < 0) break;
+            if (lines.get(p).isOrdered) listStart = p;
+            line = p;
+        }
+        OrderedLine ls = lines.get(listStart);
+        if (ls.isOrdered || ls.isEmpty) {
+            listStart = levelStart(lines, listStart);
+        }
+        return listStart;
+    }
+
 
     /**
      * 任务清单切换（markor toggleToCheckedOrUncheckedListPrefix 同款）：目标=未勾选「- [ ] 」；
