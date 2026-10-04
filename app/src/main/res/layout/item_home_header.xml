@@ -47,6 +47,15 @@
             android:background="?attr/selectableItemBackgroundBorderless"
             android:contentDescription="@string/action_settings"
             android:tint="@color/text_secondary" />
+
+        <ImageButton
+            android:id="@+id/btn_search"
+            android:layout_width="48dp"
+            android:layout_height="48dp"
+            android:src="@drawable/ic_search"
+            android:background="?attr/selectableItemBackgroundBorderless"
+            android:contentDescription="搜索连接"
+            android:tint="@color/text_secondary" />
     </LinearLayout>
 
 </LinearLayout>

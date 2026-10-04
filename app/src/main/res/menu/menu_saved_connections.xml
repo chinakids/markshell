@@ -3,6 +3,12 @@
     xmlns:app="http://schemas.android.com/apk/res-auto">
 
     <item
+        android:id="@+id/action_search_connections"
+        android:icon="@drawable/ic_search"
+        android:title="搜索连接"
+        app:showAsAction="ifRoom" />
+
+    <item
         android:id="@+id/action_group_manage"
         android:title="分组管理"
         app:showAsAction="never" />

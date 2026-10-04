@@ -3,12 +3,16 @@ package com.ssh.mdreader.ui;
 import android.app.Dialog;
 import android.content.Intent;
 import android.os.Bundle;
+import android.text.Editable;
+import android.text.TextWatcher;
 import android.view.Gravity;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
 import android.view.Window;
 import android.view.WindowManager;
+import android.view.inputmethod.InputMethodManager;
+import android.widget.EditText;
 import android.widget.ImageButton;
 import android.widget.ProgressBar;
 import android.widget.TextView;
@@ -26,6 +30,7 @@ import com.ssh.mdreader.R;
 import com.ssh.mdreader.model.SshConfig;
 import com.ssh.mdreader.ssh.SshManager;
 import com.ssh.mdreader.util.ConnectionCopyHelper;
+import com.ssh.mdreader.util.ConnectionSearchHelper;
 import com.ssh.mdreader.util.DialogHelper;
 import com.ssh.mdreader.util.PortForwardDialogHelper;
 import com.ssh.mdreader.util.PreferenceManager;
@@ -42,6 +47,10 @@ public class MainActivity extends BaseActivity {
     private PreferenceManager prefManager;
     private HomeAdapter adapter;
     private List<SshConfig> savedList;
+    private View connSearchBar;
+    private EditText etConnSearch;
+    private TextView tvConnNoMatch;
+    private boolean searchActive = false;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -56,6 +65,9 @@ public class MainActivity extends BaseActivity {
         SshManager.getInstance().setHeartbeatIntervalMs(prefManager.getHeartbeatIntervalMs());
         recycler = findViewById(R.id.recycler_home);
         layoutEmpty = findViewById(R.id.layout_empty);
+        connSearchBar = findViewById(R.id.conn_search_bar);
+        etConnSearch = findViewById(R.id.et_conn_search);
+        tvConnNoMatch = findViewById(R.id.tv_conn_no_match);
         FloatingActionButton fabAdd = findViewById(R.id.fab_add);
 
         adapter = new HomeAdapter();
@@ -65,8 +77,28 @@ public class MainActivity extends BaseActivity {
         adapter.setOnPortForwardListener(this::showPortForwardManagerDialog);
         adapter.setOnDuplicateListener(this::duplicateConnection);
         adapter.setOnSettingsClickListener(this::showHeartbeatSettings);
+        adapter.setOnSearchClickListener(this::toggleSearchBar);
         recycler.setLayoutManager(new LinearLayoutManager(this));
         recycler.setAdapter(adapter);
+
+        // ── 连接搜索栏（#26；样式/语义与文件筛选栏一致：实时过滤、关闭即清空） ──
+        etConnSearch.addTextChangedListener(new TextWatcher() {
+            @Override
+            public void beforeTextChanged(CharSequence s, int start, int count, int after) {
+            }
+
+            @Override
+            public void onTextChanged(CharSequence s, int start, int before, int count) {
+            }
+
+            @Override
+            public void afterTextChanged(Editable s) {
+                if (searchActive) {
+                    loadData();
+                }
+            }
+        });
+        findViewById(R.id.btn_conn_search_close).setOnClickListener(v -> hideSearchBar());
 
         fabAdd.setOnClickListener(v -> {
             if (isLargeScreen()) {
@@ -85,14 +117,58 @@ public class MainActivity extends BaseActivity {
 
     private void loadData() {
         savedList = prefManager.getSavedConnections();
-        adapter.setData(savedList);
-        if (savedList.isEmpty()) {
-            layoutEmpty.setVisibility(View.VISIBLE);
-            recycler.setVisibility(View.GONE);
-        } else {
+        String query = etConnSearch.getText() != null ? etConnSearch.getText().toString() : "";
+        boolean filtering = searchActive && ConnectionSearchHelper.active(query);
+        if (filtering) {
+            List<SshConfig> filtered = ConnectionSearchHelper.filter(savedList, query);
+            adapter.setData(filtered, filtered.size() + " / " + savedList.size() + " 个匹配");
+            tvConnNoMatch.setVisibility(filtered.isEmpty() ? View.VISIBLE : View.GONE);
             layoutEmpty.setVisibility(View.GONE);
             recycler.setVisibility(View.VISIBLE);
+        } else {
+            adapter.setData(savedList, null);
+            tvConnNoMatch.setVisibility(View.GONE);
+            if (savedList.isEmpty()) {
+                layoutEmpty.setVisibility(View.VISIBLE);
+                recycler.setVisibility(View.GONE);
+            } else {
+                layoutEmpty.setVisibility(View.GONE);
+                recycler.setVisibility(View.VISIBLE);
+            }
         }
+    }
+
+    /** 列表 header 搜索按钮：切换搜索栏显隐。 */
+    private void toggleSearchBar() {
+        if (connSearchBar.getVisibility() == View.VISIBLE) {
+            hideSearchBar();
+        } else {
+            showSearchBar();
+        }
+    }
+
+    private void showSearchBar() {
+        searchActive = true;
+        connSearchBar.setVisibility(View.VISIBLE);
+        etConnSearch.requestFocus();
+        InputMethodManager imm = (InputMethodManager) getSystemService(INPUT_METHOD_SERVICE);
+        if (imm != null) {
+            imm.showSoftInput(etConnSearch, InputMethodManager.SHOW_IMPLICIT);
+        }
+        loadData();
+    }
+
+    private void hideSearchBar() {
+        searchActive = false;
+        connSearchBar.setVisibility(View.GONE);
+        if (etConnSearch.getText() != null) {
+            etConnSearch.getText().clear();
+        }
+        InputMethodManager imm = (InputMethodManager) getSystemService(INPUT_METHOD_SERVICE);
+        if (imm != null) {
+            imm.hideSoftInputFromWindow(etConnSearch.getWindowToken(), 0);
+        }
+        loadData();
     }
 
     private void quickConnect(SshConfig config, int position) {
@@ -462,6 +538,10 @@ public class MainActivity extends BaseActivity {
             void onSettings();
         }
 
+        public interface OnSearchClickListener {
+            void onSearch();
+        }
+
         public interface OnEditListener {
             void onEdit(SshConfig config, int position);
         }
@@ -485,8 +565,11 @@ public class MainActivity extends BaseActivity {
         private OnPortForwardListener portForwardListener;
         private OnDuplicateListener duplicateListener;
         private OnSettingsClickListener settingsListener;
+        private OnSearchClickListener searchListener;
         private boolean clickable = true;
         private int connectingPosition = -1;
+        /** 列表头计数文本；null=默认「N 个已保存连接」（搜索匹配时由外部传入）。 */
+        private String headerText = null;
 
         void setOnConnectListener(OnConnectListener l) { connectListener = l; }
         void setOnEditListener(OnEditListener l) { editListener = l; }
@@ -494,12 +577,14 @@ public class MainActivity extends BaseActivity {
         void setOnPortForwardListener(OnPortForwardListener l) { portForwardListener = l; }
         void setOnDuplicateListener(OnDuplicateListener l) { duplicateListener = l; }
         void setOnSettingsClickListener(OnSettingsClickListener l) { settingsListener = l; }
+        void setOnSearchClickListener(OnSearchClickListener l) { searchListener = l; }
         void setClickable(boolean clickable) { this.clickable = clickable; }
         void setConnecting(int position) { connectingPosition = position; notifyDataSetChanged(); }
         void clearConnecting() { connectingPosition = -1; notifyDataSetChanged(); }
 
-        void setData(List<SshConfig> data) {
+        void setData(List<SshConfig> data, String headerText) {
             this.data = data != null ? data : new ArrayList<>();
+            this.headerText = headerText;
             notifyDataSetChanged();
         }
 
@@ -530,9 +615,14 @@ public class MainActivity extends BaseActivity {
         public void onBindViewHolder(@NonNull RecyclerView.ViewHolder holder, int position) {
             if (holder instanceof HeaderVH) {
                 HeaderVH h = (HeaderVH) holder;
-                h.tvCount.setText(data.size() + " 个已保存连接");
+                h.tvCount.setText(headerText != null
+                        ? headerText
+                        : data.size() + " 个已保存连接");
                 h.btnSettings.setOnClickListener(v -> {
                     if (settingsListener != null) settingsListener.onSettings();
+                });
+                h.btnSearch.setOnClickListener(v -> {
+                    if (searchListener != null) searchListener.onSearch();
                 });
             } else if (holder instanceof ItemVH) {
                 ItemVH h = (ItemVH) holder;
@@ -590,11 +680,13 @@ public class MainActivity extends BaseActivity {
         static class HeaderVH extends RecyclerView.ViewHolder {
             final TextView tvCount;
             final ImageButton btnSettings;
+            final ImageButton btnSearch;
 
             HeaderVH(@NonNull View itemView) {
                 super(itemView);
                 tvCount = itemView.findViewById(R.id.tv_connection_count);
                 btnSettings = itemView.findViewById(R.id.btn_settings);
+                btnSearch = itemView.findViewById(R.id.btn_search);
             }
         }
 

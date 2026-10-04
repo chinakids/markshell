@@ -20,6 +20,42 @@
             app:navigationIcon="?attr/homeAsUpIndicator"
             app:navigationIconTint="@color/md_theme_on_surface" />
 
+        <!-- 连接搜索栏（能力发现循环第二十一轮 #26，默认隐藏；样式与文件筛选栏一致） -->
+        <LinearLayout
+            android:id="@+id/conn_search_bar"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:gravity="center_vertical"
+            android:paddingStart="16dp"
+            android:paddingEnd="8dp"
+            android:background="@color/md_theme_surface"
+            android:visibility="gone">
+
+            <EditText
+                android:id="@+id/et_conn_search"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:background="@null"
+                android:hint="搜索主机 / 分组…"
+                android:imeOptions="actionDone"
+                android:inputType="text"
+                android:maxLines="1"
+                android:textColor="@color/text_primary"
+                android:textColorHint="#888888"
+                android:textSize="15sp" />
+
+            <ImageButton
+                android:id="@+id/btn_conn_search_close"
+                android:layout_width="44dp"
+                android:layout_height="44dp"
+                android:background="?attr/selectableItemBackgroundBorderless"
+                android:contentDescription="关闭搜索"
+                android:src="@drawable/ic_close" />
+
+        </LinearLayout>
+
     </com.google.android.material.appbar.AppBarLayout>
 
     <FrameLayout

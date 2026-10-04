@@ -2,12 +2,16 @@ package com.ssh.mdreader.ui;
 
 import android.content.Intent;
 import android.os.Bundle;
+import android.text.Editable;
 import android.text.InputType;
+import android.text.TextWatcher;
 import android.view.LayoutInflater;
 import android.view.Menu;
 import android.view.MenuItem;
 import android.view.View;
 import android.view.ViewGroup;
+import android.view.inputmethod.InputMethodManager;
+import android.widget.EditText;
 import android.widget.ImageView;
 import android.widget.ProgressBar;
 import android.widget.TextView;
@@ -21,6 +25,7 @@ import com.ssh.mdreader.model.SshConfig;
 import com.ssh.mdreader.ssh.SshManager;
 import com.ssh.mdreader.util.ConnectionCopyHelper;
 import com.ssh.mdreader.util.ConnectionGroupHelper;
+import com.ssh.mdreader.util.ConnectionSearchHelper;
 import com.ssh.mdreader.util.DialogHelper;
 import com.ssh.mdreader.util.PortForwardDialogHelper;
 import com.ssh.mdreader.util.PreferenceManager;
@@ -41,6 +46,9 @@ public class SavedConnectionsActivity extends BaseActivity {
     private PreferenceManager prefManager;
     private SavedAdapter adapter;
     private List<SshConfig> savedList = new ArrayList<>();
+    private View connSearchBar;
+    private EditText etConnSearch;
+    private boolean searchActive = false;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -52,6 +60,8 @@ public class SavedConnectionsActivity extends BaseActivity {
         recycler = findViewById(R.id.recycler_saved);
         tvEmpty = findViewById(R.id.tv_empty_saved);
         progressBar = findViewById(R.id.progress_bar_saved);
+        connSearchBar = findViewById(R.id.conn_search_bar);
+        etConnSearch = findViewById(R.id.et_conn_search);
 
         adapter = new SavedAdapter();
         adapter.setOnConnectListener(this::quickConnect);
@@ -62,6 +72,25 @@ public class SavedConnectionsActivity extends BaseActivity {
         adapter.setOnGroupHeaderLongClickListener(this::showGroupHeaderActions);
         recycler.setLayoutManager(new LinearLayoutManager(this));
         recycler.setAdapter(adapter);
+
+        // ── 连接搜索栏（#26；样式/语义与文件筛选栏一致：实时过滤、关闭即清空） ──
+        etConnSearch.addTextChangedListener(new TextWatcher() {
+            @Override
+            public void beforeTextChanged(CharSequence s, int start, int count, int after) {
+            }
+
+            @Override
+            public void onTextChanged(CharSequence s, int start, int before, int count) {
+            }
+
+            @Override
+            public void afterTextChanged(Editable s) {
+                if (searchActive) {
+                    applyConnectionSearch();
+                }
+            }
+        });
+        findViewById(R.id.btn_conn_search_close).setOnClickListener(v -> hideSearchBar());
 
         loadData();
     }
@@ -80,6 +109,14 @@ public class SavedConnectionsActivity extends BaseActivity {
 
     @Override
     public boolean onOptionsItemSelected(MenuItem item) {
+        if (item.getItemId() == R.id.action_search_connections) {
+            if (connSearchBar.getVisibility() == View.VISIBLE) {
+                hideSearchBar();
+            } else {
+                showSearchBar();
+            }
+            return true;
+        }
         if (item.getItemId() == R.id.action_group_manage) {
             showGroupManagerDialog();
             return true;
@@ -89,11 +126,50 @@ public class SavedConnectionsActivity extends BaseActivity {
 
     private void loadData() {
         savedList = prefManager.getSavedConnections();
+        applyConnectionSearch();
+    }
+
+    /** 按当前搜索状态刷新列表（savedList 为全量；搜索只做内存过滤，不触发 SFTP）。 */
+    private void applyConnectionSearch() {
+        String query = etConnSearch.getText() != null ? etConnSearch.getText().toString() : "";
+        boolean filtering = searchActive && ConnectionSearchHelper.active(query);
+        List<SshConfig> shown = filtering
+                ? ConnectionSearchHelper.filter(savedList, query)
+                : savedList;
         List<String> groupNames = ConnectionGroupHelper.mergeGroupNames(
-                prefManager.getConnectionGroups(), savedList);
-        Map<String, List<SshConfig>> buckets = ConnectionGroupHelper.bucketByGroup(savedList);
-        adapter.setData(groupNames, buckets);
-        tvEmpty.setVisibility(savedList.isEmpty() ? View.VISIBLE : View.GONE);
+                prefManager.getConnectionGroups(), shown);
+        Map<String, List<SshConfig>> buckets = ConnectionGroupHelper.bucketByGroup(shown);
+        if (filtering) {
+            // 搜索时仅显示有匹配连接的组头（空组不占位）；未分组区由 adapter 自行处理
+            groupNames = ConnectionSearchHelper.visibleGroupNames(groupNames, buckets);
+        }
+        adapter.setData(groupNames, buckets, filtering);
+        tvEmpty.setVisibility(shown.isEmpty() ? View.VISIBLE : View.GONE);
+        tvEmpty.setText(filtering ? "没有匹配的连接" : "暂无保存的连接");
+    }
+
+    private void showSearchBar() {
+        searchActive = true;
+        connSearchBar.setVisibility(View.VISIBLE);
+        etConnSearch.requestFocus();
+        InputMethodManager imm = (InputMethodManager) getSystemService(INPUT_METHOD_SERVICE);
+        if (imm != null) {
+            imm.showSoftInput(etConnSearch, InputMethodManager.SHOW_IMPLICIT);
+        }
+        applyConnectionSearch();
+    }
+
+    private void hideSearchBar() {
+        searchActive = false;
+        connSearchBar.setVisibility(View.GONE);
+        if (etConnSearch.getText() != null) {
+            etConnSearch.getText().clear();
+        }
+        InputMethodManager imm = (InputMethodManager) getSystemService(INPUT_METHOD_SERVICE);
+        if (imm != null) {
+            imm.hideSoftInputFromWindow(etConnSearch.getWindowToken(), 0);
+        }
+        loadData();
     }
 
     private void quickConnect(SshConfig config) {
@@ -380,6 +456,8 @@ public class SavedConnectionsActivity extends BaseActivity {
         private final List<Row> rows = new ArrayList<>();
         private List<String> groupNames = new ArrayList<>();
         private Map<String, List<SshConfig>> buckets = null;
+        /** 过滤状态（搜索激活且查询非空）：忽略折叠，所有匹配组展开显示。 */
+        private boolean filtering = false;
         /** 折叠的组（未分组的 key "" 永不折叠：未分组区固定展示）。 */
         private final Set<String> collapsed = new HashSet<>();
 
@@ -393,9 +471,10 @@ public class SavedConnectionsActivity extends BaseActivity {
         }
         void setClickable(boolean clickable) { this.clickable = clickable; }
 
-        void setData(List<String> groupNames, Map<String, List<SshConfig>> buckets) {
+        void setData(List<String> groupNames, Map<String, List<SshConfig>> buckets, boolean filtering) {
             this.groupNames = groupNames;
             this.buckets = buckets;
+            this.filtering = filtering;
             rebuildRows();
         }
 
@@ -405,7 +484,7 @@ public class SavedConnectionsActivity extends BaseActivity {
             for (String group : groupNames) {
                 if (group.isEmpty()) continue; // 未分组区在末尾统一追加
                 rows.add(new Row(Row.TYPE_HEADER, group, null));
-                if (collapsed.contains(group)) continue;
+                if (collapsed.contains(group) && !filtering) continue;
                 List<SshConfig> members = buckets == null ? null : buckets.get(group);
                 if (members != null) {
                     for (SshConfig c : members) {
