@@ -2,6 +2,9 @@ package com.ssh.mdreader.ui;
 
 import android.app.Dialog;
 import android.content.Intent;
+import android.content.pm.PackageInfo;
+import android.content.pm.PackageManager;
+import android.os.Build;
 import android.os.Bundle;
 import android.text.Editable;
 import android.text.TextWatcher;
@@ -30,6 +33,7 @@ import com.google.android.material.textfield.TextInputLayout;
 import com.ssh.mdreader.R;
 import com.ssh.mdreader.model.SshConfig;
 import com.ssh.mdreader.ssh.SshManager;
+import com.ssh.mdreader.util.AboutHelper;
 import com.ssh.mdreader.util.ConnectionCopyHelper;
 import com.ssh.mdreader.util.ConnectionSearchHelper;
 import com.ssh.mdreader.util.DialogHelper;
@@ -313,16 +317,45 @@ public class MainActivity extends BaseActivity {
      * 设置入口（首页 header 齿轮）：一级菜单列出设置分组，逐组二级选择。
      * 走查 #54——设置域标配入口（markor SettingsActivity 分组式；Material Files 同）：
      * 此前齿轮仅直连心跳单项，主题三态无入口；现改为「外观 · 主题 / 连接保活 · 心跳间隔」两分组。
+     * 第四十二轮：补「关于 · 应用信息」分组（action_about 死字符串 + versionName/versionCode
+     * 无处展示，markor MoreInfoFragment Version v%s (%d) 同型=设置域标配）。
      */
     private void showAppSettings() {
         if (isFinishing() || isDestroyed()) return;
         DialogHelper.showListDialog(this,
                 "设置",
-                new String[]{"外观 · 主题", "连接保活 · 心跳间隔"},
+                new String[]{"外观 · 主题", "连接保活 · 心跳间隔", "关于 · 应用信息"},
                 null,
                 (dialog, which) -> {
                     if (which == 0) showThemeSettings();
-                    else showHeartbeatSettings();
+                    else if (which == 1) showHeartbeatSettings();
+                    else showAboutDialog();
+                });
+    }
+
+    /**
+     * 关于/版本页：应用名 + 版本行（markor MoreInfoFragment Version v%s (%d) 同型）+ 包名。
+     * versionName/versionCode 经 PackageManager 读取（BuildConfig 未启用）；
+     * 版本行格式化委托 AboutHelper（单一语义源）；PackageManager 异常防御回退「?」。
+     */
+    private void showAboutDialog() {
+        if (isFinishing() || isDestroyed()) return;
+        String versionName = "?";
+        int versionCode = 0;
+        try {
+            PackageInfo info = getPackageManager().getPackageInfo(getPackageName(), 0);
+            versionName = info.versionName;
+            versionCode = Build.VERSION.SDK_INT >= Build.VERSION_CODES.P
+                    ? (int) info.getLongVersionCode()
+                    : info.versionCode;
+        } catch (PackageManager.NameNotFoundException ignored) {
+            // 应用自身不可能查不到自己的包信息；防御性回退，展示「v? (0)」不崩溃。
+        }
+        String message = getString(R.string.app_name) + "\n"
+                + "Version " + AboutHelper.versionLine(versionName, versionCode) + "\n\n"
+                + "包名：" + getPackageName();
+        DialogHelper.showMessageDialog(this, getString(R.string.action_about),
+                message, "确定", (dialog) -> {
                 });
     }
 
