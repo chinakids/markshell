@@ -53,6 +53,9 @@ public class PreviewPaneHelper {
 
         /** 预览 pane 工具栏「打开」被点击（#37：预览是只读子集，全量能力经此进入对应查看器）。 */
         void onPreviewOpenRequested(RemoteFile file);
+
+        /** 预览 pane 工具栏「下载」（#39a）：不支持类型在预览栏同样有出口，复用下载语义。 */
+        void onPreviewDownloadRequested(RemoteFile file);
     }
 
     /** 与拆分前一致的 logcat tag（原 FileBrowserActivity）。 */
@@ -132,6 +135,16 @@ public class PreviewPaneHelper {
                 ViewGroup.LayoutParams.MATCH_PARENT, 0, 1f));
 
         if (!supported) {
+            // #39a：不支持类型在预览栏同样有出口——铺「下载到本地」（SAF 另存后
+            // 用其他应用打开），避免两栏大屏出现「只见提示无路可走」。
+            previewBar.inflateMenu(R.menu.menu_preview_pane_unsupported);
+            previewBar.setOnMenuItemClickListener(item -> {
+                if (item.getItemId() == R.id.action_preview_download) {
+                    host.onPreviewDownloadRequested(file);
+                    return true;
+                }
+                return false;
+            });
             showPreviewMessage(body, context.getString(R.string.preview_unsupported));
             return;
         }

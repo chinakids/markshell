@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 两栏预览 pane 工具栏菜单（能力发现循环 #39a）：暂不支持查看的类型铺「下载到本地」——
+     预览「只见提示无路可走」的出口（SAF 另存后用其他应用打开）。仅在不支持分支 inflate。 -->
+<menu xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto">
+
+    <item
+        android:id="@+id/action_preview_download"
+        android:title="下载到本地"
+        app:showAsAction="always" />
+
+</menu>

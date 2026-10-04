@@ -498,8 +498,7 @@ public class FileBrowserActivity extends BaseActivity
                         Intent intent = OpenFileHelper.buildViewerIntent(
                                 FileBrowserActivity.this, path);
                         if (intent == null) {
-                            UiUtils.showToast(FileBrowserActivity.this,
-                                    "暂不支持此文件类型");
+                            showUnsupportedDownloadDialog(file);
                             return;
                         }
                         startActivity(intent);
@@ -1018,6 +1017,27 @@ public class FileBrowserActivity extends BaseActivity
                 d -> { });
     }
 
+    /**
+     * 不支持类型的点击出口（能力发现循环第卌五轮 #39a）：应用内无查看器可开时
+     * 不再以纯 toast 结束（点击死路），改为确认「下载到本地查看」（复用长按菜单
+     * 下载语义 {@link #startDownloadToLocal}，SAF 另存为）。目录不会走到此分支。
+     */
+    private void showUnsupportedDownloadDialog(RemoteFile file) {
+        if (isFinishing() || isDestroyed()) return;
+        if (file.isDirectory()) {
+            // 目录不应走到「暂不支持」分支（历史/前往路径 stat 后未分流目录时兜底）
+            UiUtils.showToast(this, "暂不支持此文件类型");
+            return;
+        }
+        DialogHelper.showConfirmDialog(this,
+                "暂不支持此文件类型",
+                "「" + file.getName() + "」无法在应用内直接查看。\n是否下载到本地？（可另存后使用其他应用打开）",
+                "下载到本地",
+                "取消",
+                (d) -> startDownloadToLocal(file),
+                (d) -> { });
+    }
+
     private void openRemoteFileInternal(RemoteFile file) {
         if (isTwoPane()) {
             previewHelper.loadPreviewInPane(file);
@@ -1026,7 +1046,7 @@ public class FileBrowserActivity extends BaseActivity
 
         Intent intent = OpenFileHelper.buildViewerIntent(this, file.getPath());
         if (intent == null) {
-            UiUtils.showToast(this, "暂不支持此文件类型");
+            showUnsupportedDownloadDialog(file);
             return;
         }
         recordRecentOpen(file.getPath());
@@ -1398,6 +1418,17 @@ public class FileBrowserActivity extends BaseActivity
         }
         recordRecentOpen(file.getPath());
         startActivity(intent);
+    }
+
+    /** 预览 pane 工具栏「下载」（#39a）：不支持查看的类型经此另存到本地（复用下载语义）。 */
+    @Override
+    public void onPreviewDownloadRequested(RemoteFile file) {
+        if (isFinishing() || isDestroyed()) return;
+        if (file.isDirectory()) {
+            UiUtils.showToast(this, "不支持下载目录");
+            return;
+        }
+        startDownloadToLocal(file);
     }
 
     @Override
