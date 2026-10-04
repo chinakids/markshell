@@ -302,6 +302,10 @@ public class CsvReaderActivity extends BaseActivity {
             for (String cell : cells) {
                 TextView tv = new TextView(this);
                 tv.setText(cell);
+                // 走查 #43：单元格与 Code/Text/Markdown 查看器同款可选中复制（长按→选择/复制）。
+                // 无点击行为冲突（单元格无 OnClickListener），选择柄与 HorizontalScrollView 共存
+                // 与 Markdown 阅读器 ScrollView 内 selectable 为同一平台机制（同类已验证）。
+                tv.setTextIsSelectable(true);
                 tv.setPadding(pad, pad / 2, pad, pad / 2);
                 tv.setTextSize(13);
                 if (isHeader) {
