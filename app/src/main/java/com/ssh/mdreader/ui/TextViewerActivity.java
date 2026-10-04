@@ -21,8 +21,10 @@ import com.ssh.mdreader.ssh.SshManager;
 import com.ssh.mdreader.util.DialogHelper;
 import com.ssh.mdreader.util.GoToLineHelper;
 import com.ssh.mdreader.util.LineNumberHelper;
+import com.ssh.mdreader.util.PreferenceManager;
 import com.ssh.mdreader.util.UiUtils;
 import com.ssh.mdreader.util.ViewerFindBar;
+import com.ssh.mdreader.util.ViewerTextSizeHelper;
 import com.ssh.mdreader.widget.LineNumberGutterView;
 
 public class TextViewerActivity extends BaseActivity {
@@ -39,9 +41,8 @@ public class TextViewerActivity extends BaseActivity {
     private ScrollView scrollView;
     private ViewerFindBar viewerFindBar;
     private int restoredScrollY;
-    private float currentTextSize = 14f;
-    private static final float MIN_TEXT_SIZE = 8f;
-    private static final float MAX_TEXT_SIZE = 32f;
+    private float currentTextSize = ViewerTextSizeHelper.DEFAULT_TEXT_SIZE;
+    private PreferenceManager prefManager;
     private String currentFilePath;
 
     private ScaleGestureDetector scaleGestureDetector;
@@ -83,20 +84,36 @@ public class TextViewerActivity extends BaseActivity {
             loadingOverlay.setVisibility(View.VISIBLE);
         }
 
+        prefManager = new PreferenceManager(this);
+        // 走查 #38：查看器缩放字号持久化（与 Markdown 阅读器 saveFontSize 同型）——
+        // 读上次保存的查看器字号；无记录回退默认 14sp（历史行为一致）。
+        currentTextSize = ViewerTextSizeHelper.clamp(
+                prefManager.getViewerTextSize(ViewerTextSizeHelper.DEFAULT_TEXT_SIZE));
+
         scaleGestureDetector = new ScaleGestureDetector(this,
                 new ScaleGestureDetector.SimpleOnScaleGestureListener() {
                     @Override
                     public boolean onScale(ScaleGestureDetector detector) {
-                        float newSize = currentTextSize * detector.getScaleFactor();
-                        newSize = Math.max(MIN_TEXT_SIZE, Math.min(MAX_TEXT_SIZE, newSize));
-                        if (Math.abs(newSize - currentTextSize) > 0.5f) {
+                        float newSize = ViewerTextSizeHelper.clamp(
+                                currentTextSize * detector.getScaleFactor());
+                        if (ViewerTextSizeHelper.shouldApply(currentTextSize, newSize)) {
                             currentTextSize = newSize;
                             textContent.setTextSize(newSize);
                             lineNumberGutter.refresh();
                         }
                         return true;
                     }
+
+                    @Override
+                    public void onScaleEnd(ScaleGestureDetector detector) {
+                        // 手势结束即持久化：下次打开/换文件恢复上次字号（间隙变化保存干净值）
+                        prefManager.saveViewerTextSize(currentTextSize);
+                    }
                 });
+
+        // 应用持久化字号：布局固化 14sp，运行时按上次缩放值恢复（行号槽 attach 内同步）
+        textContent.setTextSize(currentTextSize);
+        lineNumberGutter.refresh();
 
         if (filePath == null) { finish(); return; }
         currentFilePath = filePath;

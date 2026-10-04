@@ -20,6 +20,8 @@ public class PreferenceManager implements HostKeyStore {
     private static final String PREF_NAME = "ssh_md_reader_prefs";
     private static final String KEY_SAVED_CONNECTIONS = "saved_connections";
     private static final String KEY_FONT_SIZE = "font_size";
+    /** Code/Text 查看器缩放字号（sp，float）：走查 #38——查看器双指缩放持久化，与阅读器 KEY_FONT_SIZE 互不影响。 */
+    private static final String KEY_VIEWER_TEXT_SIZE = "viewer_text_size";
     private static final String KEY_SHOW_HIDDEN = "show_hidden";
     private static final String KEY_HEARTBEAT_MS = "heartbeat_interval_ms";
     private static final String KEY_FILE_SORT_MODE = "file_sort_mode";
@@ -187,6 +189,16 @@ public class PreferenceManager implements HostKeyStore {
 
     public int getFontSize(int defaultValue) {
         return prefs.getInt(KEY_FONT_SIZE, defaultValue);
+    }
+
+    /** 查看器缩放字号（sp）。无记录返回 {@code defaultValue}（调用方传 ViewerTextSizeHelper.DEFAULT_TEXT_SIZE）。 */
+    public float getViewerTextSize(float defaultValue) {
+        return prefs.getFloat(KEY_VIEWER_TEXT_SIZE, defaultValue);
+    }
+
+    /** 保存查看器缩放字号（sp），供下一次打开 Code/Text 查看器恢复（走查 #38）。 */
+    public void saveViewerTextSize(float size) {
+        prefs.edit().putFloat(KEY_VIEWER_TEXT_SIZE, size).apply();
     }
 
     public void saveShowHidden(boolean show) {
