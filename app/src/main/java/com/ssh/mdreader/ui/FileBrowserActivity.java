@@ -36,6 +36,7 @@ import com.ssh.mdreader.util.FilePropsHelper;
 import com.ssh.mdreader.util.FileSortUtils;
 import com.ssh.mdreader.util.GoToPathHelper;
 import com.ssh.mdreader.util.LastBrowseHelper;
+import com.ssh.mdreader.util.LargeFileHelper;
 import com.ssh.mdreader.util.NewFileHelper;
 import com.ssh.mdreader.util.OpenFileHelper;
 import com.ssh.mdreader.util.PreferenceManager;
@@ -861,6 +862,30 @@ public class FileBrowserActivity extends BaseActivity
 
     @Override
     public void onFileClick(RemoteFile file) {
+        maybeConfirmLargeFile(file, () -> openRemoteFileInternal(file));
+    }
+
+    /**
+     * 大文件打开护栏（能力发现 #33）：文件大小超过阈值（4MB）时先确认再打开，
+     * 避免无提示全量加载导致卡顿/ANR/内存风险；目录与大小未知（&lt;=0）直接放行
+     * （path-only 入口行为零变化，护栏保守化）。
+     */
+    private void maybeConfirmLargeFile(RemoteFile file, Runnable onOpen) {
+        if (file.isDirectory() || !LargeFileHelper.isLargeFile(file.getSize())) {
+            onOpen.run();
+            return;
+        }
+        if (isFinishing() || isDestroyed()) return;
+        DialogHelper.showConfirmDialog(this,
+                "大文件",
+                LargeFileHelper.buildConfirmMessage(file.getSize()),
+                "打开",
+                "取消",
+                d -> onOpen.run(),
+                d -> { });
+    }
+
+    private void openRemoteFileInternal(RemoteFile file) {
         if (isTwoPane()) {
             previewHelper.loadPreviewInPane(file);
             return;
