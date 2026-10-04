@@ -18,6 +18,7 @@ import android.widget.ProgressBar;
 import android.widget.TextView;
 
 import androidx.annotation.NonNull;
+import androidx.appcompat.app.AppCompatDelegate;
 import androidx.recyclerview.widget.LinearLayoutManager;
 import androidx.recyclerview.widget.RecyclerView;
 
@@ -35,6 +36,7 @@ import com.ssh.mdreader.util.DialogHelper;
 import com.ssh.mdreader.util.PortForwardDialogHelper;
 import com.ssh.mdreader.util.PreferenceManager;
 import com.ssh.mdreader.util.SshConnectionHelper;
+import com.ssh.mdreader.util.ThemeHelper;
 import com.ssh.mdreader.util.UiUtils;
 
 import java.util.ArrayList;
@@ -76,7 +78,7 @@ public class MainActivity extends BaseActivity {
         adapter.setOnDeleteListener(this::deleteConnection);
         adapter.setOnPortForwardListener(this::showPortForwardManagerDialog);
         adapter.setOnDuplicateListener(this::duplicateConnection);
-        adapter.setOnSettingsClickListener(this::showHeartbeatSettings);
+        adapter.setOnSettingsClickListener(this::showAppSettings);
         adapter.setOnSearchClickListener(this::toggleSearchBar);
         recycler.setLayoutManager(new LinearLayoutManager(this));
         recycler.setAdapter(adapter);
@@ -303,9 +305,61 @@ public class MainActivity extends BaseActivity {
                 (d) -> {});
     }
 
-    // ── 连接保活设置 ─────────────────────────────────────────────────────────
+    // ── 设置（外观主题 + 连接保活）──────────────────────────────────────────
 
     private static final int[] HEARTBEAT_OPTIONS_MS = {5_000, 10_000, 30_000, 60_000};
+
+    /**
+     * 设置入口（首页 header 齿轮）：一级菜单列出设置分组，逐组二级选择。
+     * 走查 #54——设置域标配入口（markor SettingsActivity 分组式；Material Files 同）：
+     * 此前齿轮仅直连心跳单项，主题三态无入口；现改为「外观 · 主题 / 连接保活 · 心跳间隔」两分组。
+     */
+    private void showAppSettings() {
+        if (isFinishing() || isDestroyed()) return;
+        DialogHelper.showListDialog(this,
+                "设置",
+                new String[]{"外观 · 主题", "连接保活 · 心跳间隔"},
+                null,
+                (dialog, which) -> {
+                    if (which == 0) showThemeSettings();
+                    else showHeartbeatSettings();
+                });
+    }
+
+    /**
+     * 外观主题三态（跟随系统/浅色/深色）：markor pref_arrkeys__app_themes 的 system/light/dark
+     * 子集（auto/autocompat/dark-black 扩展留存观察，走查 #54 标注），Material Files settings_theme 同型。
+     */
+    private void showThemeSettings() {
+        if (isFinishing() || isDestroyed()) return;
+        String current = ThemeHelper.normalize(prefManager.getThemeMode());
+        String label = themeLabelFor(current);
+        DialogHelper.showListDialog(this,
+                "外观 · 当前" + label,
+                new String[]{"跟随系统", "浅色", "深色"},
+                null,
+                (dialog, which) -> {
+                    String mode = which == 1 ? ThemeHelper.THEME_LIGHT
+                            : which == 2 ? ThemeHelper.THEME_DARK
+                            : ThemeHelper.THEME_SYSTEM;
+                    prefManager.saveThemeMode(mode);
+                    // AppCompatDelegate.setDefaultNightMode 触发全局配置变化，主界面自动重建；
+                    // 主题变化本身即视觉反馈，无需 toast。
+                    AppCompatDelegate.setDefaultNightMode(nightModeFor(mode));
+                });
+    }
+
+    private static String themeLabelFor(String mode) {
+        if (ThemeHelper.THEME_LIGHT.equals(mode)) return "浅色";
+        if (ThemeHelper.THEME_DARK.equals(mode)) return "深色";
+        return "跟随系统";
+    }
+
+    private static int nightModeFor(String mode) {
+        if (ThemeHelper.THEME_LIGHT.equals(mode)) return AppCompatDelegate.MODE_NIGHT_NO;
+        if (ThemeHelper.THEME_DARK.equals(mode)) return AppCompatDelegate.MODE_NIGHT_YES;
+        return AppCompatDelegate.MODE_NIGHT_FOLLOW_SYSTEM;
+    }
 
     /**
      * 连接保活设置：用户选择心跳间隔后持久化到偏好，并立即注入 SshManager。

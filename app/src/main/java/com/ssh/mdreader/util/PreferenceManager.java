@@ -27,6 +27,8 @@ public class PreferenceManager implements HostKeyStore {
     private static final String KEY_SHOW_HIDDEN = "show_hidden";
     private static final String KEY_HEARTBEAT_MS = "heartbeat_interval_ms";
     private static final String KEY_FILE_SORT_MODE = "file_sort_mode";
+    /** 外观主题（string：system/light/dark，取值/归一化见 ThemeHelper）：走查 #54——DayNight 手动三态，等价 markor pref_key__app_theme。 */
+    private static final String KEY_THEME_MODE = "theme_mode";
     private static final String KEY_BOOKMARKS = "bookmarked_dirs";
     /** 主机指纹库（known_hosts），按 host+port 记录。 */
     private static final String KEY_HOST_KEYS = "known_hosts";
@@ -220,6 +222,15 @@ public class PreferenceManager implements HostKeyStore {
 
     public int getHeartbeatIntervalMs() {
         return prefs.getInt(KEY_HEARTBEAT_MS, DEFAULT_HEARTBEAT_MS);
+    }
+
+    /** 外观主题（string：follow system/light/dark）。写入前经 ThemeHelper.normalize，脏值一律回退默认。 */
+    public void saveThemeMode(String theme) {
+        prefs.edit().putString(KEY_THEME_MODE, ThemeHelper.normalize(theme)).apply();
+    }
+
+    public String getThemeMode() {
+        return prefs.getString(KEY_THEME_MODE, ThemeHelper.DEFAULT_THEME);
     }
 
     /** 文件列表排序模式，取值见 FileSortUtils（0=名称 1=修改时间 2=大小）。 */
