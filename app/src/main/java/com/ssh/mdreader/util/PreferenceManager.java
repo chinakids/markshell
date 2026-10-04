@@ -13,7 +13,9 @@ import org.json.JSONException;
 import org.json.JSONObject;
 
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 
 public class PreferenceManager implements HostKeyStore {
     private static final String TAG = "PreferenceManager";
@@ -36,6 +38,8 @@ public class PreferenceManager implements HostKeyStore {
     private static final String KEY_PORT_FORWARD_RULES = "port_forward_rules";
     /** 最近打开文件（阅读历史，按服务器 host+port+username 隔离）。 */
     private static final String KEY_RECENT_FILES = "recent_files";
+    /** 阅读进度（滚动像素 Y）——按服务器隔离的文件路径复合键（走查 #40）。 */
+    private static final String KEY_READ_PROGRESS = "read_progress";
     /** 上次浏览目录（「继续上次位置」，按服务器 host+port+username 隔离）。 */
     private static final String KEY_LAST_BROWSED_DIR = "last_browsed_dir";
 
@@ -393,6 +397,64 @@ public class PreferenceManager implements HostKeyStore {
 
     private void writeRecentFiles(JSONArray arr) {
         prefs.edit().putString(KEY_RECENT_FILES, arr.toString()).apply();
+    }
+
+    // ── 阅读进度（「续读」，按服务器 host+port+username 隔离；走查 #40）──────────
+
+    /**
+     * 读取指定文件最近一次阅读进度（滚动像素 Y）；从未记录返回 0（无恢复需求）。
+     * 值=Activity 旋转恢复 onSaveInstanceState 存 KEY_SCROLL_Y 的同一口径，仅跨会话。
+     * 损坏数据按空 Map 容错（同书签）。
+     */
+    public int getReadProgress(String host, int port, String username, String path) {
+        return ReadingProgressHelper.get(
+                readReadProgress(),
+                ReadingProgressHelper.key(host, port, username, path));
+    }
+
+    /**
+     * 记录指定文件阅读进度（y &lt;= 0 清除条目）；无服务器上下文（host 为空）不写入。
+     * 容量上限 {@link ReadingProgressHelper#MAX_ENTRIES}，溢出丢弃最旧（与最近打开自清理同决策）。
+     */
+    public void saveReadProgress(String host, int port, String username, String path, int y) {
+        if (host == null) return;
+        Map<String, Integer> next = ReadingProgressHelper.upsert(
+                readReadProgress(),
+                ReadingProgressHelper.key(host, port, username, path), y);
+        writeReadProgress(next);
+    }
+
+    private Map<String, Integer> readReadProgress() {
+        String json = prefs.getString(KEY_READ_PROGRESS, "");
+        LinkedHashMap<String, Integer> result = new LinkedHashMap<>();
+        if (json.isEmpty()) return result;
+        try {
+            JSONArray arr = new JSONArray(json);
+            for (int i = 0; i < arr.length(); i++) {
+                JSONObject obj = arr.optJSONObject(i);
+                if (obj == null) continue;
+                String k = obj.optString("k", "");
+                if (k.isEmpty()) continue;
+                result.put(k, obj.optInt("v", 0));
+            }
+        } catch (JSONException e) {
+            Log.w(TAG, "读取阅读进度失败，已忽略损坏的数据", e);
+            return new LinkedHashMap<>();
+        }
+        return result;
+    }
+
+    private void writeReadProgress(Map<String, Integer> map) {
+        JSONArray arr = new JSONArray();
+        try {
+            for (Map.Entry<String, Integer> e : map.entrySet()) {
+                arr.put(new JSONObject().put("k", e.getKey()).put("v", e.getValue()));
+            }
+        } catch (JSONException e) {
+            Log.w(TAG, "序列化阅读进度失败", e);
+            return;
+        }
+        prefs.edit().putString(KEY_READ_PROGRESS, arr.toString()).apply();
     }
 
     // ── 上次浏览目录（「继续上次位置」，按服务器 host+port+username 隔离）──────────

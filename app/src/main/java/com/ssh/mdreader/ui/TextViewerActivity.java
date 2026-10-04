@@ -17,6 +17,7 @@ import androidx.appcompat.widget.Toolbar;
 import androidx.annotation.NonNull;
 
 import com.ssh.mdreader.R;
+import com.ssh.mdreader.model.SshConfig;
 import com.ssh.mdreader.ssh.SshManager;
 import com.ssh.mdreader.util.DialogHelper;
 import com.ssh.mdreader.util.GoToLineHelper;
@@ -117,6 +118,11 @@ public class TextViewerActivity extends BaseActivity {
 
         if (filePath == null) { finish(); return; }
         currentFilePath = filePath;
+        // 走查 #40：仅无旋转恢复态（savedInstanceState==null）时从持久化阅读进度恢复
+        // （「续读」；旋转态=同会话权威优先，避免旋转后覆盖会话内位置）
+        if (savedInstanceState == null && restoredScrollY <= 0) {
+            restoredScrollY = persistedReadProgress();
+        }
         loadTextFile(filePath);
     }
 
@@ -242,5 +248,31 @@ public class TextViewerActivity extends BaseActivity {
         int y = restoredScrollY;
         restoredScrollY = 0;   // consume — apply exactly once
         scrollView.post(() -> scrollView.scrollTo(0, y));
+    }
+
+    // ── 阅读进度记忆（走查 #40：与 Markdown 阅读器/Code 查看器同型，跨会话「续读」）──
+
+    /** 把当前阅读位置（滚动像素 Y）持久化，供下次打开同文件恢复。 */
+    private void saveReadingProgress() {
+        if (scrollView == null || currentFilePath == null) return;
+        SshConfig cfg = SshManager.getInstance().getConfig();
+        if (cfg == null) return;
+        prefManager.saveReadProgress(cfg.getHost(), cfg.getPort(), cfg.getUsername(),
+                currentFilePath, scrollView.getScrollY());
+    }
+
+    /** 读取持久化的阅读位置；无服务器上下文/未连接则返回 0（不恢复）。 */
+    private int persistedReadProgress() {
+        if (currentFilePath == null) return 0;
+        SshConfig cfg = SshManager.getInstance().getConfig();
+        if (cfg == null) return 0;
+        return prefManager.getReadProgress(cfg.getHost(), cfg.getPort(), cfg.getUsername(),
+                currentFilePath);
+    }
+
+    @Override
+    protected void onPause() {
+        super.onPause();
+        saveReadingProgress();
     }
 }

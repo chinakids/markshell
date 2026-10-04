@@ -226,6 +226,9 @@ public class MarkdownReaderActivity extends BaseActivity implements AnnotationOv
                 // 旋转/回收前正在编辑：内容重读后恢复编辑草稿（未保存部分）
                 pendingEditDraft = savedInstanceState.getString(KEY_EDIT_DRAFT);
             }
+        } else {
+            // 走查 #40：无旋转恢复态时，从持久化阅读进度恢复（「续读」，与旋转同一滚动口径）
+            restoredScrollY = persistedReadProgress();
         }
         loadContent(filePath);
     }
@@ -1153,6 +1156,25 @@ public class MarkdownReaderActivity extends BaseActivity implements AnnotationOv
     @Override
     protected void onPause() {
         super.onPause();
+        saveReadingProgress();
         annotationOverlay.dismissActivePopup();
+    }
+
+    /** 走查 #40：把当前阅读位置（滚动像素 Y）持久化，供下次打开同文件「续读」。 */
+    private void saveReadingProgress() {
+        if (scrollView == null || currentFilePath == null || markdownContent == null) return;
+        SshConfig cfg = SshManager.getInstance().getConfig();
+        if (cfg == null) return;
+        prefManager.saveReadProgress(cfg.getHost(), cfg.getPort(), cfg.getUsername(),
+                currentFilePath, scrollView.getScrollY());
+    }
+
+    /** 读取持久化的阅读位置；无服务器上下文/未连接则返回 0（不恢复）。 */
+    private int persistedReadProgress() {
+        if (currentFilePath == null) return 0;
+        SshConfig cfg = SshManager.getInstance().getConfig();
+        if (cfg == null) return 0;
+        return prefManager.getReadProgress(cfg.getHost(), cfg.getPort(), cfg.getUsername(),
+                currentFilePath);
     }
 }

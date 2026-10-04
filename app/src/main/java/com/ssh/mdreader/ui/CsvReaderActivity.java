@@ -21,8 +21,10 @@ import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 
 import com.ssh.mdreader.R;
+import com.ssh.mdreader.model.SshConfig;
 import com.ssh.mdreader.ssh.SshManager;
 import com.ssh.mdreader.util.CsvFindHelper;
+import com.ssh.mdreader.util.PreferenceManager;
 import com.ssh.mdreader.util.UiUtils;
 
 import java.util.ArrayList;
@@ -42,6 +44,9 @@ public class CsvReaderActivity extends BaseActivity {
     private HorizontalScrollView horizontalScrollView;
     private int restoredScrollY;
     private String currentFilePath;
+    private PreferenceManager prefManager;
+    /** 走查 #40：本次创建是否带旋转恢复态（onCreate 记录；seed 数据仅在无旋转态时使用）。 */
+    private boolean hasInstanceState;
 
     /** 最近一次渲染的结构化数据（查找扫描源）与对应视图引用（跳转落点）。 */
     private List<List<String>> rows = Collections.emptyList();
@@ -74,9 +79,11 @@ public class CsvReaderActivity extends BaseActivity {
         horizontalScrollView = findViewById(R.id.horizontal_scroll_view);
         if (savedInstanceState != null) {
             restoredScrollY = savedInstanceState.getInt(KEY_SCROLL_Y, 0);
+            hasInstanceState = true;
         }
         initFindBar();
 
+        prefManager = new PreferenceManager(this);
         loadContent();
     }
 
@@ -234,6 +241,10 @@ public class CsvReaderActivity extends BaseActivity {
         String filePath = getIntent().getStringExtra("file_path");
         if (filePath == null) { finish(); return; }
         currentFilePath = filePath;
+        // 走查 #40：仅无旋转恢复态时从持久化阅读进度恢复（「续读」；旋转态=同会话权威优先）
+        if (!hasInstanceState && restoredScrollY <= 0) {
+            restoredScrollY = persistedReadProgress();
+        }
 
         if (loadingOverlay != null) {
             loadingOverlay.setVisibility(View.VISIBLE);
@@ -369,5 +380,31 @@ public class CsvReaderActivity extends BaseActivity {
         int y = restoredScrollY;
         restoredScrollY = 0;   // consume — apply exactly once
         scrollView.post(() -> scrollView.scrollTo(0, y));
+    }
+
+    // ── 阅读进度记忆（走查 #40：与 Markdown 阅读器/Code/Text 查看器同型，跨会话「续读」）──
+
+    /** 把当前阅读位置（滚动像素 Y）持久化，供下次打开同文件恢复。 */
+    private void saveReadingProgress() {
+        if (scrollView == null || currentFilePath == null) return;
+        SshConfig cfg = SshManager.getInstance().getConfig();
+        if (cfg == null) return;
+        prefManager.saveReadProgress(cfg.getHost(), cfg.getPort(), cfg.getUsername(),
+                currentFilePath, scrollView.getScrollY());
+    }
+
+    /** 读取持久化的阅读位置；无服务器上下文/未连接则返回 0（不恢复）。 */
+    private int persistedReadProgress() {
+        if (currentFilePath == null) return 0;
+        SshConfig cfg = SshManager.getInstance().getConfig();
+        if (cfg == null) return 0;
+        return prefManager.getReadProgress(cfg.getHost(), cfg.getPort(), cfg.getUsername(),
+                currentFilePath);
+    }
+
+    @Override
+    protected void onPause() {
+        super.onPause();
+        saveReadingProgress();
     }
 }
