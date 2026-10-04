@@ -43,6 +43,7 @@ import com.ssh.mdreader.util.PreviewPaneHelper;
 import com.ssh.mdreader.util.RecursiveSearchHelper;
 import com.ssh.mdreader.util.SshConnectionHelper;
 import com.ssh.mdreader.util.UiUtils;
+import com.ssh.mdreader.util.UploadHelper;
 
 import java.util.List;
 
@@ -69,6 +70,9 @@ public class FileBrowserActivity extends BaseActivity
     private PreviewPaneHelper previewHelper;
     /** SAF「另存为」请求（下载到本地入口；uri 回调里用 {@link #pendingDownloadFile} 定位远端文件）。 */
     private androidx.activity.result.ActivityResultLauncher<String> downloadLauncher;
+
+    /** SAF「打开」请求（上传入口；OpenDocument 单选本地文件，零存储权限）。 */
+    private androidx.activity.result.ActivityResultLauncher<String[]> uploadLauncher;
     /** 等待 SAF 用户选择位置的远端文件（无则忽略回调——旋转等重建后取消下载）。 */
     private RemoteFile pendingDownloadFile;
 
@@ -123,6 +127,15 @@ public class FileBrowserActivity extends BaseActivity
                         return;
                     }
                     startRemoteDownload(uri);
+                });
+        uploadLauncher = registerForActivityResult(
+                new androidx.activity.result.contract.ActivityResultContracts.OpenDocument(),
+                uri -> {
+                    if (uri == null) {
+                        // 用户在系统文件选择器中取消：静默返回。
+                        return;
+                    }
+                    startRemoteUpload(uri);
                 });
         initViews();
         loadFiles();
@@ -230,6 +243,10 @@ public class FileBrowserActivity extends BaseActivity
         }
         if (id == R.id.action_new) {
             showCreateDialog();
+            return true;
+        }
+        if (id == R.id.action_upload) {
+            startUploadFromPicker();
             return true;
         }
         if (id == R.id.action_home) {
@@ -978,6 +995,107 @@ public class FileBrowserActivity extends BaseActivity
                 runOnUiThread(() -> {
                     if (!isFinishing() && !isDestroyed()) {
                         UiUtils.showToast(FileBrowserActivity.this, "下载失败: " + message);
+                    }
+                });
+            }
+        });
+    }
+
+    // ── 上传到服务器（本地→远端，SAF OpenDocument）────────────────────────
+
+    /** 上传入口：系统文件选择器（OpenDocument 单选，零存储权限），仅文件（目录上传需递归遍历，观察项）。 */
+    private void startUploadFromPicker() {
+        try {
+            uploadLauncher.launch(new String[]{"*/*"});
+        } catch (RuntimeException e) {
+            UiUtils.showToast(this, "无法打开文件选择器: " + UiUtils.errorMessage(e));
+        }
+    }
+
+    /** 解析 SAF 返回 uri 的显示名（OpenableColumns.DISPLAY_NAME），provider 未提供→null（走兜底链）。 */
+    private String queryDisplayName(android.net.Uri uri) {
+        try (android.database.Cursor c = getContentResolver().query(uri, null, null, null, null)) {
+            if (c != null && c.moveToFirst()) {
+                int idx = c.getColumnIndex(android.provider.OpenableColumns.DISPLAY_NAME);
+                if (idx >= 0) {
+                    String n = c.getString(idx);
+                    if (n != null && !n.trim().isEmpty()) {
+                        return n;
+                    }
+                }
+            }
+        } catch (Exception ignored) {
+            // provider 查询失败：返回 null，走 lastPathSegment/DEFAULT 兜底链（不阻断上传）。
+        }
+        return null;
+    }
+
+    /**
+     * SAF 返回 uri 后执行上传：解析显示名 → 构建目标路径 → 先查同名（存在则确认覆盖，
+     * 与复制/编辑保存的确认流程同口径）→ 打开输入流上传。
+     */
+    private void startRemoteUpload(android.net.Uri uri) {
+        String name = UploadHelper.resolveDisplayName(queryDisplayName(uri), uri.getLastPathSegment());
+        final String targetPath = UploadHelper.buildTargetPath(currentPath, name);
+        sshManager.fileExists(targetPath, new SshManager.ExistsCallback() {
+            @Override
+            public void onResult(final boolean exists) {
+                runOnUiThread(() -> {
+                    if (isFinishing() || isDestroyed()) return;
+                    if (exists) {
+                        DialogHelper.showConfirmDialog(FileBrowserActivity.this,
+                                "已存在同名文件",
+                                "目标 " + targetPath + " 已存在，覆盖它吗？",
+                                "覆盖", "取消",
+                                d -> doUpload(uri, targetPath),
+                                d -> { });
+                    } else {
+                        doUpload(uri, targetPath);
+                    }
+                });
+            }
+
+            @Override
+            public void onError(String message) {
+                runOnUiThread(() -> {
+                    if (!isFinishing() && !isDestroyed()) {
+                        UiUtils.showToast(FileBrowserActivity.this, "上传失败: " + message);
+                    }
+                });
+            }
+        });
+    }
+
+    /** 打开本地输入流并上传（worker 线程流式；成功刷新列表使新文件可见）。 */
+    private void doUpload(android.net.Uri uri, String targetPath) {
+        java.io.InputStream in;
+        try {
+            in = getContentResolver().openInputStream(uri);
+        } catch (Exception e) {
+            UiUtils.showToast(this, "无法读取所选文件: " + UiUtils.errorMessage(e));
+            return;
+        }
+        if (in == null) {
+            UiUtils.showToast(this, "无法读取所选文件");
+            return;
+        }
+        sshManager.uploadFile(targetPath, in, new SshManager.UploadFileCallback() {
+            @Override
+            public void onSuccess() {
+                runOnUiThread(() -> {
+                    if (!isFinishing() && !isDestroyed()) {
+                        UiUtils.showToast(FileBrowserActivity.this,
+                                "已上传 " + DownloadHelper.suggestFileName(targetPath));
+                        loadFiles();
+                    }
+                });
+            }
+
+            @Override
+            public void onError(String message) {
+                runOnUiThread(() -> {
+                    if (!isFinishing() && !isDestroyed()) {
+                        UiUtils.showToast(FileBrowserActivity.this, "上传失败: " + message);
                     }
                 });
             }

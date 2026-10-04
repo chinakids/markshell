@@ -43,6 +43,11 @@
         app:showAsAction="never" />
 
     <item
+        android:id="@+id/action_upload"
+        android:title="上传…"
+        app:showAsAction="never" />
+
+    <item
         android:id="@+id/action_home"
         android:icon="@drawable/ic_home"
         android:title="主目录"

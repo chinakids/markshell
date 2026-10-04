@@ -758,6 +758,33 @@ public class SshManager {
         }, callback::onError));
     }
 
+    public interface UploadFileCallback {
+        void onSuccess();
+        void onError(String message);
+    }
+
+    /**
+     * 把本地输入流（SAF「打开」的 {@code openInputStream}）上传到远端路径。
+     * 与 {@link #downloadFile} 对称：本方法负责关闭传入流（调用方只负责打开）。
+     * 写操作不重试（与 {@link #writeFile} 同口径——流不可重放，重试会产生半程重复数据）；
+     * 覆盖语义={@link ChannelSftp#OVERWRITE}，同名目标是否覆盖由调用方先
+     * {@code fileExists} 决策（同编辑保存/复制到本地的确认流程）。回调在 worker 线程。
+     */
+    public void uploadFile(String path, java.io.InputStream in, UploadFileCallback callback) {
+        sftpExecutor.execute(() -> runOp("上传文件", false, channel -> {
+            try {
+                channel.put(in, path, ChannelSftp.OVERWRITE);
+                callback.onSuccess();
+            } finally {
+                try {
+                    in.close();
+                } catch (java.io.IOException ignored) {
+                    // 输入流关闭失败不阻断成功回调（下载同口径）。
+                }
+            }
+        }, callback::onError));
+    }
+
     public interface WriteFileCallback {
         void onSuccess();
         void onError(String message);
