@@ -39,6 +39,8 @@
     <!-- Messages -->
     <string name="error_connection_failed">连接失败: %1$s</string>
     <string name="error_invalid_host">请输入有效的主机地址</string>
+    <string name="error_invalid_port">端口需在 1-65535 之间</string>
+    <string name="error_invalid_connection">连接配置无效，请检查主机/端口/凭据</string>
     <string name="error_invalid_credentials">请输入用户名和密码</string>
     <string name="msg_connected">已连接</string>
     <string name="msg_disconnected">已断开</string>

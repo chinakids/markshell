@@ -35,6 +35,7 @@ import com.ssh.mdreader.model.SshConfig;
 import com.ssh.mdreader.ssh.SshManager;
 import com.ssh.mdreader.util.AboutHelper;
 import com.ssh.mdreader.util.ConnectionCopyHelper;
+import com.ssh.mdreader.util.ConnectionFormHelper;
 import com.ssh.mdreader.util.ConnectionSearchHelper;
 import com.ssh.mdreader.util.DialogHelper;
 import com.ssh.mdreader.util.PortForwardDialogHelper;
@@ -588,11 +589,9 @@ public class MainActivity extends BaseActivity {
             return null;
         }
 
-        int port;
-        try {
-            port = portStr.isEmpty() ? 22 : Integer.parseInt(portStr);
-        } catch (NumberFormatException e) {
-            etPort.setError("端口无效");
+        int port = ConnectionFormHelper.parsePort(portStr, ConnectionFormHelper.DEFAULT_PORT);
+        if (port == ConnectionFormHelper.INVALID_PORT) {
+            etPort.setError(getString(R.string.error_invalid_port));
             return null;
         }
 
@@ -601,6 +600,11 @@ public class MainActivity extends BaseActivity {
         config.setAuthMode(keyMode ? SshConfig.AUTH_KEY : SshConfig.AUTH_PASSWORD);
         config.setPrivateKey(privateKey);
         config.setKeyPassphrase(keyPassphrase);
+        // 最终防线：模型契约校验（与上方字段级预检同源；正常路径永不触发）。
+        if (!config.isValid()) {
+            UiUtils.showSnackbar(anchor, getString(R.string.error_invalid_connection));
+            return null;
+        }
         return config;
     }
 

@@ -1,5 +1,7 @@
 package com.ssh.mdreader.model;
 
+import com.ssh.mdreader.util.ConnectionFormHelper;
+
 public class SshConfig {
     /** 认证方式：密码认证（默认，兼容旧数据）。 */
     public static final String AUTH_PASSWORD = "password";
@@ -89,11 +91,12 @@ public class SshConfig {
     /**
      * 连接配置可用性校验：base（host/username/port）必须有效；认证凭据按模式校验——
      * 私钥模式要求 privateKey 非空（口令可选）；密码模式要求 password 非空。
+     * 端口判定委托 {@link ConnectionFormHelper#isValidPort}（与表单预检单一语义源）。
      */
     public boolean isValid() {
         if (host == null || host.isEmpty()
                 || username == null || username.isEmpty()
-                || port <= 0 || port > 65535) {
+                || !ConnectionFormHelper.isValidPort(port)) {
             return false;
         }
         if (isKeyAuth()) {
