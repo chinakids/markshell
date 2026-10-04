@@ -3,6 +3,7 @@ package com.ssh.mdreader.ui;
 import android.graphics.drawable.Drawable;
 import android.os.Bundle;
 import android.text.Editable;
+import android.text.InputType;
 import android.text.TextWatcher;
 import android.view.Menu;
 import android.view.MenuItem;
@@ -26,6 +27,9 @@ import com.ssh.mdreader.R;
 import com.ssh.mdreader.model.SshConfig;
 import com.ssh.mdreader.ssh.SshManager;
 import com.ssh.mdreader.util.CsvFindHelper;
+import com.ssh.mdreader.util.CsvGoToLineHelper;
+import com.ssh.mdreader.util.DialogHelper;
+import com.ssh.mdreader.util.GoToLineHelper;
 import com.ssh.mdreader.util.PreferenceManager;
 import com.ssh.mdreader.util.ShareHelper;
 import com.ssh.mdreader.util.UiUtils;
@@ -41,7 +45,10 @@ public class CsvReaderActivity extends BaseActivity {
     private static final int MENU_COPY_PATH_ID = 0xA2001;
     private static final int MENU_FIND_ID = 0xA2002;
     private static final int MENU_SHARE_ID = 0xA2003;
+    private static final int MENU_GOTO_LINE_ID = 0xA2004;
     private static final int FIND_HIGHLIGHT_COLOR = 0x66FFD600;
+    /** 转到行号临时高亮色（与 Text/Code 查看器 GOTO_HIGHLIGHT_COLOR 同值 0x66FFD600）。 */
+    private static final int GOTO_HIGHLIGHT_COLOR = 0x66FFD600;
     /** 单元格默认字号（sp）：历史行为一致（renderCsv 原硬编码 13）。 */
     private static final float DEFAULT_CELL_TEXT_SIZE = 13f;
 
@@ -76,9 +83,9 @@ public class CsvReaderActivity extends BaseActivity {
     private int findCurrentIndex = -1;
     /** 当前高亮单元格与原始背景（跳转前恢复）。 */
     @Nullable
-    private TextView findHighlightCell;
+    private TextView highlightCell;
     @Nullable
-    private Drawable findHighlightCellBg;
+    private Drawable highlightCellBg;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -157,6 +164,8 @@ public class CsvReaderActivity extends BaseActivity {
         menu.add(Menu.NONE, MENU_SHARE_ID, Menu.NONE, "分享")
                 .setIcon(R.drawable.ic_share)
                 .setShowAsAction(MenuItem.SHOW_AS_ACTION_IF_ROOM);
+        menu.add(Menu.NONE, MENU_GOTO_LINE_ID, Menu.NONE, "转到行号…")
+                .setShowAsAction(MenuItem.SHOW_AS_ACTION_NEVER);
         return true;
     }
 
@@ -175,7 +184,61 @@ public class CsvReaderActivity extends BaseActivity {
                     ShareHelper.fileNameFromPath(currentFilePath));
             return true;
         }
+        if (item.getItemId() == MENU_GOTO_LINE_ID) {
+            showGoToLineDialog();
+            return true;
+        }
         return super.onOptionsItemSelected(item);
+    }
+
+    // ── 转到行号（走查 #55：Text/Code 查看器已有，CSV 无=同组能力不一致）────────
+
+    /** 「转到行号…」：数字输入对话框（markor showGoToLineDialog 同型语义）+ 行定位居中跳转。 */
+    private void showGoToLineDialog() {
+        int total = rowViews.size();
+        if (total == 0) {
+            UiUtils.showToast(this, "文件没有数据行");
+            return;
+        }
+        DialogHelper.showInputDialog(this, "转到行号",
+                "输入行号（1-" + total + "）", "跳转", "取消",
+                InputType.TYPE_CLASS_NUMBER, null,
+                input -> {
+                    int line = GoToLineHelper.parseLineNumber(input);
+                    if (line < 0) {
+                        UiUtils.showToast(this, "请输入有效行号");
+                        return;
+                    }
+                    jumpToLine(line);
+                });
+    }
+
+    /** 跳到第 {@code lineNumber} 行（1-based，含表头行=第 1 行）：首单元格临时高亮+居中滚动。 */
+    private void jumpToLine(int lineNumber) {
+        int rowIndex = CsvGoToLineHelper.rowIndexFor(lineNumber, rowViews.size());
+        if (rowIndex < 0 || rowIndex >= rowViews.size()) {
+            return;
+        }
+        List<TextView> cells = cellViews.get(rowIndex);
+        clearTemporaryHighlight();
+        TextView cell = cells.isEmpty() ? null : cells.get(0);
+        if (cell != null) {
+            highlightCell = cell;
+            highlightCellBg = cell.getBackground();
+            cell.setBackgroundColor(GOTO_HIGHLIGHT_COLOR);
+        }
+        scrollToRow(rowIndex);
+    }
+
+    /** 平滑滚动使第 {@code rowIndex} 行垂直居中（查找命中与转到行号共用=单一滚动语义源）。 */
+    private void scrollToRow(int rowIndex) {
+        if (rowIndex < 0 || rowIndex >= rowViews.size()) return;
+        TableRow rowView = rowViews.get(rowIndex);
+        scrollView.post(() -> {
+            int top = rowView.getTop() + tableLayout.getTop() + horizontalScrollView.getTop();
+            int y = Math.max(0, top + rowView.getHeight() / 2 - scrollView.getHeight() / 2);
+            scrollView.smoothScrollTo(0, y);
+        });
     }
 
     // ── 查找栏（与 ViewerFindBar 相同的交互语义，宿主为表格故独立实现）──────────
@@ -231,7 +294,7 @@ public class CsvReaderActivity extends BaseActivity {
         findMatches = Collections.emptyList();
         findCurrentIndex = -1;
         tvFindStatus.setText("");
-        clearFindHighlight();
+        clearTemporaryHighlight();
     }
 
     /**
@@ -246,7 +309,7 @@ public class CsvReaderActivity extends BaseActivity {
         if (findMatches.isEmpty()) {
             findCurrentIndex = -1;
             tvFindStatus.setText(query.isEmpty() ? "" : "未找到");
-            clearFindHighlight();
+            clearTemporaryHighlight();
             return;
         }
         if (preserve && prev >= 0 && prev < findMatches.size()) {
@@ -278,29 +341,24 @@ public class CsvReaderActivity extends BaseActivity {
         if (m.cell < 0 || m.cell >= cells.size()) return;
         TextView cell = cells.get(m.cell);
 
-        clearFindHighlight();
-        findHighlightCell = cell;
-        findHighlightCellBg = cell.getBackground();
+        clearTemporaryHighlight();
+        highlightCell = cell;
+        highlightCellBg = cell.getBackground();
         cell.setBackgroundColor(FIND_HIGHLIGHT_COLOR);
 
-        TableRow rowView = rowViews.get(m.row);
-        scrollView.post(() -> {
-            int top = rowView.getTop() + tableLayout.getTop() + horizontalScrollView.getTop();
-            int y = Math.max(0, top + rowView.getHeight() / 2 - scrollView.getHeight() / 2);
-            scrollView.smoothScrollTo(0, y);
-        });
+        scrollToRow(m.row);
     }
 
-    private void clearFindHighlight() {
-        if (findHighlightCell != null) {
-            if (findHighlightCellBg != null) {
-                findHighlightCell.setBackground(findHighlightCellBg);
+    private void clearTemporaryHighlight() {
+        if (highlightCell != null) {
+            if (highlightCellBg != null) {
+                highlightCell.setBackground(highlightCellBg);
             } else {
-                findHighlightCell.setBackgroundResource(R.color.card_background);
+                highlightCell.setBackgroundResource(R.color.card_background);
             }
         }
-        findHighlightCell = null;
-        findHighlightCellBg = null;
+        highlightCell = null;
+        highlightCellBg = null;
     }
 
     private void loadContent() {
@@ -345,7 +403,7 @@ public class CsvReaderActivity extends BaseActivity {
         rows = Collections.emptyList();
         rowViews.clear();
         cellViews.clear();
-        clearFindHighlight();
+        clearTemporaryHighlight();
         if (findBar.getVisibility() == View.VISIBLE) {
             findMatches = Collections.emptyList();
             findCurrentIndex = -1;
