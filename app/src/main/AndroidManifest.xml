@@ -37,6 +37,17 @@
         <activity android:name=".ui.ImageViewerActivity" />
         <activity android:name=".ui.TextViewerActivity" />
 
+        <!-- #51 内容分享：cache/shared/ 内的分享产物经 FileProvider 以 content:// 授出（EXTRA_STREAM）。 -->
+        <provider
+            android:name="androidx.core.content.FileProvider"
+            android:authorities="${applicationId}.fileprovider"
+            android:exported="false"
+            android:grantUriPermissions="true">
+            <meta-data
+                android:name="android.support.FILE_PROVIDER_PATHS"
+                android:resource="@xml/file_paths" />
+        </provider>
+
     </application>
 
 </manifest>

@@ -3,13 +3,21 @@ package com.ssh.mdreader.util;
 import android.content.ClipData;
 import android.content.ClipboardManager;
 import android.content.Context;
+import android.content.Intent;
+import android.net.Uri;
 import android.text.Layout;
 import android.widget.ScrollView;
 import android.widget.TextView;
 import android.widget.Toast;
 
+import androidx.core.content.FileProvider;
+
 import com.google.android.material.snackbar.Snackbar;
 import android.view.View;
+
+import java.io.File;
+import java.io.FileOutputStream;
+import java.io.IOException;
 
 public class UiUtils {
 
@@ -94,5 +102,77 @@ public class UiUtils {
         if (msg != null) {
             showToast(context, msg);
         }
+    }
+
+    // ── 内容分享（#51）───────────────────────────────────────────────────────
+
+    /** FileProvider authority（manifest 中 ${applicationId}.fileprovider 对位）。 */
+    private static final String FILE_PROVIDER_AUTHORITY = "com.ssh.mdreader.fileprovider";
+
+    /**
+     * 分享文本内容（markor {@code GsContextUtils.shareText} 同型：ACTION_SEND +
+     * EXTRA_TEXT + text/plain + chooser）。文本超 {@link ShareHelper#MAX_EXTRA_TEXT_BYTES}
+     * 时自动降级为文件流分享（EXTRA_STREAM + FileProvider，markor shareFile 同型），
+     * 避免 Binder TransactionTooLargeException；两种通道对接收方语义一致=同一文本。
+     * 空/空白文本提示后不动作。chooserTitle 默认「分享文本」。
+     */
+    public static void shareText(Context context, String text, String fileName) {
+        shareText(context, text, fileName, "分享文本");
+    }
+
+    /** {@link #shareText(Context, String, String)} + 自定义 chooser 标题（批注导出等场景）。 */
+    public static void shareText(Context context, String text, String fileName,
+                                 String chooserTitle) {
+        if (!ShareHelper.isShareableText(text)) {
+            showToast(context, "暂无可分享内容");
+            return;
+        }
+        if (ShareHelper.shouldStreamText(text)) {
+            String name = fileName != null && !fileName.isEmpty() ? fileName : "分享文本.txt";
+            shareStreamBytes(context, text.getBytes(java.nio.charset.StandardCharsets.UTF_8),
+                    name, ShareHelper.MIME_TEXT_PLAIN, chooserTitle);
+            return;
+        }
+        Intent intent = new Intent(Intent.ACTION_SEND);
+        intent.setType(ShareHelper.MIME_TEXT_PLAIN);
+        intent.putExtra(Intent.EXTRA_TEXT, text);
+        context.startActivity(Intent.createChooser(intent, chooserTitle));
+    }
+
+    /**
+     * 分享原始字节（图片：原图直存零重编码，保 EXIF/格式；文本超大降级同口）。
+     * 写入 cache/shared/ 后经 FileProvider 以 content:// + FLAG_GRANT_READ_URI_PERMISSION
+     * 交给接收方（markor shareStream 同型），写入失败 toast 不崩溃。
+     */
+    public static void shareBytes(Context context, byte[] bytes, String fileName,
+                                  String mime, String chooserTitle) {
+        if (bytes == null || bytes.length == 0) {
+            showToast(context, "暂无内容可分享");
+            return;
+        }
+        shareStreamBytes(context, bytes, fileName, mime, chooserTitle);
+    }
+
+    private static void shareStreamBytes(Context context, byte[] bytes, String fileName,
+                                         String mime, String chooserTitle) {
+        File dir = new File(context.getCacheDir(), "shared");
+        if (!dir.exists() && !dir.mkdirs()) {
+            showToast(context, "分享失败：缓存目录不可用");
+            return;
+        }
+        File file = new File(dir, fileName);
+        try (FileOutputStream out = new FileOutputStream(file)) {
+            out.write(bytes);
+        } catch (IOException e) {
+            showToast(context, "分享失败：" + errorMessage(e));
+            return;
+        }
+        Uri uri = FileProvider.getUriForFile(context, FILE_PROVIDER_AUTHORITY, file);
+        Intent intent = new Intent(Intent.ACTION_SEND);
+        intent.setType(mime);
+        intent.putExtra(Intent.EXTRA_STREAM, uri);
+        intent.putExtra(Intent.EXTRA_TEXT, fileName);
+        intent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
+        context.startActivity(Intent.createChooser(intent, chooserTitle));
     }
 }

@@ -25,6 +25,7 @@ import com.ssh.mdreader.model.SshConfig;
 import com.ssh.mdreader.ssh.SshManager;
 import com.ssh.mdreader.util.CsvFindHelper;
 import com.ssh.mdreader.util.PreferenceManager;
+import com.ssh.mdreader.util.ShareHelper;
 import com.ssh.mdreader.util.UiUtils;
 
 import java.util.ArrayList;
@@ -36,6 +37,7 @@ public class CsvReaderActivity extends BaseActivity {
     private static final String KEY_SCROLL_Y = "scroll_y";
     private static final int MENU_COPY_PATH_ID = 0xA2001;
     private static final int MENU_FIND_ID = 0xA2002;
+    private static final int MENU_SHARE_ID = 0xA2003;
     private static final int FIND_HIGHLIGHT_COLOR = 0x66FFD600;
 
     private TableLayout tableLayout;
@@ -52,6 +54,8 @@ public class CsvReaderActivity extends BaseActivity {
     private List<List<String>> rows = Collections.emptyList();
     private final List<TableRow> rowViews = new ArrayList<>();
     private final List<List<TextView>> cellViews = new ArrayList<>();
+    /** 原始 CSV 文本（分享用；表格重建后原字符串不再存在于结构层，故保留）。 */
+    private String rawCsvContent;
 
     // ── 查找状态（路线图 #21：单元格匹配语义见 CsvFindHelper）──────────────────
     private View findBar;
@@ -96,6 +100,9 @@ public class CsvReaderActivity extends BaseActivity {
         menu.add(Menu.NONE, MENU_COPY_PATH_ID, Menu.NONE, "复制路径")
                 .setIcon(R.drawable.ic_content_copy)
                 .setShowAsAction(MenuItem.SHOW_AS_ACTION_IF_ROOM);
+        menu.add(Menu.NONE, MENU_SHARE_ID, Menu.NONE, "分享")
+                .setIcon(R.drawable.ic_share)
+                .setShowAsAction(MenuItem.SHOW_AS_ACTION_IF_ROOM);
         return true;
     }
 
@@ -107,6 +114,11 @@ public class CsvReaderActivity extends BaseActivity {
         }
         if (item.getItemId() == MENU_FIND_ID) {
             showFindBar();
+            return true;
+        }
+        if (item.getItemId() == MENU_SHARE_ID) {
+            UiUtils.shareText(this, rawCsvContent != null ? rawCsvContent : "",
+                    ShareHelper.fileNameFromPath(currentFilePath));
             return true;
         }
         return super.onOptionsItemSelected(item);
@@ -273,6 +285,7 @@ public class CsvReaderActivity extends BaseActivity {
     }
 
     private void renderCsv(String content) {
+        rawCsvContent = content;
         tableLayout.removeAllViews();
         // 重建结构：查找状态失效（旧视图引用已 detach），查找栏若开着则重扫
         rows = Collections.emptyList();

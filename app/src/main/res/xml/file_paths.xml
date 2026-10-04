@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 内容分享（#51）缓存文件出口：cache/shared/ 目录映射为 content:// 可访问 Uri。 -->
+<paths>
+    <cache-path
+        name="shared"
+        path="shared/" />
+</paths>

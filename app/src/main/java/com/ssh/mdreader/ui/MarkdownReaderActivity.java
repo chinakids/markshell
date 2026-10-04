@@ -47,6 +47,7 @@ import com.ssh.mdreader.util.PreferenceManager;
 import com.ssh.mdreader.util.ReplaceHelper;
 import com.ssh.mdreader.util.SftpImageSchemeHandler;
 import com.ssh.mdreader.util.SftpImageSpanPlugin;
+import com.ssh.mdreader.util.ShareHelper;
 import com.ssh.mdreader.util.TaskCheckboxHelper;
 import com.ssh.mdreader.util.TocHelper;
 import com.ssh.mdreader.util.UiUtils;
@@ -77,6 +78,7 @@ public class MarkdownReaderActivity extends BaseActivity implements AnnotationOv
     private static final int MENU_ANNOTATION_NEXT_ID = 0xA1016;
     private static final int MENU_FIND_ID            = 0xA1017;
     private static final int MENU_COPY_PATH_ID       = 0xA1018;
+    private static final int MENU_SHARE_ID           = 0xA1019;
     private static final String KEY_SCROLL_Y   = "scroll_y";
     private static final String KEY_EDIT_MODE  = "edit_mode";
     private static final String KEY_EDIT_DRAFT = "edit_draft";
@@ -249,6 +251,9 @@ public class MarkdownReaderActivity extends BaseActivity implements AnnotationOv
             menu.add(Menu.NONE, MENU_FIND_ID, Menu.NONE, "查找/替换")
                     .setIcon(R.drawable.ic_search)
                     .setShowAsAction(MenuItem.SHOW_AS_ACTION_IF_ROOM);
+            menu.add(Menu.NONE, MENU_SHARE_ID, Menu.NONE, "分享")
+                    .setIcon(R.drawable.ic_share)
+                    .setShowAsAction(MenuItem.SHOW_AS_ACTION_IF_ROOM);
             return true;
         }
         menu.add(Menu.NONE, MENU_ANNOTATION_PREV_ID, Menu.NONE, "上一处")
@@ -267,6 +272,9 @@ public class MarkdownReaderActivity extends BaseActivity implements AnnotationOv
                 .setIcon(R.drawable.ic_edit)
                 .setShowAsAction(MenuItem.SHOW_AS_ACTION_IF_ROOM);
         menu.add(Menu.NONE, MENU_COPY_PATH_ID, Menu.NONE, "复制路径")
+                .setShowAsAction(MenuItem.SHOW_AS_ACTION_NEVER);
+        menu.add(Menu.NONE, MENU_SHARE_ID, Menu.NONE, "分享")
+                .setIcon(R.drawable.ic_share)
                 .setShowAsAction(MenuItem.SHOW_AS_ACTION_NEVER);
         return true;
     }
@@ -297,6 +305,19 @@ public class MarkdownReaderActivity extends BaseActivity implements AnnotationOv
             case MENU_COPY_PATH_ID:
                 if (currentFilePath != null) {
                     UiUtils.copyRemotePath(this, currentFilePath);
+                }
+                return true;
+            case MENU_SHARE_ID:
+                // 分享原文（markor shareText=getTextString 同型：编辑态=当前草稿含未保存修改，
+                // 阅读态=markdownContent 原文）；空内容由 UiUtils 守卫提示。
+                if (editMode && etEditor != null) {
+                    UiUtils.shareText(this, etEditor.getText().toString(),
+                            ShareHelper.fileNameFromPath(currentFilePath));
+                } else if (markdownContent != null) {
+                    UiUtils.shareText(this, markdownContent,
+                            ShareHelper.fileNameFromPath(currentFilePath));
+                } else {
+                    UiUtils.showToast(this, "暂无可分享内容");
                 }
                 return true;
             case MENU_SAVE_ID:

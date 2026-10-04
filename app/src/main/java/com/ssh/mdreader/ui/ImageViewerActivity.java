@@ -26,6 +26,7 @@ import com.ssh.mdreader.ssh.SshManager;
 import com.ssh.mdreader.util.DialogHelper;
 import com.ssh.mdreader.util.ImageExifHelper;
 import com.ssh.mdreader.util.ImageSaveHelper;
+import com.ssh.mdreader.util.ShareHelper;
 import com.ssh.mdreader.util.UiUtils;
 
 import java.io.File;
@@ -51,6 +52,7 @@ public class ImageViewerActivity extends BaseActivity {
 
     private static final int MENU_COPY_PATH_ID = 0xA4001;
     private static final int MENU_SAVE_IMAGE_ID = 0xA4002;
+    private static final int MENU_SHARE_ID = 0xA4003;
 
     private Bitmap currentBitmap;
     private byte[] originalBytes;
@@ -107,6 +109,10 @@ public class ImageViewerActivity extends BaseActivity {
         // 保存入口发现性（第十五轮观察：长按无可见按钮）：溢出菜单常驻入口，与长按同一语义。
         menu.add(Menu.NONE, MENU_SAVE_IMAGE_ID, Menu.NONE, "保存图片")
                 .setShowAsAction(MenuItem.SHOW_AS_ACTION_NEVER);
+        // #51 分享图片：原字节直发（零重编码，与「保存图片」同一数据通道）。
+        menu.add(Menu.NONE, MENU_SHARE_ID, Menu.NONE, "分享图片")
+                .setIcon(R.drawable.ic_share)
+                .setShowAsAction(MenuItem.SHOW_AS_ACTION_NEVER);
         return true;
     }
 
@@ -127,6 +133,17 @@ public class ImageViewerActivity extends BaseActivity {
             } else {
                 showSaveDialog();
             }
+            return true;
+        }
+        if (item.getItemId() == MENU_SHARE_ID) {
+            if (originalBytes == null || originalBytes.length == 0) {
+                UiUtils.showToast(this, "图片尚未加载完成");
+                return true;
+            }
+            String mime = ShareHelper.mimeForImage(originalBytes);
+            String displayName = ShareHelper.suggestImageFileName(
+                    fileName != null ? fileName : "image", mime);
+            UiUtils.shareBytes(this, originalBytes, displayName, mime, "分享图片");
             return true;
         }
         return super.onOptionsItemSelected(item);

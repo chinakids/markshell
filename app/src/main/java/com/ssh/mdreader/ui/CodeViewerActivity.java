@@ -26,6 +26,7 @@ import com.ssh.mdreader.util.DialogHelper;
 import com.ssh.mdreader.util.GoToLineHelper;
 import com.ssh.mdreader.util.LineNumberHelper;
 import com.ssh.mdreader.util.PreferenceManager;
+import com.ssh.mdreader.util.ShareHelper;
 import com.ssh.mdreader.util.UiUtils;
 import com.ssh.mdreader.util.ViewerFindBar;
 import com.ssh.mdreader.util.ViewerTextSizeHelper;
@@ -40,6 +41,7 @@ public class CodeViewerActivity extends BaseActivity {
     private static final int MENU_COPY_PATH_ID = 0xA2001;
     private static final int MENU_FIND_ID = 0xA2002;
     private static final int MENU_GOTO_LINE_ID = 0xA2003;
+    private static final int MENU_SHARE_ID = 0xA2004;
     private static final int GOTO_HIGHLIGHT_COLOR = 0x66FFD600;
 
     private TextView textLineNumbers;
@@ -146,6 +148,9 @@ public class CodeViewerActivity extends BaseActivity {
         menu.add(Menu.NONE, MENU_COPY_PATH_ID, Menu.NONE, "复制路径")
                 .setIcon(R.drawable.ic_content_copy)
                 .setShowAsAction(MenuItem.SHOW_AS_ACTION_IF_ROOM);
+        menu.add(Menu.NONE, MENU_SHARE_ID, Menu.NONE, "分享")
+                .setIcon(R.drawable.ic_share)
+                .setShowAsAction(MenuItem.SHOW_AS_ACTION_IF_ROOM);
         menu.add(Menu.NONE, MENU_GOTO_LINE_ID, Menu.NONE, "转到行号…")
                 .setShowAsAction(MenuItem.SHOW_AS_ACTION_NEVER);
         return true;
@@ -163,6 +168,11 @@ public class CodeViewerActivity extends BaseActivity {
         }
         if (item.getItemId() == MENU_GOTO_LINE_ID) {
             showGoToLineDialog();
+            return true;
+        }
+        if (item.getItemId() == MENU_SHARE_ID) {
+            UiUtils.shareText(this, rawCode != null ? rawCode : "",
+                    ShareHelper.fileNameFromPath(currentFilePath));
             return true;
         }
         return super.onOptionsItemSelected(item);

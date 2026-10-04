@@ -3,7 +3,6 @@ package com.ssh.mdreader.util;
 import android.content.ClipData;
 import android.content.ClipboardManager;
 import android.content.Context;
-import android.content.Intent;
 import android.text.Layout;
 import android.text.SpannableStringBuilder;
 import android.text.Spanned;
@@ -813,10 +812,9 @@ public class AnnotationOverlayHelper {
 
     private void shareExport(@NonNull String text) {
         if (!host.isAlive()) return;
-        Intent intent = new Intent(Intent.ACTION_SEND);
-        intent.setType("text/plain");
-        intent.putExtra(Intent.EXTRA_TEXT, text);
-        context.startActivity(Intent.createChooser(intent, "分享批注"));
+        // #51 单一语义源：批注导出与查看器分享共用 UiUtils.shareText（EXTRA_TEXT 直发/
+        // 超大降级 FileProvider 流，接受方语义一致），chooser 标题保留「分享批注」。
+        UiUtils.shareText(context, text, "批注_" + System.currentTimeMillis() + ".txt", "分享批注");
     }
 
     private void copyExport(@NonNull String text) {
