@@ -347,7 +347,7 @@ public class FileBrowserActivity extends BaseActivity
 
     // ── 目录书签快捷访问 ────────────────────────────────────────────────────
 
-    /** 顶部「书签」入口：列出当前服务器已收藏目录，点击跳转。 */
+    /** 顶部「书签」入口：列出当前服务器已收藏目录，点击跳转；长按取消收藏，底部清空。 */
     private void showBookmarksDialog() {
         SshConfig config = sshManager.getConfig();
         if (config == null) return;
@@ -366,7 +366,45 @@ public class FileBrowserActivity extends BaseActivity
         DialogHelper.showListDialog(this,
                 "书签目录（" + bookmarks.size() + "）",
                 items, icons,
-                (dialog, which) -> jumpToBookmark(bookmarks.get(which)));
+                (dialog, which) -> jumpToBookmark(bookmarks.get(which)),
+                (dialog, which) -> {
+                    dialog.dismiss();
+                    confirmRemoveBookmark(config, bookmarks.get(which));
+                },
+                "清空全部",
+                (dialog) -> {
+                    dialog.dismiss();
+                    confirmClearBookmarks(config);
+                });
+    }
+
+    /** 取消收藏确认：移除单条书签后重开对话框（列表已变）。 */
+    private void confirmRemoveBookmark(SshConfig config, String path) {
+        DialogHelper.showDangerConfirmDialog(this,
+                "取消收藏",
+                "从书签中移除 " + path + "？",
+                "取消收藏", "返回",
+                (d) -> {
+                    prefManager.removeBookmark(config.getHost(), config.getPort(),
+                            config.getUsername(), path);
+                    UiUtils.showToast(this, "已取消收藏 " + path);
+                    showBookmarksDialog();
+                },
+                (d) -> {});
+    }
+
+    /** 清空书签确认：移除当前服务器全部书签。 */
+    private void confirmClearBookmarks(SshConfig config) {
+        DialogHelper.showDangerConfirmDialog(this,
+                "清空书签",
+                "清空当前服务器全部书签？此操作不可撤销。",
+                "清空", "返回",
+                (d) -> {
+                    prefManager.clearBookmarks(config.getHost(), config.getPort(),
+                            config.getUsername());
+                    UiUtils.showToast(this, "已清空书签");
+                },
+                (d) -> {});
     }
 
     /** 跳转到书签目录：重设当前根路径并重新加载列表。 */
@@ -380,7 +418,7 @@ public class FileBrowserActivity extends BaseActivity
 
     // ── 最近打开（阅读历史，第五轮能力发现 #13）─────────────────────────────
 
-    /** 顶部「历史」入口：列出当前服务器最近打开的文件，点击重新打开（按服务器隔离）。 */
+    /** 顶部「历史」入口：列出当前服务器最近打开的文件，点击重新打开；长按移除，底部清空。 */
     private void showHistoryDialog() {
         SshConfig config = sshManager.getConfig();
         if (config == null) return;
@@ -399,7 +437,45 @@ public class FileBrowserActivity extends BaseActivity
         DialogHelper.showListDialog(this,
                 "最近打开（" + recent.size() + "）",
                 items, icons,
-                (dialog, which) -> openRecentFile(recent.get(which).getPath()));
+                (dialog, which) -> openRecentFile(recent.get(which).getPath()),
+                (dialog, which) -> {
+                    dialog.dismiss();
+                    confirmRemoveRecent(config, recent.get(which).getPath());
+                },
+                "清空全部",
+                (dialog) -> {
+                    dialog.dismiss();
+                    confirmClearRecent(config);
+                });
+    }
+
+    /** 移除单条历史确认：删除后重开对话框（列表已变）。 */
+    private void confirmRemoveRecent(SshConfig config, String path) {
+        DialogHelper.showDangerConfirmDialog(this,
+                "从历史移除",
+                "从最近打开中移除 " + path + "？",
+                "移除", "返回",
+                (d) -> {
+                    prefManager.removeRecentFile(config.getHost(), config.getPort(),
+                            config.getUsername(), path);
+                    UiUtils.showToast(this, "已从历史移除");
+                    showHistoryDialog();
+                },
+                (d) -> {});
+    }
+
+    /** 清空历史确认：移除当前服务器全部历史。 */
+    private void confirmClearRecent(SshConfig config) {
+        DialogHelper.showDangerConfirmDialog(this,
+                "清空历史",
+                "清空当前服务器全部最近打开？此操作不可撤销。",
+                "清空", "返回",
+                (d) -> {
+                    prefManager.clearRecentFiles(config.getHost(), config.getPort(),
+                            config.getUsername());
+                    UiUtils.showToast(this, "已清空历史");
+                },
+                (d) -> {});
     }
 
     /**

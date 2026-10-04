@@ -18,6 +18,7 @@ import android.widget.TextView;
 
 import androidx.annotation.DrawableRes;
 import androidx.annotation.NonNull;
+import androidx.annotation.Nullable;
 import androidx.recyclerview.widget.LinearLayoutManager;
 import androidx.recyclerview.widget.RecyclerView;
 
@@ -36,6 +37,16 @@ public class DialogHelper {
 
     public interface OnItemSelectedListener {
         void onItemSelected(Dialog dialog, int which);
+    }
+
+    /** 列表条目长按回调（书签/历史管理用：长按=删除该条；回调方负责刷新对话框数据）。 */
+    public interface OnItemLongClickListener {
+        void onItemLongClick(Dialog dialog, int which);
+    }
+
+    /** 列表对话框底部操作按钮回调（书签/历史管理用：底部=清空）。 */
+    public interface OnFooterListener {
+        void onFooter(Dialog dialog);
     }
 
     private static boolean canShow(Context context) {
@@ -169,6 +180,21 @@ public class DialogHelper {
                                       @NonNull String[] items,
                                       @DrawableRes int[] icons,
                                       @NonNull OnItemSelectedListener listener) {
+        showListDialog(context, title, items, icons, listener, null, null, null);
+    }
+
+    /**
+     * 列表对话框（可选长按删除与底部操作按钮，书签/历史管理用）。
+     * 旧签名保持不变并委托本重载（长按/footer 均 null=零行为变更）。
+     */
+    public static void showListDialog(@NonNull Context context,
+                                      @NonNull String title,
+                                      @NonNull String[] items,
+                                      @DrawableRes int[] icons,
+                                      @NonNull OnItemSelectedListener listener,
+                                      @Nullable OnItemLongClickListener longClickListener,
+                                      @Nullable String footerLabel,
+                                      @Nullable OnFooterListener footerListener) {
         if (!canShow(context)) return;
 
         Dialog dialog = new Dialog(context, R.style.BrandDialog);
@@ -178,12 +204,24 @@ public class DialogHelper {
 
         ((TextView) view.findViewById(R.id.dialog_list_title)).setText(title);
 
+        TextView footer = view.findViewById(R.id.dialog_list_footer);
+        if (footerLabel != null && footerListener != null) {
+            footer.setText(footerLabel);
+            footer.setVisibility(View.VISIBLE);
+            footer.setOnClickListener(v -> {
+                footerListener.onFooter(dialog);
+            });
+        } else {
+            footer.setVisibility(View.GONE);
+        }
+
         RecyclerView recycler = view.findViewById(R.id.dialog_list_recycler);
         recycler.setLayoutManager(new LinearLayoutManager(context));
         recycler.setAdapter(new ListDialogAdapter(context, items, icons, (which) -> {
             listener.onItemSelected(dialog, which);
             dialog.dismiss();
-        }));
+        }, longClickListener == null ? null : (which) ->
+                longClickListener.onItemLongClick(dialog, which)));
 
         dialog.setCancelable(true);
         dialog.show();
@@ -393,12 +431,20 @@ public class DialogHelper {
         @DrawableRes
         private final int[] icons;
         private final OnItemClick clickListener;
+        @Nullable
+        private final OnItemClick longClickListener;
 
         ListDialogAdapter(Context context, String[] items, @DrawableRes int[] icons, OnItemClick clickListener) {
+            this(context, items, icons, clickListener, null);
+        }
+
+        ListDialogAdapter(Context context, String[] items, @DrawableRes int[] icons,
+                          OnItemClick clickListener, @Nullable OnItemClick longClickListener) {
             this.inflater = LayoutInflater.from(context);
             this.items = items;
             this.icons = icons;
             this.clickListener = clickListener;
+            this.longClickListener = longClickListener;
         }
 
         @NonNull
@@ -417,6 +463,11 @@ public class DialogHelper {
                 holder.icon.setVisibility(View.GONE);
             }
             holder.itemView.setOnClickListener(v -> clickListener.onClick(position));
+            holder.itemView.setOnLongClickListener(longClickListener == null ? null :
+                    v -> {
+                        longClickListener.onClick(position);
+                        return true;
+                    });
         }
 
         @Override

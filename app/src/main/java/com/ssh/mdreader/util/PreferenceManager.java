@@ -302,6 +302,19 @@ public class PreferenceManager implements HostKeyStore {
                 getBookmarkedPaths(host, port, username), path);
     }
 
+    /** 清空指定服务器全部书签（删除该服务器整条记录，无记录则不动）。 */
+    public void clearBookmarks(String host, int port, String username) {
+        JSONArray arr = readBookmarks();
+        for (int i = 0; i < arr.length(); i++) {
+            JSONObject obj = arr.optJSONObject(i);
+            if (obj != null && matchesServer(obj, host, port, username)) {
+                arr.remove(i);
+                writeBookmarks(arr);
+                return;
+            }
+        }
+    }
+
     private JSONArray readBookmarks() {
         String json = prefs.getString(KEY_BOOKMARKS, "");
         if (json.isEmpty()) return new JSONArray();
@@ -381,6 +394,19 @@ public class PreferenceManager implements HostKeyStore {
             }
             writeRecentFiles(arr);
             return;
+        }
+    }
+
+    /** 清空指定服务器全部历史（删除该服务器整条记录，无记录则不动）。 */
+    public void clearRecentFiles(String host, int port, String username) {
+        JSONArray arr = readRecentFiles();
+        for (int i = 0; i < arr.length(); i++) {
+            JSONObject obj = arr.optJSONObject(i);
+            if (obj != null && matchesServer(obj, host, port, username)) {
+                arr.remove(i);
+                writeRecentFiles(arr);
+                return;
+            }
         }
     }
 
