@@ -361,8 +361,13 @@ public class MainActivity extends BaseActivity {
     }
 
     /**
-     * 外观主题三态（跟随系统/浅色/深色）：markor pref_arrkeys__app_themes 的 system/light/dark
-     * 子集（auto/autocompat/dark-black 扩展留存观察，走查 #54 标注），Material Files settings_theme 同型。
+     * 外观主题六态（跟随系统/自动 22:00-06:00/自动 09:00-17:00/浅色/深色/深色·纯黑）：
+     * markor pref_arrkeys__app_themes 全集（system/auto/autocompat/light/dark/dark-black），
+     * 走查 #57——三态扩展项 auto/autocompat/dark-black 曾按触发制观察=配置类功能误分类
+     * （教训㊼ 同型），本轮纠偏实施；行为语义=GsContextUtils.applyDayNightTheme 源码实证
+     * （auto→MODE_NIGHT_AUTO 22:00-06:00、autocompat→isCurrentHourOfDayBetween(9,17)、
+     * dark-black→contains("dark") 同 MODE_NIGHT_YES 且无独立资源=与 dark 等价，如实标注）。
+     * Material Files settings_theme 三态同型（设置域标配）。
      */
     private void showThemeSettings() {
         if (isFinishing() || isDestroyed()) return;
@@ -370,29 +375,30 @@ public class MainActivity extends BaseActivity {
         String label = themeLabelFor(current);
         DialogHelper.showListDialog(this,
                 "外观 · 当前" + label,
-                new String[]{"跟随系统", "浅色", "深色"},
+                new String[]{"跟随系统", "自动（22:00–06:00 深色）", "自动（09:00–17:00 浅色）",
+                        "浅色", "深色", "深色 · 纯黑"},
                 null,
                 (dialog, which) -> {
-                    String mode = which == 1 ? ThemeHelper.THEME_LIGHT
-                            : which == 2 ? ThemeHelper.THEME_DARK
+                    String mode = which == 1 ? ThemeHelper.THEME_AUTO
+                            : which == 2 ? ThemeHelper.THEME_AUTOCOMPAT
+                            : which == 3 ? ThemeHelper.THEME_LIGHT
+                            : which == 4 ? ThemeHelper.THEME_DARK
+                            : which == 5 ? ThemeHelper.THEME_DARK_BLACK
                             : ThemeHelper.THEME_SYSTEM;
                     prefManager.saveThemeMode(mode);
                     // AppCompatDelegate.setDefaultNightMode 触发全局配置变化，主界面自动重建；
-                    // 主题变化本身即视觉反馈，无需 toast。
-                    AppCompatDelegate.setDefaultNightMode(nightModeFor(mode));
+                    // 主题变化本身即视觉反馈，无需 toast。映射单一语义源=BaseActivity（防漂移）。
+                    AppCompatDelegate.setDefaultNightMode(resolveAppCompatNightMode(mode));
                 });
     }
 
     private static String themeLabelFor(String mode) {
         if (ThemeHelper.THEME_LIGHT.equals(mode)) return "浅色";
         if (ThemeHelper.THEME_DARK.equals(mode)) return "深色";
+        if (ThemeHelper.THEME_DARK_BLACK.equals(mode)) return "深色 · 纯黑";
+        if (ThemeHelper.THEME_AUTO.equals(mode)) return "自动（22:00–06:00 深色）";
+        if (ThemeHelper.THEME_AUTOCOMPAT.equals(mode)) return "自动（09:00–17:00 浅色）";
         return "跟随系统";
-    }
-
-    private static int nightModeFor(String mode) {
-        if (ThemeHelper.THEME_LIGHT.equals(mode)) return AppCompatDelegate.MODE_NIGHT_NO;
-        if (ThemeHelper.THEME_DARK.equals(mode)) return AppCompatDelegate.MODE_NIGHT_YES;
-        return AppCompatDelegate.MODE_NIGHT_FOLLOW_SYSTEM;
     }
 
     /**
