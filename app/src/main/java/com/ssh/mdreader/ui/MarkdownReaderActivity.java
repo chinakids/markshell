@@ -42,6 +42,7 @@ import com.ssh.mdreader.util.FindHelper;
 import com.ssh.mdreader.util.LinkTargetHelper;
 import com.ssh.mdreader.util.MarkdownAutoIndentFilter;
 import com.ssh.mdreader.util.MarkdownFormatHelper;
+import com.ssh.mdreader.util.MdCodeHighlightPlugin;
 import com.ssh.mdreader.util.OpenFileHelper;
 import com.ssh.mdreader.util.PreferenceManager;
 import com.ssh.mdreader.util.ReplaceHelper;
@@ -653,6 +654,8 @@ public class MarkdownReaderActivity extends BaseActivity implements AnnotationOv
                 // #9：覆盖 Image span factory，把相对/绝对路径改写为 markdown-sftp:（须在
                 // ImagesPlugin 之后注册，后者 setFactory(Image.class) 会被本层覆盖）
                 .usePlugin(SftpImageSpanPlugin.create(() -> currentFilePath))
+                // #58（第 49 轮）：代码块语法高亮（背景=markdown_code_bg 死颜色复活）
+                .usePlugin(MdCodeHighlightPlugin.create(getColor(R.color.markdown_code_bg)))
                 .build();
     }
 

@@ -33,6 +33,13 @@ public class CodeHighlighterTest {
         assertEquals("typescript", CodeHighlighter.resolveLanguage("index.ts"));
         assertEquals("typescript", CodeHighlighter.resolveLanguage("comp.tsx"));
         assertEquals("java", CodeHighlighter.resolveLanguage("Main.java"));
+        // 第 49 轮：PrismBundle 含 c/cpp 专用 grammar，从 clike 升级为专用
+        assertEquals("c", CodeHighlighter.resolveLanguage("main.c"));
+        assertEquals("c", CodeHighlighter.resolveLanguage("header.h"));
+        assertEquals("cpp", CodeHighlighter.resolveLanguage("main.cpp"));
+        assertEquals("cpp", CodeHighlighter.resolveLanguage("module.cc"));
+        assertEquals("cpp", CodeHighlighter.resolveLanguage("module.cxx"));
+        assertEquals("cpp", CodeHighlighter.resolveLanguage("header.hpp"));
     }
 
     @Test

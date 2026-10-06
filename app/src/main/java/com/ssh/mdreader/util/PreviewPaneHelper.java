@@ -84,6 +84,9 @@ public class PreviewPaneHelper {
                     .usePlugin(TablePlugin.create(context))
                     .usePlugin(TaskListPlugin.create(context))
                     .usePlugin(SftpImageSpanPlugin.create(() -> previewBasePath))
+                    // #58（第 49 轮）：代码块语法高亮（背景=markdown_code_bg 死颜色复活）
+                    .usePlugin(MdCodeHighlightPlugin.create(
+                            context.getColor(R.color.markdown_code_bg)))
                     .build();
         }
         return previewMarkwon;

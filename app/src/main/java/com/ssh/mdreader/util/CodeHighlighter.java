@@ -87,7 +87,11 @@ public class CodeHighlighter {
     // ── Prism4j singleton (thread-safe after init) ────────────────────────────
     private static volatile Prism4j prism4j;
 
-    private static Prism4j getPrism4j() {
+    /**
+     * 共享 Prism4j 单例（本类 + Markdown 代码块高亮 {@link MdCodeHighlightPlugin}
+     * 共用=同一 grammar locator 缓存；线程安全由调用方保证=均为 UI 线程）。
+     */
+    static Prism4j getPrism4j() {
         if (prism4j == null) {
             synchronized (CodeHighlighter.class) {
                 if (prism4j == null) {
@@ -123,12 +127,13 @@ public class CodeHighlighter {
         if (lower.endsWith(".ts") || lower.endsWith(".tsx"))
                                                          return "typescript";
         if (lower.endsWith(".java"))                     return "java";
-        // C/C++ 族（能力发现循环第卅五轮 #47：与 RemoteFile.isCodeFile 扩展名表同步，
-        // Prism4j clike 为基础的正确高亮——cpp 官方语法基于 clike）
-        if (lower.endsWith(".c") || lower.endsWith(".h")
-                || lower.endsWith(".cpp") || lower.endsWith(".cc")
+        // C/C++ 族（能力发现循环第卅五轮 #47：与 RemoteFile.isCodeFile 扩展名表同步；
+        // 第 49 轮起 PrismBundle 已含 c/cpp 专用 grammar，从 clike 升级为专用=高亮更准：
+        // .c→c、.cpp/.cc/.cxx→cpp（cpp 语法基于 clike））
+        if (lower.endsWith(".c") || lower.endsWith(".h"))  return "c";
+        if (lower.endsWith(".cpp") || lower.endsWith(".cc")
                 || lower.endsWith(".cxx") || lower.endsWith(".hh")
-                || lower.endsWith(".hpp"))               return "clike";
+                || lower.endsWith(".hpp"))                 return "cpp";
         return "javascript"; // sensible default
     }
 
