@@ -31,6 +31,7 @@ import com.ssh.mdreader.util.UiUtils;
 import com.ssh.mdreader.util.ViewerFindBar;
 import com.ssh.mdreader.util.ViewerStartHelper;
 import com.ssh.mdreader.util.ViewerTextSizeHelper;
+import com.ssh.mdreader.widget.LineNumberGutterView;
 
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -43,9 +44,11 @@ public class CodeViewerActivity extends BaseActivity {
     private static final int MENU_FIND_ID = 0xA2002;
     private static final int MENU_GOTO_LINE_ID = 0xA2003;
     private static final int MENU_SHARE_ID = 0xA2004;
+    private static final int MENU_WRAP_ID = 0xA2005;
     private static final int GOTO_HIGHLIGHT_COLOR = 0x66FFD600;
 
     private TextView textLineNumbers;
+    private LineNumberGutterView lineNumberGutter;
     private TextView textCodeContent;
     private View loadingOverlay;
     private ScrollView scrollView;
@@ -54,6 +57,8 @@ public class CodeViewerActivity extends BaseActivity {
     private int restoredScrollY;
     /** 走查 #34：本次打开是否跳到底部（设置开启+全新打开；旋转恢复态恒 false）。 */
     private boolean startAtBottom;
+    /** 代码查看器「自动换行」（wrap_words）：true=ScrollView 换行布局，false=横向滚动布局（历史行为）。 */
+    private boolean wrapMode;
     private float currentTextSize = ViewerTextSizeHelper.DEFAULT_TEXT_SIZE;
     private PreferenceManager prefManager;
 
@@ -66,7 +71,11 @@ public class CodeViewerActivity extends BaseActivity {
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
-        setContentView(R.layout.activity_code_viewer);
+        // 换行开关（wrap_words）：决定使用哪种滚动布局——必须在 setContentView 前读取。
+        prefManager = new PreferenceManager(this);
+        wrapMode = prefManager.getCodeWrap();
+        setContentView(wrapMode ? R.layout.activity_code_viewer_wrap
+                : R.layout.activity_code_viewer);
 
         Toolbar toolbar = findViewById(R.id.toolbar);
         setSupportActionBar(toolbar);
@@ -76,11 +85,16 @@ public class CodeViewerActivity extends BaseActivity {
         }
         toolbar.setNavigationOnClickListener(v -> finish());
 
-        textLineNumbers = findViewById(R.id.text_line_numbers);
         textCodeContent = findViewById(R.id.text_code_content);
         loadingOverlay = findViewById(R.id.loading_overlay);
         scrollView = findViewById(R.id.scroll_view);
-        horizontalScrollView = findViewById(R.id.horizontal_scroll_view);
+        // 换行布局无横向滚动容器（null 与 Text 查看器同口径：ViewerFindBar 已支持）
+        horizontalScrollView = wrapMode ? null : findViewById(R.id.horizontal_scroll_view);
+        if (wrapMode) {
+            lineNumberGutter = findViewById(R.id.line_number_gutter);
+        } else {
+            textLineNumbers = findViewById(R.id.text_line_numbers);
+        }
         viewerFindBar = new ViewerFindBar(this, textCodeContent, scrollView, horizontalScrollView,
                 findViewById(R.id.viewer_find_bar),
                 findViewById(R.id.viewer_find_query),
@@ -101,7 +115,6 @@ public class CodeViewerActivity extends BaseActivity {
             loadingOverlay.setVisibility(View.VISIBLE);
         }
 
-        prefManager = new PreferenceManager(this);
         // 走查 #38：查看器缩放字号持久化（与 Markdown 阅读器 saveFontSize 同型）——
         // 读上次保存的查看器字号；无记录回退默认 14sp（历史行为一致）。
         currentTextSize = ViewerTextSizeHelper.clamp(
@@ -115,8 +128,14 @@ public class CodeViewerActivity extends BaseActivity {
                                 currentTextSize * detector.getScaleFactor());
                         if (ViewerTextSizeHelper.shouldApply(currentTextSize, newSize)) {
                             currentTextSize = newSize;
-                            textLineNumbers.setTextSize(currentTextSize);
                             textCodeContent.setTextSize(currentTextSize);
+                            if (textLineNumbers != null) {
+                                textLineNumbers.setTextSize(currentTextSize);
+                            }
+                            if (lineNumberGutter != null) {
+                                // 自绘行号槽实时读正文规格，仅需重测/重绘
+                                lineNumberGutter.refresh();
+                            }
                         }
                         return true;
                     }
@@ -129,8 +148,12 @@ public class CodeViewerActivity extends BaseActivity {
                 });
 
         // 应用持久化字号：布局固化 14sp，运行时按上次缩放值恢复（行号槽与正文同步）
-        textLineNumbers.setTextSize(currentTextSize);
         textCodeContent.setTextSize(currentTextSize);
+        if (wrapMode) {
+            lineNumberGutter.attach(textCodeContent);
+        } else {
+            textLineNumbers.setTextSize(currentTextSize);
+        }
 
         if (filePath == null) { finish(); return; }
         currentFilePath = filePath;
@@ -160,6 +183,11 @@ public class CodeViewerActivity extends BaseActivity {
                 .setShowAsAction(MenuItem.SHOW_AS_ACTION_IF_ROOM);
         menu.add(Menu.NONE, MENU_GOTO_LINE_ID, Menu.NONE, "转到行号…")
                 .setShowAsAction(MenuItem.SHOW_AS_ACTION_NEVER);
+        // 自动换行（wrap_words）：勾选项，全局记忆；切换=重建 Activity 换布局（保持纵向阅读位置）
+        menu.add(Menu.NONE, MENU_WRAP_ID, Menu.NONE, "自动换行")
+                .setCheckable(true)
+                .setChecked(wrapMode)
+                .setShowAsAction(MenuItem.SHOW_AS_ACTION_NEVER);
         return true;
     }
 
@@ -180,6 +208,13 @@ public class CodeViewerActivity extends BaseActivity {
         if (item.getItemId() == MENU_SHARE_ID) {
             UiUtils.shareText(this, rawCode != null ? rawCode : "",
                     ShareHelper.fileNameFromPath(currentFilePath));
+            return true;
+        }
+        if (item.getItemId() == MENU_WRAP_ID) {
+            prefManager.saveCodeWrap(!wrapMode);
+            // 重建以切换滚动布局；recreate 会经 onSaveInstanceState 保留纵向阅读位置，
+            // 内容重新加载（切换低频操作，短暂 loading 可接受；横向位置无需保留）。
+            recreate();
             return true;
         }
         return super.onOptionsItemSelected(item);
@@ -218,7 +253,9 @@ public class CodeViewerActivity extends BaseActivity {
             textCodeContent.setTextIsSelectable(true);
         }
         UiUtils.scrollToOffsetCenter(scrollView, textCodeContent, range[0]);
-        horizontalScrollView.smoothScrollTo(0, 0);
+        if (horizontalScrollView != null) {
+            horizontalScrollView.smoothScrollTo(0, 0);
+        }
     }
 
     private void loadCodeFile(String filePath) {
@@ -227,7 +264,9 @@ public class CodeViewerActivity extends BaseActivity {
             public void onSuccess(String content) {
                 rawCode = content;
                 runOnUiThread(() -> {
-                    displayLineNumbers(content);
+                    if (!wrapMode) {
+                        displayLineNumbers(content);
+                    }
                     highlightAsync(content);
                 });
             }
@@ -239,6 +278,9 @@ public class CodeViewerActivity extends BaseActivity {
                         loadingOverlay.setVisibility(View.GONE);
                     }
                     textCodeContent.setText("加载失败: " + error);
+                    if (lineNumberGutter != null) {
+                        lineNumberGutter.refresh();
+                    }
                 });
             }
         });
@@ -257,6 +299,10 @@ public class CodeViewerActivity extends BaseActivity {
             final SpannableStringBuilder highlighted = result;
             runOnUiThread(() -> {
                 textCodeContent.setText(highlighted);
+                if (lineNumberGutter != null) {
+                    // 换行模式行号=自绘槽，需在最终文本就位后刷新（行数/宽度）
+                    lineNumberGutter.refresh();
+                }
                 viewerFindBar.onContentChanged();
                 if (loadingOverlay != null) {
                     loadingOverlay.setVisibility(View.GONE);

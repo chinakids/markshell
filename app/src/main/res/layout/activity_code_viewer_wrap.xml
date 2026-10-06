@@ -1,0 +1,70 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 代码查看器「自动换行」模式布局（wrap_words）：与纯文本查看器同型结构——
+     ScrollView 纵向滚动 + 内容 TextView 自动换行；行号槽=LineNumberGutterView（按内容
+     Layout 基线绘制，长行换行时行号仍对齐逻辑行首）。换行开关关闭时使用
+     activity_code_viewer.xml（HorizontalScrollView 横向滚动），切换=Activity.recreate。 -->
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent">
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:orientation="vertical"
+        android:background="#121212">
+
+        <com.google.android.material.appbar.AppBarLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:background="#1E1E1E">
+
+            <androidx.appcompat.widget.Toolbar
+                android:id="@+id/toolbar"
+                android:layout_width="match_parent"
+                android:layout_height="?attr/actionBarSize"
+                android:theme="@style/ThemeOverlay.AppCompat.Dark.ActionBar" />
+
+            <!-- 查看器查找栏（路线图 #21，默认隐藏） -->
+            <include layout="@layout/find_bar_viewer" />
+
+        </com.google.android.material.appbar.AppBarLayout>
+
+        <ScrollView
+            android:id="@+id/scroll_view"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:fillViewport="true">
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="horizontal">
+
+                <!-- 行号槽（#18 同型自绘）：同槽滚动、按内容 Layout 基线对齐（换行不串行） -->
+                <com.ssh.mdreader.widget.LineNumberGutterView
+                    android:id="@+id/line_number_gutter"
+                    android:layout_width="wrap_content"
+                    android:layout_height="match_parent"
+                    android:background="#1E1E1E" />
+
+                <TextView
+                    android:id="@+id/text_code_content"
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:padding="8dp"
+                    android:textColor="#E0E0E0"
+                    android:fontFamily="monospace"
+                    android:textSize="14sp"
+                    android:lineSpacingMultiplier="1.4"
+                    android:textIsSelectable="true" />
+
+            </LinearLayout>
+
+        </ScrollView>
+
+    </LinearLayout>
+
+    <include layout="@layout/loading_overlay" />
+
+</FrameLayout>

@@ -28,6 +28,7 @@ public class PreferenceManager implements HostKeyStore {
     private static final String KEY_HEARTBEAT_MS = "heartbeat_interval_ms";
     /** 查看器「打开后跳到底部」（布尔）：走查 #34，markor editor_start_editing_on_bottom 同型。 */
     private static final String KEY_START_ON_BOTTOM = "viewer_start_on_bottom";
+    private static final String KEY_CODE_WRAP = "code_viewer_wrap";
     private static final String KEY_FILE_SORT_MODE = "file_sort_mode";
     /** 外观主题（string：system/light/dark，取值/归一化见 ThemeHelper）：走查 #54——DayNight 手动三态，等价 markor pref_key__app_theme。 */
     private static final String KEY_THEME_MODE = "theme_mode";
@@ -233,6 +234,15 @@ public class PreferenceManager implements HostKeyStore {
 
     public boolean getStartOnBottom() {
         return prefs.getBoolean(KEY_START_ON_BOTTOM, false);
+    }
+
+    /** 代码查看器「自动换行」（wrap_words）。默认 false=既有横向滚动行为。全局记忆（非按路径）。 */
+    public void saveCodeWrap(boolean enabled) {
+        prefs.edit().putBoolean(KEY_CODE_WRAP, enabled).apply();
+    }
+
+    public boolean getCodeWrap() {
+        return prefs.getBoolean(KEY_CODE_WRAP, false);
     }
 
     /** 外观主题（string：follow system/light/dark）。写入前经 ThemeHelper.normalize，脏值一律回退默认。 */
