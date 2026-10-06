@@ -33,6 +33,7 @@ import com.ssh.mdreader.util.GoToLineHelper;
 import com.ssh.mdreader.util.PreferenceManager;
 import com.ssh.mdreader.util.ShareHelper;
 import com.ssh.mdreader.util.UiUtils;
+import com.ssh.mdreader.util.ViewerStartHelper;
 import com.ssh.mdreader.util.ViewerTextSizeHelper;
 
 import java.util.ArrayList;
@@ -57,6 +58,8 @@ public class CsvReaderActivity extends BaseActivity {
     private ScrollView scrollView;
     private HorizontalScrollView horizontalScrollView;
     private int restoredScrollY;
+    /** 走查 #34：本次打开是否跳到底部（设置开启+全新打开；旋转恢复态恒 false）。 */
+    private boolean startAtBottom;
     private String currentFilePath;
     private PreferenceManager prefManager;
     /** 走查 #40：本次创建是否带旋转恢复态（onCreate 记录；seed 数据仅在无旋转态时使用）。 */
@@ -365,8 +368,13 @@ public class CsvReaderActivity extends BaseActivity {
         String filePath = getIntent().getStringExtra("file_path");
         if (filePath == null) { finish(); return; }
         currentFilePath = filePath;
-        // 走查 #40：仅无旋转恢复态时从持久化阅读进度恢复（「续读」；旋转态=同会话权威优先）
-        if (!hasInstanceState && restoredScrollY <= 0) {
+        // 走查 #34：打开起点决策——设置「打开后跳到底部」开且全新打开=尾部（覆盖进度恢复，
+        // 尾读日志/转储模式）；旋转恢复态=同会话权威（迭代40 口径，设置不覆盖会话位置）；
+        // 否则=既有行为（持久化阅读进度>顶部）。
+        startAtBottom = ViewerStartHelper.resolveStartMode(
+                hasInstanceState, prefManager.getStartOnBottom())
+                == ViewerStartHelper.StartMode.START_AT_BOTTOM;
+        if (!startAtBottom && !hasInstanceState && restoredScrollY <= 0) {
             restoredScrollY = persistedReadProgress();
         }
 
@@ -506,6 +514,10 @@ public class CsvReaderActivity extends BaseActivity {
      * ineffective here; this explicit restore keeps the reading position.
      */
     private void restoreScrollPosition() {
+        if (startAtBottom) {
+            scrollView.post(() -> scrollView.fullScroll(View.FOCUS_DOWN));
+            return;
+        }
         if (restoredScrollY <= 0) return;
         int y = restoredScrollY;
         restoredScrollY = 0;   // consume — apply exactly once

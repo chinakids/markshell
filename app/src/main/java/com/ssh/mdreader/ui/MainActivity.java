@@ -325,11 +325,12 @@ public class MainActivity extends BaseActivity {
         if (isFinishing() || isDestroyed()) return;
         DialogHelper.showListDialog(this,
                 "设置",
-                new String[]{"外观 · 主题", "连接保活 · 心跳间隔", "关于 · 应用信息"},
+                new String[]{"外观 · 主题", "连接保活 · 心跳间隔", "查看器 · 打开后跳到底部", "关于 · 应用信息"},
                 null,
                 (dialog, which) -> {
                     if (which == 0) showThemeSettings();
                     else if (which == 1) showHeartbeatSettings();
+                    else if (which == 2) showStartOnBottomSettings();
                     else showAboutDialog();
                 });
     }
@@ -418,6 +419,28 @@ public class MainActivity extends BaseActivity {
                     prefManager.saveHeartbeatIntervalMs(ms);
                     SshManager.getInstance().setHeartbeatIntervalMs(ms);
                     UiUtils.showToast(this, "已保存，下次连接生效");
+                });
+    }
+
+    /**
+     * 查看器「打开后跳到底部」设置（走查 #34）：markor pref_key__editor_start_editing_on_bottom
+     * 同型（AppSettings.java:367 getBool(..., true) 默认开启；preferences_master.xml 描述
+     * 「Upon loading a document, position cursor at its end」）。本产品默认关闭（免覆盖
+     * #40 阅读进度续读语义），对 Text/Code/CSV 三个查看器生效；开启后全新打开即跳文件末尾
+     * （尾读日志/转储），旋转恢复态不受影响（同会话权威）。
+     */
+    private void showStartOnBottomSettings() {
+        if (isFinishing() || isDestroyed()) return;
+        boolean enabled = prefManager.getStartOnBottom();
+        DialogHelper.showListDialog(this,
+                "查看器 · 打开后跳到底部（当前" + (enabled ? "开" : "关") + "）",
+                new String[]{"开启：打开文件后跳到末尾（适合日志）",
+                        "关闭：按阅读进度恢复（默认）"},
+                null,
+                (dialog, which) -> {
+                    boolean on = (which == 0);
+                    prefManager.saveStartOnBottom(on);
+                    UiUtils.showToast(this, on ? "已开启，下次打开文件生效" : "已关闭，恢复按进度续读");
                 });
     }
 
