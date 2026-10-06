@@ -32,6 +32,12 @@ public class CustomGrammarLocator implements GrammarLocator {
             return TypeScriptGrammar.create(prism4j);
         }
 
+        // Handle Bash/Shell with custom grammar（别名 sh/zsh/shell 已归一化为 bash；
+        // prism4j-bundler 2.0.0 模板清单无 bash，参照 TypeScriptGrammar 先例手写）
+        if ("bash".equals(name)) {
+            return BashGrammar.create(prism4j);
+        }
+
         // Delegate to generated locator for all other languages
         return generatedLocator.grammar(prism4j, name);
     }
@@ -42,6 +48,10 @@ public class CustomGrammarLocator implements GrammarLocator {
         langs.add("typescript");
         langs.add("ts");
         langs.add("tsx");
+        langs.add("bash");
+        langs.add("sh");
+        langs.add("zsh");
+        langs.add("shell");
         return langs;
     }
 
@@ -82,6 +92,11 @@ public class CustomGrammarLocator implements GrammarLocator {
             case "ts":
             case "tsx":
                 return "typescript";
+            case "sh":
+            case "zsh":
+            case "shell":
+            case "bash":
+                return "bash";
             default:
                 return name;
         }

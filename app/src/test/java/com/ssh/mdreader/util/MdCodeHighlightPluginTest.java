@@ -46,6 +46,11 @@ public class MdCodeHighlightPluginTest {
         assertEquals("markdown", CustomGrammarLocator.normalizeLanguage("md"));
         assertEquals("typescript", CustomGrammarLocator.normalizeLanguage("ts"));
         assertEquals("typescript", CustomGrammarLocator.normalizeLanguage("tsx"));
+        // 第 50 轮：bash/shell 自定义 grammar（别名归一化到正式名 bash）
+        assertEquals("bash", CustomGrammarLocator.normalizeLanguage("bash"));
+        assertEquals("bash", CustomGrammarLocator.normalizeLanguage("sh"));
+        assertEquals("bash", CustomGrammarLocator.normalizeLanguage("zsh"));
+        assertEquals("bash", CustomGrammarLocator.normalizeLanguage("shell"));
     }
 
     @Test
@@ -58,12 +63,11 @@ public class MdCodeHighlightPluginTest {
 
     @Test
     public void unknownLanguageKeptAsLowerTrimmed() {
-        // bundler 暂未含 bash/shell=grammar 查不到时渲染原文（诚实降级，与未接线行为一致）
-        assertEquals("bash", CustomGrammarLocator.normalizeLanguage(" bash "));
-        assertEquals("shell", CustomGrammarLocator.normalizeLanguage("Shell"));
-        assertEquals("sh", CustomGrammarLocator.normalizeLanguage("SH"));
+        // 第 50 轮起 bash/sh/zsh/shell 已归一化为 bash（自定义 grammar），
+        // 此处保留尚不支持语言的诚实降级语义=小写原样返回（grammar 查不到=原文直显）
         assertEquals("plaintext", CustomGrammarLocator.normalizeLanguage("plaintext"));
         assertEquals("text", CustomGrammarLocator.normalizeLanguage("TEXT"));
+        assertEquals("diff", CustomGrammarLocator.normalizeLanguage(" DIFF "));
         assertNull(CustomGrammarLocator.normalizeLanguage(null));
     }
 
