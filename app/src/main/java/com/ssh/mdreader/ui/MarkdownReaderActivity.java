@@ -39,6 +39,7 @@ import com.ssh.mdreader.util.AnnotationOverlayHelper;
 import com.ssh.mdreader.util.DialogHelper;
 import com.ssh.mdreader.util.EditHistoryHelper;
 import com.ssh.mdreader.util.FindHelper;
+import com.ssh.mdreader.util.GfmAutolinkPlugin;
 import com.ssh.mdreader.util.LinkTargetHelper;
 import com.ssh.mdreader.util.MarkdownAutoIndentFilter;
 import com.ssh.mdreader.util.MarkdownFormatHelper;
@@ -55,6 +56,7 @@ import com.ssh.mdreader.util.UiUtils;
 
 import io.noties.markwon.Markwon;
 import io.noties.markwon.core.spans.HeadingSpan;
+import io.noties.markwon.ext.strikethrough.StrikethroughPlugin;
 import io.noties.markwon.ext.tables.TablePlugin;
 import io.noties.markwon.ext.tasklist.TaskListPlugin;
 import io.noties.markwon.ext.tasklist.TaskListSpan;
@@ -651,6 +653,12 @@ public class MarkdownReaderActivity extends BaseActivity implements AnnotationOv
                         SftpImageSchemeHandler.getInstance(this))))
                 .usePlugin(TablePlugin.create(this))
                 .usePlugin(TaskListPlugin.create(this))
+                // GFM 补齐（第 51 轮）：~~删除线~~ + 裸 URL/邮箱自动链接。
+                // 注意：autolink 必须注册在 TaskListPlugin 之后（两者同为解析后置
+                // 处理器，commonmark 按注册顺序串行；顺序反了任务行 URL 会被移出段
+                // 落导致渲染错行，见 GfmAutolinkPlugin 类注释）。
+                .usePlugin(StrikethroughPlugin.create())
+                .usePlugin(GfmAutolinkPlugin.create())
                 // #9：覆盖 Image span factory，把相对/绝对路径改写为 markdown-sftp:（须在
                 // ImagesPlugin 之后注册，后者 setFactory(Image.class) 会被本层覆盖）
                 .usePlugin(SftpImageSpanPlugin.create(() -> currentFilePath))

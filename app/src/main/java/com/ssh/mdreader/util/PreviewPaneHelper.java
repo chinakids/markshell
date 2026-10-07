@@ -26,6 +26,7 @@ import java.util.ArrayList;
 import java.util.List;
 
 import io.noties.markwon.Markwon;
+import io.noties.markwon.ext.strikethrough.StrikethroughPlugin;
 import io.noties.markwon.ext.tables.TablePlugin;
 import io.noties.markwon.ext.tasklist.TaskListPlugin;
 import io.noties.markwon.image.ImagesPlugin;
@@ -83,6 +84,11 @@ public class PreviewPaneHelper {
                             SftpImageSchemeHandler.getInstance(context))))
                     .usePlugin(TablePlugin.create(context))
                     .usePlugin(TaskListPlugin.create(context))
+                    // GFM 补齐（第 51 轮）：~~删除线~~ + 裸 URL/邮箱自动链接；须在
+                    // TaskListPlugin 之后注册（autolink 后置处理器顺序约束，见
+                    // GfmAutolinkPlugin 类注释）。
+                    .usePlugin(StrikethroughPlugin.create())
+                    .usePlugin(GfmAutolinkPlugin.create())
                     .usePlugin(SftpImageSpanPlugin.create(() -> previewBasePath))
                     // #58（第 49 轮）：代码块语法高亮（背景=markdown_code_bg 死颜色复活）
                     .usePlugin(MdCodeHighlightPlugin.create(
