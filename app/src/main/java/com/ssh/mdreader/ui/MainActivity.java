@@ -230,9 +230,10 @@ public class MainActivity extends BaseActivity {
                     adapter.setClickable(true);
                     DialogHelper.showConfirmDialog(MainActivity.this,
                             "连接失败", message,
-                            "重新连接", "取消",
+                            "重新连接", "取消", "编辑配置",
                             (d) -> quickConnect(config, position),
-                            (d) -> {});
+                            (d) -> {},
+                            (d) -> editConnection(config, position));
                 });
             }
 

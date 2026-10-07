@@ -223,9 +223,10 @@ public class SavedConnectionsActivity extends BaseActivity {
                     setLoading(false);
                     DialogHelper.showConfirmDialog(SavedConnectionsActivity.this,
                             "连接失败", message,
-                            "重新连接", "取消",
+                            "重新连接", "取消", "编辑配置",
                             (d) -> quickConnect(config),
-                            (d) -> {});
+                            (d) -> {},
+                            (d) -> editConnection(config));
                 });
             }
 

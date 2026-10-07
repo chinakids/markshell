@@ -35,6 +35,11 @@ public class DialogHelper {
         void onNegative(Dialog dialog);
     }
 
+    /** 中立按钮回调（连接失败「编辑配置」等：介于取消与主操作之间）。 */
+    public interface OnNeutralListener {
+        void onNeutral(Dialog dialog);
+    }
+
     public interface OnItemSelectedListener {
         void onItemSelected(Dialog dialog, int which);
     }
@@ -138,10 +143,38 @@ public class DialogHelper {
                                          @NonNull String message,
                                          @NonNull String positiveText,
                                          @NonNull String negativeText,
+                                         @NonNull String neutralText,
+                                         @NonNull OnPositiveListener positiveListener,
+                                         @NonNull OnNegativeListener negativeListener,
+                                         @NonNull OnNeutralListener neutralListener) {
+        showConfirmDialog(context, title, message, positiveText, negativeText,
+                false, false, positiveListener, negativeListener, neutralText, neutralListener);
+    }
+
+    public static void showConfirmDialog(@NonNull Context context,
+                                         @NonNull String title,
+                                         @NonNull String message,
+                                         @NonNull String positiveText,
+                                         @NonNull String negativeText,
                                          boolean danger,
                                          boolean cancelable,
                                          @NonNull OnPositiveListener positiveListener,
                                          @NonNull OnNegativeListener negativeListener) {
+        showConfirmDialog(context, title, message, positiveText, negativeText,
+                danger, cancelable, positiveListener, negativeListener, null, null);
+    }
+
+    public static void showConfirmDialog(@NonNull Context context,
+                                         @NonNull String title,
+                                         @NonNull String message,
+                                         @NonNull String positiveText,
+                                         @NonNull String negativeText,
+                                         boolean danger,
+                                         boolean cancelable,
+                                         @NonNull OnPositiveListener positiveListener,
+                                         @NonNull OnNegativeListener negativeListener,
+                                         @Nullable String neutralText,
+                                         @Nullable OnNeutralListener neutralListener) {
         if (!canShow(context)) return;
 
         Dialog dialog = new Dialog(context, R.style.BrandDialog);
@@ -151,6 +184,16 @@ public class DialogHelper {
 
         ((TextView) view.findViewById(R.id.dialog_title)).setText(title);
         ((TextView) view.findViewById(R.id.dialog_message)).setText(message);
+
+        TextView btnNeutral = view.findViewById(R.id.dialog_btn_neutral);
+        if (neutralText != null && neutralListener != null) {
+            btnNeutral.setVisibility(View.VISIBLE);
+            btnNeutral.setText(neutralText);
+            btnNeutral.setOnClickListener(v -> {
+                neutralListener.onNeutral(dialog);
+                dialog.dismiss();
+            });
+        }
 
         TextView btnNegative = view.findViewById(R.id.dialog_btn_negative);
         btnNegative.setVisibility(View.VISIBLE);
