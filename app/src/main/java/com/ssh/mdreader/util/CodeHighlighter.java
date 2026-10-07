@@ -134,6 +134,10 @@ public class CodeHighlighter {
         if (lower.endsWith(".cpp") || lower.endsWith(".cc")
                 || lower.endsWith(".cxx") || lower.endsWith(".hh")
                 || lower.endsWith(".hpp"))                 return "cpp";
+        // Shell 脚本（第 52 轮：RemoteFile.isCodeFile 已含 .sh/.bash/.zsh；bash 为
+        // 手写 grammar（BashGrammar，CustomGrammarLocator 特判），与扩展名表同步）
+        if (lower.endsWith(".sh") || lower.endsWith(".bash")
+                || lower.endsWith(".zsh"))                 return "bash";
         return "javascript"; // sensible default
     }
 

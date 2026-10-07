@@ -81,7 +81,10 @@ public class RemoteFile {
                 || lower.endsWith(".c") || lower.endsWith(".h")
                 || lower.endsWith(".cpp") || lower.endsWith(".cc")
                 || lower.endsWith(".cxx") || lower.endsWith(".hh")
-                || lower.endsWith(".hpp");
+                || lower.endsWith(".hpp")
+                // Shell 脚本（第 52 轮：bash grammar 落地后由纯文本查看器升级到代码
+                // 查看器，获语法高亮+行号+查找；CodeHighlighter.resolveLanguage 同步）
+                || lower.endsWith(".sh") || lower.endsWith(".bash") || lower.endsWith(".zsh");
     }
 
     public boolean isImageFile() {
@@ -108,7 +111,7 @@ public class RemoteFile {
                 || lower.endsWith(".properties") || lower.endsWith(".ini")
                 || lower.endsWith(".cfg") || lower.endsWith(".toml")
                 || lower.endsWith(".env")
-                || lower.endsWith(".sh") || lower.endsWith(".bash") || lower.endsWith(".zsh")
+                // .sh/.bash/.zsh 已移至 isCodeFile（第 52 轮），此处不再包含
                 || lower.endsWith(".sql")
                 || lower.endsWith(".pl") || lower.endsWith(".pm") || lower.endsWith(".rb")
                 || lower.endsWith(".go") || lower.endsWith(".kt") || lower.endsWith(".php")

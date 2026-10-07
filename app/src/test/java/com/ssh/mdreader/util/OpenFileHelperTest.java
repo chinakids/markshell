@@ -136,8 +136,18 @@ public class OpenFileHelperTest {
     }
 
     @Test
-    public void textShellScript() {
-        assertKind(OpenFileHelper.ViewerKind.TEXT, "/opt/deploy.sh");
+    public void codeShellSh() {
+        assertKind(OpenFileHelper.ViewerKind.CODE, "/opt/deploy.sh");
+    }
+
+    @Test
+    public void codeShellBash() {
+        assertKind(OpenFileHelper.ViewerKind.CODE, "/opt/backup.bash");
+    }
+
+    @Test
+    public void codeShellZsh() {
+        assertKind(OpenFileHelper.ViewerKind.CODE, "/home/u/.config/init.zsh");
     }
 
     @Test

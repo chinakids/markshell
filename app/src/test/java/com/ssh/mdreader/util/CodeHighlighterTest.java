@@ -40,6 +40,9 @@ public class CodeHighlighterTest {
         assertEquals("cpp", CodeHighlighter.resolveLanguage("module.cc"));
         assertEquals("cpp", CodeHighlighter.resolveLanguage("module.cxx"));
         assertEquals("cpp", CodeHighlighter.resolveLanguage("header.hpp"));
+        assertEquals("bash", CodeHighlighter.resolveLanguage("deploy.sh"));
+        assertEquals("bash", CodeHighlighter.resolveLanguage("backup.bash"));
+        assertEquals("bash", CodeHighlighter.resolveLanguage("init.zsh"));
     }
 
     @Test
