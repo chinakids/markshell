@@ -43,6 +43,12 @@ public class CodeHighlighterTest {
         assertEquals("bash", CodeHighlighter.resolveLanguage("deploy.sh"));
         assertEquals("bash", CodeHighlighter.resolveLanguage("backup.bash"));
         assertEquals("bash", CodeHighlighter.resolveLanguage("init.zsh"));
+        // 第 53 轮：PrismBundle 已含 go/kotlin/sql/yaml，与扩展名路由双面联动
+        assertEquals("sql", CodeHighlighter.resolveLanguage("migration.sql"));
+        assertEquals("go", CodeHighlighter.resolveLanguage("server.go"));
+        assertEquals("kotlin", CodeHighlighter.resolveLanguage("Main.kt"));
+        assertEquals("yaml", CodeHighlighter.resolveLanguage("k8s.yaml"));
+        assertEquals("yaml", CodeHighlighter.resolveLanguage("docker-compose.yml"));
     }
 
     @Test

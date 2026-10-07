@@ -138,6 +138,13 @@ public class CodeHighlighter {
         // 手写 grammar（BashGrammar，CustomGrammarLocator 特判），与扩展名表同步）
         if (lower.endsWith(".sh") || lower.endsWith(".bash")
                 || lower.endsWith(".zsh"))                 return "bash";
+        // 有 grammar 的代码族（第 53 轮：PrismBundle 已含 go/kotlin/sql/yaml，
+        // 与 RemoteFile.isCodeFile 扩展名表同步=路由与语言映射双面联动）
+        if (lower.endsWith(".sql"))                        return "sql";
+        if (lower.endsWith(".go"))                         return "go";
+        if (lower.endsWith(".kt"))                         return "kotlin";
+        if (lower.endsWith(".yaml") || lower.endsWith(".yml"))
+                                                           return "yaml";
         return "javascript"; // sensible default
     }
 

@@ -101,13 +101,23 @@ public class OpenFileHelperTest {
     }
 
     @Test
-    public void textYaml() {
-        assertKind(OpenFileHelper.ViewerKind.TEXT, "/docker/conf.yaml");
+    public void codeYaml() {
+        assertKind(OpenFileHelper.ViewerKind.CODE, "/docker/conf.yaml");
     }
 
     @Test
-    public void textYml() {
-        assertKind(OpenFileHelper.ViewerKind.TEXT, "/app/docker-compose.yml");
+    public void codeYml() {
+        assertKind(OpenFileHelper.ViewerKind.CODE, "/app/docker-compose.yml");
+    }
+
+    @Test
+    public void codeGo() {
+        assertKind(OpenFileHelper.ViewerKind.CODE, "/src/cmd/server.go");
+    }
+
+    @Test
+    public void codeKt() {
+        assertKind(OpenFileHelper.ViewerKind.CODE, "/src/Main.kt");
     }
 
     @Test
@@ -151,8 +161,8 @@ public class OpenFileHelperTest {
     }
 
     @Test
-    public void textSql() {
-        assertKind(OpenFileHelper.ViewerKind.TEXT, "/db/backup.sql");
+    public void codeSql() {
+        assertKind(OpenFileHelper.ViewerKind.CODE, "/db/backup.sql");
     }
 
     @Test

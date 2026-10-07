@@ -84,7 +84,13 @@ public class RemoteFile {
                 || lower.endsWith(".hpp")
                 // Shell 脚本（第 52 轮：bash grammar 落地后由纯文本查看器升级到代码
                 // 查看器，获语法高亮+行号+查找；CodeHighlighter.resolveLanguage 同步）
-                || lower.endsWith(".sh") || lower.endsWith(".bash") || lower.endsWith(".zsh");
+                || lower.endsWith(".sh") || lower.endsWith(".bash") || lower.endsWith(".zsh")
+                // 有 Prism grammar 的代码族（第 53 轮：PrismBundle 已含 go/kotlin/sql/yaml
+                // 而扩展名路由未接=与本轮 bash 同型缺口；升级后获语法高亮+行号+查找）
+                || lower.endsWith(".sql")
+                || lower.endsWith(".go")
+                || lower.endsWith(".kt")
+                || lower.endsWith(".yaml") || lower.endsWith(".yml");
     }
 
     public boolean isImageFile() {
@@ -106,15 +112,14 @@ public class RemoteFile {
         return lower.endsWith(".txt")
                 || lower.endsWith(".log")
                 || lower.endsWith(".text")
-                || lower.endsWith(".yaml") || lower.endsWith(".yml")
                 || lower.endsWith(".conf") || lower.endsWith(".config")
                 || lower.endsWith(".properties") || lower.endsWith(".ini")
                 || lower.endsWith(".cfg") || lower.endsWith(".toml")
                 || lower.endsWith(".env")
                 // .sh/.bash/.zsh 已移至 isCodeFile（第 52 轮），此处不再包含
-                || lower.endsWith(".sql")
+                // .sql/.go/.kt/.yaml/.yml 已移至 isCodeFile（第 53 轮，Prism grammar 已备）
                 || lower.endsWith(".pl") || lower.endsWith(".pm") || lower.endsWith(".rb")
-                || lower.endsWith(".go") || lower.endsWith(".kt") || lower.endsWith(".php")
+                || lower.endsWith(".php")
                 || lower.endsWith(".rs") || lower.endsWith(".swift") || lower.endsWith(".lua")
                 || lower.endsWith(".srt") || lower.endsWith(".lrc")
                 || lower.endsWith(".m3u") || lower.endsWith(".m3u8")
