@@ -45,6 +45,7 @@ public class CodeViewerActivity extends BaseActivity {
     private static final int MENU_GOTO_LINE_ID = 0xA2003;
     private static final int MENU_SHARE_ID = 0xA2004;
     private static final int MENU_WRAP_ID = 0xA2005;
+    private static final int MENU_RELOAD_ID = 0xA2006;
     private static final int GOTO_HIGHLIGHT_COLOR = 0x66FFD600;
 
     private TextView textLineNumbers;
@@ -55,6 +56,8 @@ public class CodeViewerActivity extends BaseActivity {
     private HorizontalScrollView horizontalScrollView;
     private ViewerFindBar viewerFindBar;
     private int restoredScrollY;
+    /** 走查 #56：重载恢复的滚动位置（-1=无重载恢复；重载成功前记录，消费后重置）。 */
+    private int reloadRestoreY = -1;
     /** 走查 #34：本次打开是否跳到底部（设置开启+全新打开；旋转恢复态恒 false）。 */
     private boolean startAtBottom;
     /** 代码查看器「自动换行」（wrap_words）：true=ScrollView 换行布局，false=横向滚动布局（历史行为）。 */
@@ -188,6 +191,9 @@ public class CodeViewerActivity extends BaseActivity {
                 .setCheckable(true)
                 .setChecked(wrapMode)
                 .setShowAsAction(MenuItem.SHOW_AS_ACTION_NEVER);
+        // 走查 #56：服务器端文件更新（日志追加/配置改动）后重读；与 FileBrowser 下拉刷新同语义
+        menu.add(Menu.NONE, MENU_RELOAD_ID, Menu.NONE, "重新加载")
+                .setShowAsAction(MenuItem.SHOW_AS_ACTION_NEVER);
         return true;
     }
 
@@ -215,6 +221,10 @@ public class CodeViewerActivity extends BaseActivity {
             // 重建以切换滚动布局；recreate 会经 onSaveInstanceState 保留纵向阅读位置，
             // 内容重新加载（切换低频操作，短暂 loading 可接受；横向位置无需保留）。
             recreate();
+            return true;
+        }
+        if (item.getItemId() == MENU_RELOAD_ID) {
+            reloadCodeFile();
             return true;
         }
         return super.onOptionsItemSelected(item);
@@ -286,6 +296,42 @@ public class CodeViewerActivity extends BaseActivity {
         });
     }
 
+    /**
+     * 代码查看器「重新加载」（走查 #56）：服务器端文件更新后重读并重高亮，保持当前滚动位置；
+     * 失败=保留旧内容仅提示（不清空已显示内容）。复用 displayLineNumbers/highlightAsync
+     * （单线程 executor 串行，快速连点=最后一次任务为准）。
+     */
+    private void reloadCodeFile() {
+        if (currentFilePath == null) return;
+        reloadRestoreY = scrollView.getScrollY();
+        if (loadingOverlay != null) {
+            loadingOverlay.setVisibility(View.VISIBLE);
+        }
+        SshManager.getInstance().readFile(currentFilePath, new SshManager.FileContentCallback() {
+            @Override
+            public void onSuccess(String content) {
+                rawCode = content;
+                runOnUiThread(() -> {
+                    if (!wrapMode) {
+                        displayLineNumbers(content);
+                    }
+                    highlightAsync(content);
+                });
+            }
+
+            @Override
+            public void onError(String error) {
+                runOnUiThread(() -> {
+                    if (loadingOverlay != null) {
+                        loadingOverlay.setVisibility(View.GONE);
+                    }
+                    reloadRestoreY = -1;
+                    UiUtils.showToast(CodeViewerActivity.this, "重新加载失败: " + error);
+                });
+            }
+        });
+    }
+
     private void highlightAsync(String code) {
         highlightExecutor.execute(() -> {
             SpannableStringBuilder result;
@@ -342,6 +388,13 @@ public class CodeViewerActivity extends BaseActivity {
      * 覆盖进度恢复——两分支互斥（startAtBottom 仅全新打开时成立）。
      */
     private void restoreScrollPosition() {
+        if (reloadRestoreY >= 0) {
+            // 走查 #56：重载恢复优先——保持重载前滚动位置（不适用 startAtBottom/进度恢复语义）
+            int y = reloadRestoreY;
+            reloadRestoreY = -1;   // consume — apply exactly once
+            scrollView.post(() -> scrollView.scrollTo(0, y));
+            return;
+        }
         if (startAtBottom) {
             scrollView.post(() -> scrollView.fullScroll(View.FOCUS_DOWN));
             return;

@@ -53,6 +53,7 @@ public class ImageViewerActivity extends BaseActivity {
     private static final int MENU_COPY_PATH_ID = 0xA4001;
     private static final int MENU_SAVE_IMAGE_ID = 0xA4002;
     private static final int MENU_SHARE_ID = 0xA4003;
+    private static final int MENU_RELOAD_ID = 0xA4004;
 
     private Bitmap currentBitmap;
     private byte[] originalBytes;
@@ -113,6 +114,9 @@ public class ImageViewerActivity extends BaseActivity {
         menu.add(Menu.NONE, MENU_SHARE_ID, Menu.NONE, "分享图片")
                 .setIcon(R.drawable.ic_share)
                 .setShowAsAction(MenuItem.SHOW_AS_ACTION_NEVER);
+        // 走查 #56：服务器端文件更新后重读；与 FileBrowser 下拉刷新同语义
+        menu.add(Menu.NONE, MENU_RELOAD_ID, Menu.NONE, "重新加载")
+                .setShowAsAction(MenuItem.SHOW_AS_ACTION_NEVER);
         return true;
     }
 
@@ -144,6 +148,10 @@ public class ImageViewerActivity extends BaseActivity {
             String displayName = ShareHelper.suggestImageFileName(
                     fileName != null ? fileName : "image", mime);
             UiUtils.shareBytes(this, originalBytes, displayName, mime, "分享图片");
+            return true;
+        }
+        if (item.getItemId() == MENU_RELOAD_ID) {
+            reloadImage();
             return true;
         }
         return super.onOptionsItemSelected(item);
@@ -349,6 +357,38 @@ public class ImageViewerActivity extends BaseActivity {
                             }
                             tvError.setVisibility(View.VISIBLE);
                             tvError.setText("加载失败: " + message);
+                        });
+                    }
+                });
+    }
+
+    /**
+     * 图片查看器「重新加载」（走查 #56）：服务器端图片更新（截图/监控图替换）后重读远端字节
+     * 并解码显示；内容可能变化，视图重置为适应大小（decodeAndDisplay→fitImageToView 内建）；
+     * 失败=保留旧图仅提示（不清空已显示内容）。
+     */
+    private void reloadImage() {
+        String filePath = getIntent() != null ? getIntent().getStringExtra("file_path") : null;
+        if (filePath == null) { finish(); return; }
+        if (loadingOverlay != null) {
+            loadingOverlay.setVisibility(View.VISIBLE);
+        }
+        tvError.setVisibility(View.GONE);
+        SshManager.getInstance().readFileBytes(filePath,
+                new SshManager.FileBytesCallback() {
+                    @Override
+                    public void onSuccess(byte[] bytes) {
+                        originalBytes = bytes;
+                        runOnUiThread(() -> decodeAndDisplay(bytes));
+                    }
+
+                    @Override
+                    public void onError(String message) {
+                        runOnUiThread(() -> {
+                            if (loadingOverlay != null) {
+                                loadingOverlay.setVisibility(View.GONE);
+                            }
+                            UiUtils.showToast(ImageViewerActivity.this, "重新加载失败: " + message);
                         });
                     }
                 });

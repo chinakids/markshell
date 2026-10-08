@@ -37,6 +37,7 @@ public class TextViewerActivity extends BaseActivity {
     private static final int MENU_FIND_ID = 0xA2002;
     private static final int MENU_GOTO_LINE_ID = 0xA2003;
     private static final int MENU_SHARE_ID = 0xA2004;
+    private static final int MENU_RELOAD_ID = 0xA2005;
     private static final int GOTO_HIGHLIGHT_COLOR = 0x66FFD600;
 
     private TextView textContent;
@@ -45,6 +46,8 @@ public class TextViewerActivity extends BaseActivity {
     private ScrollView scrollView;
     private ViewerFindBar viewerFindBar;
     private int restoredScrollY;
+    /** 走查 #56：重载恢复的滚动位置（-1=无重载恢复；重载成功前记录，消费后重置）。 */
+    private int reloadRestoreY = -1;
     /** 走查 #34：本次打开是否跳到底部（设置开启+全新打开；旋转恢复态恒 false）。 */
     private boolean startAtBottom;
     private float currentTextSize = ViewerTextSizeHelper.DEFAULT_TEXT_SIZE;
@@ -149,6 +152,9 @@ public class TextViewerActivity extends BaseActivity {
                 .setShowAsAction(MenuItem.SHOW_AS_ACTION_IF_ROOM);
         menu.add(Menu.NONE, MENU_GOTO_LINE_ID, Menu.NONE, "转到行号…")
                 .setShowAsAction(MenuItem.SHOW_AS_ACTION_NEVER);
+        // 走查 #56：服务器端文件更新（日志追加/配置改动）后重读；与 FileBrowser 下拉刷新同语义
+        menu.add(Menu.NONE, MENU_RELOAD_ID, Menu.NONE, "重新加载")
+                .setShowAsAction(MenuItem.SHOW_AS_ACTION_NEVER);
         return true;
     }
 
@@ -169,6 +175,10 @@ public class TextViewerActivity extends BaseActivity {
         if (item.getItemId() == MENU_SHARE_ID) {
             UiUtils.shareText(this, textContent.getText().toString(),
                     ShareHelper.fileNameFromPath(currentFilePath));
+            return true;
+        }
+        if (item.getItemId() == MENU_RELOAD_ID) {
+            reloadTextFile();
             return true;
         }
         return super.onOptionsItemSelected(item);
@@ -238,6 +248,44 @@ public class TextViewerActivity extends BaseActivity {
         });
     }
 
+    /**
+     * 查看器「重新加载」（走查 #56）：服务器端文件更新（日志追加/配置改动）后重读并重渲染，
+     * 保持当前滚动位置（增量续读场景，不适用「打开后跳到底部」设置的打开语义）；
+     * 失败=保留旧内容仅提示（不清空已显示内容，与初次打开「加载失败」占位语义区分）。
+     */
+    private void reloadTextFile() {
+        if (currentFilePath == null) return;
+        reloadRestoreY = scrollView.getScrollY();
+        if (loadingOverlay != null) {
+            loadingOverlay.setVisibility(View.VISIBLE);
+        }
+        SshManager.getInstance().readFile(currentFilePath, new SshManager.FileContentCallback() {
+            @Override
+            public void onSuccess(String content) {
+                runOnUiThread(() -> {
+                    textContent.setText(content);
+                    lineNumberGutter.refresh();
+                    viewerFindBar.onContentChanged();
+                    if (loadingOverlay != null) {
+                        loadingOverlay.setVisibility(View.GONE);
+                    }
+                    restoreScrollPosition();
+                });
+            }
+
+            @Override
+            public void onError(String error) {
+                runOnUiThread(() -> {
+                    if (loadingOverlay != null) {
+                        loadingOverlay.setVisibility(View.GONE);
+                    }
+                    reloadRestoreY = -1;
+                    UiUtils.showToast(TextViewerActivity.this, "重新加载失败: " + error);
+                });
+            }
+        });
+    }
+
     @Override
     public boolean dispatchTouchEvent(MotionEvent ev) {
         scaleGestureDetector.onTouchEvent(ev);
@@ -263,6 +311,13 @@ public class TextViewerActivity extends BaseActivity {
      * 覆盖进度恢复——两分支互斥（startAtBottom 仅全新打开时成立）。
      */
     private void restoreScrollPosition() {
+        if (reloadRestoreY >= 0) {
+            // 走查 #56：重载恢复优先——保持重载前滚动位置（不适用 startAtBottom/进度恢复语义）
+            int y = reloadRestoreY;
+            reloadRestoreY = -1;   // consume — apply exactly once
+            scrollView.post(() -> scrollView.scrollTo(0, y));
+            return;
+        }
         if (startAtBottom) {
             scrollView.post(() -> scrollView.fullScroll(View.FOCUS_DOWN));
             return;

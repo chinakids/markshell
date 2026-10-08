@@ -47,6 +47,7 @@ public class CsvReaderActivity extends BaseActivity {
     private static final int MENU_FIND_ID = 0xA2002;
     private static final int MENU_SHARE_ID = 0xA2003;
     private static final int MENU_GOTO_LINE_ID = 0xA2004;
+    private static final int MENU_RELOAD_ID = 0xA2005;
     private static final int FIND_HIGHLIGHT_COLOR = 0x66FFD600;
     /** 转到行号临时高亮色（与 Text/Code 查看器 GOTO_HIGHLIGHT_COLOR 同值 0x66FFD600）。 */
     private static final int GOTO_HIGHLIGHT_COLOR = 0x66FFD600;
@@ -58,6 +59,8 @@ public class CsvReaderActivity extends BaseActivity {
     private ScrollView scrollView;
     private HorizontalScrollView horizontalScrollView;
     private int restoredScrollY;
+    /** 走查 #56：重载恢复的滚动位置（-1=无重载恢复；重载成功前记录，消费后重置）。 */
+    private int reloadRestoreY = -1;
     /** 走查 #34：本次打开是否跳到底部（设置开启+全新打开；旋转恢复态恒 false）。 */
     private boolean startAtBottom;
     private String currentFilePath;
@@ -169,6 +172,9 @@ public class CsvReaderActivity extends BaseActivity {
                 .setShowAsAction(MenuItem.SHOW_AS_ACTION_IF_ROOM);
         menu.add(Menu.NONE, MENU_GOTO_LINE_ID, Menu.NONE, "转到行号…")
                 .setShowAsAction(MenuItem.SHOW_AS_ACTION_NEVER);
+        // 走查 #56：服务器端文件更新（日志追加/配置改动）后重读；与 FileBrowser 下拉刷新同语义
+        menu.add(Menu.NONE, MENU_RELOAD_ID, Menu.NONE, "重新加载")
+                .setShowAsAction(MenuItem.SHOW_AS_ACTION_NEVER);
         return true;
     }
 
@@ -189,6 +195,10 @@ public class CsvReaderActivity extends BaseActivity {
         }
         if (item.getItemId() == MENU_GOTO_LINE_ID) {
             showGoToLineDialog();
+            return true;
+        }
+        if (item.getItemId() == MENU_RELOAD_ID) {
+            reloadContent();
             return true;
         }
         return super.onOptionsItemSelected(item);
@@ -404,6 +414,42 @@ public class CsvReaderActivity extends BaseActivity {
         });
     }
 
+    /**
+     * CSV 查看器「重新加载」（走查 #56）：服务器端文件更新后重读并重建表格，保持当前滚动位置；
+     * 失败=保留旧表格仅提示（与初次打开 Snackbar 占位语义区分）。renderCsv 内建清理查找状态，
+     * 查找栏开着时自动重扫（现有渲染路径）＝重载后查找行为自洽。
+     */
+    private void reloadContent() {
+        if (currentFilePath == null) return;
+        reloadRestoreY = scrollView.getScrollY();
+        if (loadingOverlay != null) {
+            loadingOverlay.setVisibility(View.VISIBLE);
+        }
+        SshManager.getInstance().readFile(currentFilePath, new SshManager.FileContentCallback() {
+            @Override
+            public void onSuccess(String content) {
+                runOnUiThread(() -> {
+                    if (loadingOverlay != null) {
+                        loadingOverlay.setVisibility(View.GONE);
+                    }
+                    renderCsv(content);
+                    restoreScrollPosition();
+                });
+            }
+
+            @Override
+            public void onError(String message) {
+                runOnUiThread(() -> {
+                    if (loadingOverlay != null) {
+                        loadingOverlay.setVisibility(View.GONE);
+                    }
+                    reloadRestoreY = -1;
+                    UiUtils.showSnackbar(tableLayout, "重新加载失败: " + message);
+                });
+            }
+        });
+    }
+
     private void renderCsv(String content) {
         rawCsvContent = content;
         tableLayout.removeAllViews();
@@ -514,6 +560,13 @@ public class CsvReaderActivity extends BaseActivity {
      * ineffective here; this explicit restore keeps the reading position.
      */
     private void restoreScrollPosition() {
+        if (reloadRestoreY >= 0) {
+            // 走查 #56：重载恢复优先——保持重载前滚动位置（不适用 startAtBottom/进度恢复语义）
+            int y = reloadRestoreY;
+            reloadRestoreY = -1;   // consume — apply exactly once
+            scrollView.post(() -> scrollView.scrollTo(0, y));
+            return;
+        }
         if (startAtBottom) {
             scrollView.post(() -> scrollView.fullScroll(View.FOCUS_DOWN));
             return;
