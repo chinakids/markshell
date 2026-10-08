@@ -93,7 +93,10 @@ public class RemoteFile {
                 || lower.endsWith(".yaml") || lower.endsWith(".yml")
                 // 无扩展名 dot 前缀 shell 启动文件（第卌六轮：与 .sh/.bash/.zsh 同类
                 // 即 shell 脚本——按迭代96 同判据（bash 高亮已备）路由到代码查看器）
-                || isShellDotName();
+                || isShellDotName()
+                // 无扩展名系统级 shell 启动文件（第 47 轮：/etc/profile、/etc/bashrc、
+                // /etc/csh.login 等=shell 脚本，与 dot 同判据路由代码查看器获 bash 高亮）
+                || isShellPlainName();
     }
 
     /** 无扩展名但实为 shell 脚本的点前缀启动文件（大小写不敏感白名单）。 */
@@ -106,6 +109,17 @@ public class RemoteFile {
                 || n.equals(".zshenv") || n.equals(".zlogin") || n.equals(".zlogout")
                 || n.equals(".profile") || n.equals(".envrc")
                 || n.equals(".kshrc") || n.equals(".cshrc") || n.equals(".tcshrc");
+    }
+
+    /** 无扩展名但实为 shell 脚本的系统级启动文件（/etc 下常见，大小写不敏感白名单）。 */
+    private boolean isShellPlainName() {
+        String n = name.toLowerCase();
+        return n.equals("profile")
+                || n.equals("bashrc")
+                || n.equals("csh.login") || n.equals("csh.cshrc") || n.equals("csh.logout")
+                || n.equals("tcshrc")
+                || n.equals("zshenv") || n.equals("zprofile")
+                || n.equals("zshrc") || n.equals("zlogin") || n.equals("zlogout");
     }
 
     public boolean isImageFile() {
@@ -141,6 +155,9 @@ public class RemoteFile {
                 // 无扩展名 dot 前缀配置/清单文件特判（.gitignore/.npmrc 等，运维正餐；
                 // shell 启动类 .bashrc 等已在 isCodeFile 分流，此处不重复）
                 || isCommonDotName()
+                // 无扩展名运维系统文本文件特判（sshd_config/known_hosts/mime.types 等，
+                // /etc 与 ~/.ssh 高频；与 dot 轮同判据白名单开放）
+                || isCommonServiceName()
                 // 无扩展名静态说明/构建文件特判（README/Dockerfile/Makefile 等，git 仓库高频）
                 || isCommonPlainName();
     }
@@ -158,6 +175,20 @@ public class RemoteFile {
                 || n.equals(".vimrc") || n.equals(".inputrc") || n.equals(".screenrc")
                 || n.equals(".hgignore") || n.equals(".flaskenv")
                 || n.equals(".eslintrc") || n.equals(".prettierrc") || n.equals(".babelrc");
+    }
+
+    /** 无扩展名但可确定是文本的运维系统文件（/etc 与 ~/.ssh 高频，大小写不敏感白名单）。 */
+    private boolean isCommonServiceName() {
+        String n = name.toLowerCase();
+        return n.equals("sshd_config") || n.equals("ssh_config")
+                || n.equals("known_hosts") || n.equals("ssh_known_hosts")
+                || n.equals("hosts") || n.equals("hostname")
+                || n.equals("passwd") || n.equals("group")
+                || n.equals("fstab") || n.equals("exports")
+                || n.equals("crontab") || n.equals("aliases")
+                || n.equals("mime.types")
+                || n.equals("services") || n.equals("protocols")
+                || n.equals("motd") || n.equals("issue") || n.equals("netrc");
     }
 
     /** 无扩展名但可确定是文本内容的常见文件名（大小写不敏感特判）。 */

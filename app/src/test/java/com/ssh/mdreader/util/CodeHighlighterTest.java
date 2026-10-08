@@ -48,6 +48,11 @@ public class CodeHighlighterTest {
         assertEquals("bash", CodeHighlighter.resolveLanguage(".zshrc"));
         assertEquals("bash", CodeHighlighter.resolveLanguage(".profile"));
         assertEquals("bash", CodeHighlighter.resolveLanguage(".BASHRC"));
+        // 第 47 轮：系统级无点 shell 启动文件（/etc/profile 等，同 dot 判据映射 bash）
+        assertEquals("bash", CodeHighlighter.resolveLanguage("profile"));
+        assertEquals("bash", CodeHighlighter.resolveLanguage("bashrc"));
+        assertEquals("bash", CodeHighlighter.resolveLanguage("csh.login"));
+        assertEquals("bash", CodeHighlighter.resolveLanguage("ZSHrc"));
         // 第 53 轮：PrismBundle 已含 go/kotlin/sql/yaml，与扩展名路由双面联动
         assertEquals("sql", CodeHighlighter.resolveLanguage("migration.sql"));
         assertEquals("go", CodeHighlighter.resolveLanguage("server.go"));

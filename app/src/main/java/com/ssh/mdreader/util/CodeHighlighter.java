@@ -141,6 +141,8 @@ public class CodeHighlighter {
         // dot 前缀 shell 启动文件（第卌六轮：RemoteFile.isCodeFile 已含 .bashrc/.zshrc 等
         // 白名单；按文件名判定无扩展名须显式映射，否则落入默认 javascript 错误高亮）
         if (isShellDotName(lower))                        return "bash";
+        // 系统级无点 shell 启动文件（第 47 轮：/etc/profile 等；同 dot 判据显式映射 bash）
+        if (isShellPlainName(lower))                      return "bash";
         // 有 grammar 的代码族（第 53 轮：PrismBundle 已含 go/kotlin/sql/yaml，
         // 与 RemoteFile.isCodeFile 扩展名表同步=路由与语言映射双面联动）
         if (lower.endsWith(".sql"))                        return "sql";
@@ -161,6 +163,17 @@ public class CodeHighlighter {
                 || n.equals(".zshenv") || n.equals(".zlogin") || n.equals(".zlogout")
                 || n.equals(".profile") || n.equals(".envrc")
                 || n.equals(".kshrc") || n.equals(".cshrc") || n.equals(".tcshrc");
+    }
+
+    /** 系统级无点 shell 启动文件白名单（第 47 轮：/etc/profile 等，与 RemoteFile
+     *  isCodeFile 同源同步；大小写不敏感，同样需显式映射 bash）。 */
+    private static boolean isShellPlainName(String n) {
+        return n.equals("profile")
+                || n.equals("bashrc")
+                || n.equals("csh.login") || n.equals("csh.cshrc") || n.equals("csh.logout")
+                || n.equals("tcshrc")
+                || n.equals("zshenv") || n.equals("zprofile")
+                || n.equals("zshrc") || n.equals("zlogin") || n.equals("zlogout");
     }
 
     // ── Public API ─────────────────────────────────────────────────────────────

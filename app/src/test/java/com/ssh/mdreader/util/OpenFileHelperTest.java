@@ -296,8 +296,82 @@ public class OpenFileHelperTest {
 
     @Test
     public void unsupportedUnknownBinary() {
-        // 无扩展名非已知说明文件（sshd_config 等尚未覆盖=后继候选，如实标注）
-        assertNull(OpenFileHelper.detectViewerKind("/etc/ssh/sshd_config"));
+        // 无扩展名非已知说明/运维文件（ds_store 等=仍不支持；sshd_config 已由
+        // textService 系列覆盖，见下——白名单开放，非白名单保持不支持）
+        assertNull(OpenFileHelper.detectViewerKind("/a/grub.cfg.bak.x"));
+        assertNull(OpenFileHelper.detectViewerKind("/a/file_without_ext"));
+    }
+
+    // ── Text 无扩展名运维系统文件（第 47 轮：sshd_config/known_hosts 等白名单） ──
+
+    @Test
+    public void textServiceSshdConfig() {
+        assertKind(OpenFileHelper.ViewerKind.TEXT, "/etc/ssh/sshd_config");
+    }
+
+    @Test
+    public void textServiceSshConfig() {
+        assertKind(OpenFileHelper.ViewerKind.TEXT, "/etc/ssh/ssh_config");
+    }
+
+    @Test
+    public void textServiceKnownHosts() {
+        assertKind(OpenFileHelper.ViewerKind.TEXT, "/home/u/.ssh/known_hosts");
+    }
+
+    @Test
+    public void textServiceHosts() {
+        assertKind(OpenFileHelper.ViewerKind.TEXT, "/etc/hosts");
+    }
+
+    @Test
+    public void textServicePasswdGroup() {
+        assertKind(OpenFileHelper.ViewerKind.TEXT, "/etc/passwd");
+        assertKind(OpenFileHelper.ViewerKind.TEXT, "/etc/group");
+    }
+
+    @Test
+    public void textServiceFstabExports() {
+        assertKind(OpenFileHelper.ViewerKind.TEXT, "/etc/fstab");
+        assertKind(OpenFileHelper.ViewerKind.TEXT, "/etc/exports");
+    }
+
+    @Test
+    public void textServiceMimeTypes() {
+        assertKind(OpenFileHelper.ViewerKind.TEXT, "/etc/mime.types");
+    }
+
+    @Test
+    public void textServiceCrontabServices() {
+        assertKind(OpenFileHelper.ViewerKind.TEXT, "/etc/crontab");
+        assertKind(OpenFileHelper.ViewerKind.TEXT, "/etc/services");
+    }
+
+    @Test
+    public void textServiceUppercase() {
+        assertKind(OpenFileHelper.ViewerKind.TEXT, "/etc/SSHD_CONFIG");
+    }
+
+    // ── Code 系统级无点 shell 启动文件（第 47 轮：/etc/profile 等白名单） ──
+
+    @Test
+    public void codeShellPlainProfile() {
+        assertKind(OpenFileHelper.ViewerKind.CODE, "/etc/profile");
+    }
+
+    @Test
+    public void codeShellPlainBashrc() {
+        assertKind(OpenFileHelper.ViewerKind.CODE, "/etc/bashrc");
+    }
+
+    @Test
+    public void codeShellPlainCshLogin() {
+        assertKind(OpenFileHelper.ViewerKind.CODE, "/etc/csh.login");
+    }
+
+    @Test
+    public void codeShellPlainZshrc() {
+        assertKind(OpenFileHelper.ViewerKind.CODE, "/etc/zsh/zshrc");
     }
 
     @Test
