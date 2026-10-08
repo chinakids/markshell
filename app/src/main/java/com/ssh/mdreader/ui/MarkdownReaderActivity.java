@@ -82,6 +82,7 @@ public class MarkdownReaderActivity extends BaseActivity implements AnnotationOv
     private static final int MENU_FIND_ID            = 0xA1017;
     private static final int MENU_COPY_PATH_ID       = 0xA1018;
     private static final int MENU_SHARE_ID           = 0xA1019;
+    private static final int MENU_RELOAD_ID          = 0xA101A;
     private static final String KEY_SCROLL_Y   = "scroll_y";
     private static final String KEY_EDIT_MODE  = "edit_mode";
     private static final String KEY_EDIT_DRAFT = "edit_draft";
@@ -279,6 +280,8 @@ public class MarkdownReaderActivity extends BaseActivity implements AnnotationOv
         menu.add(Menu.NONE, MENU_SHARE_ID, Menu.NONE, "分享")
                 .setIcon(R.drawable.ic_share)
                 .setShowAsAction(MenuItem.SHOW_AS_ACTION_NEVER);
+        menu.add(Menu.NONE, MENU_RELOAD_ID, Menu.NONE, "重新加载")
+                .setShowAsAction(MenuItem.SHOW_AS_ACTION_NEVER);
         return true;
     }
 
@@ -322,6 +325,9 @@ public class MarkdownReaderActivity extends BaseActivity implements AnnotationOv
                 } else {
                     UiUtils.showToast(this, "暂无可分享内容");
                 }
+                return true;
+            case MENU_RELOAD_ID:
+                reloadMarkdown();
                 return true;
             case MENU_SAVE_ID:
                 saveEdits();
@@ -696,6 +702,46 @@ public class MarkdownReaderActivity extends BaseActivity implements AnnotationOv
                     progressBar.setVisibility(View.GONE);
                     UiUtils.showSnackbar(tvContent,
                             getString(R.string.error_loading) + ": " + message);
+                });
+            }
+        });
+    }
+
+    /**
+     * 阅读器「重新加载」（走查 #57）：重读服务器端最新内容并重新渲染。
+     * 与四查看器同语义，差异=阅读器协同域重建：
+     * <ul>
+     *   <li>批注：{@link AnnotationOverlayHelper#loadAnnotations()} 以新文本重新定位
+     *       （CSV 权威重读；定位失败=抽屉「未找到原文」角标，与初次打开同语义）；</li>
+     *   <li>大纲/任务清单：{@link #renderContent()} 的标记注入与坐标扫描同源重建；</li>
+     *   <li>查找：renderContent 内建 {@code rebuildFind(true)} 保持当前查找序号；</li>
+     *   <li>滚动位置保持：renderContent 内建 savedScrollY 恢复（增量续读场景）；</li>
+     *   <li>失败=保留旧内容仅 toast（与初次打开「加载失败」占位语义区分）。</li>
+     * </ul>
+     * 仅阅读态可见（编辑态菜单已整体置换为保存/放弃组，重载会丢弃未保存草稿=不可见即不可误触）。
+     */
+    private void reloadMarkdown() {
+        if (editMode || currentFilePath == null) return;
+        progressBar.setVisibility(View.VISIBLE);
+        SshManager.getInstance().readFile(currentFilePath, new SshManager.FileContentCallback() {
+            @Override
+            public void onSuccess(String content) {
+                runOnUiThread(() -> {
+                    progressBar.setVisibility(View.GONE);
+                    markdownContent = content;
+                    render();           // 重注入标记+重渲染+滚动保持
+                    annotationOverlay.loadAnnotations();   // 以新文本重新定位批注
+                    // 抽屉开着=当前 Tab 数据已随渲染变化（大纲树/批注状态），同步刷新
+                    if (drawerLayout != null && drawerLayout.isDrawerOpen(drawerView)) {
+                        applyDrawerTab(tocTabActive);
+                    }
+                });
+            }
+            @Override
+            public void onError(String message) {
+                runOnUiThread(() -> {
+                    progressBar.setVisibility(View.GONE);
+                    UiUtils.showToast(MarkdownReaderActivity.this, "重新加载失败: " + message);
                 });
             }
         });
