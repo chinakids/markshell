@@ -202,6 +202,81 @@ public class OpenFileHelperTest {
         assertKind(OpenFileHelper.ViewerKind.CODE, "/src/main.cpp");
     }
 
+    // ── Code dot 前缀 shell 启动文件（第卌六轮：.bashrc/.zshrc 等=shell 脚本，
+    //    与 .sh/.bash/.zsh 同判据路由代码查看器获 bash 高亮） ────────────────
+
+    @Test
+    public void codeShellDotBashrc() {
+        assertKind(OpenFileHelper.ViewerKind.CODE, "/home/u/.bashrc");
+    }
+
+    @Test
+    public void codeShellDotBashProfile() {
+        assertKind(OpenFileHelper.ViewerKind.CODE, "/home/u/.bash_profile");
+    }
+
+    @Test
+    public void codeShellDotZshrc() {
+        assertKind(OpenFileHelper.ViewerKind.CODE, "/home/u/.zshrc");
+    }
+
+    @Test
+    public void codeShellDotProfile() {
+        assertKind(OpenFileHelper.ViewerKind.CODE, "/home/u/.profile");
+    }
+
+    @Test
+    public void codeShellDotEnvrc() {
+        assertKind(OpenFileHelper.ViewerKind.CODE, "/repo/.envrc");
+    }
+
+    @Test
+    public void codeShellDotUpperCase() {
+        assertKind(OpenFileHelper.ViewerKind.CODE, "/home/u/.BASHRC");
+    }
+
+    // ── Text dot 前缀配置/清单文件（第卌六轮：.gitignore/.npmrc 等运维正餐） ──
+
+    @Test
+    public void textDotGitignore() {
+        assertKind(OpenFileHelper.ViewerKind.TEXT, "/repo/.gitignore");
+    }
+
+    @Test
+    public void textDotGitconfig() {
+        assertKind(OpenFileHelper.ViewerKind.TEXT, "/home/u/.gitconfig");
+    }
+
+    @Test
+    public void textDotNpmrc() {
+        assertKind(OpenFileHelper.ViewerKind.TEXT, "/repo/.npmrc");
+    }
+
+    @Test
+    public void textDotEnvLocal() {
+        assertKind(OpenFileHelper.ViewerKind.TEXT, "/app/.env.local");
+    }
+
+    @Test
+    public void textDotEnvExample() {
+        assertKind(OpenFileHelper.ViewerKind.TEXT, "/app/.env.example");
+    }
+
+    @Test
+    public void textDotEditorconfig() {
+        assertKind(OpenFileHelper.ViewerKind.TEXT, "/repo/.editorconfig");
+    }
+
+    @Test
+    public void textDotDockerignore() {
+        assertKind(OpenFileHelper.ViewerKind.TEXT, "/repo/.dockerignore");
+    }
+
+    @Test
+    public void textDotVimrc() {
+        assertKind(OpenFileHelper.ViewerKind.TEXT, "/home/u/.vimrc");
+    }
+
     // ── Unsupported ───────────────────────────────────────────────────────
 
     @Test
@@ -223,6 +298,13 @@ public class OpenFileHelperTest {
     public void unsupportedUnknownBinary() {
         // 无扩展名非已知说明文件（sshd_config 等尚未覆盖=后继候选，如实标注）
         assertNull(OpenFileHelper.detectViewerKind("/etc/ssh/sshd_config"));
+    }
+
+    @Test
+    public void unsupportedDotUnknown() {
+        // dot 前缀文件仅白名单开放（.bashrc/.gitignore 等）；非白名单仍不支持
+        assertNull(OpenFileHelper.detectViewerKind("/.DS_Store"));
+        assertNull(OpenFileHelper.detectViewerKind("/home/u/.unknownrc"));
     }
 
     @Test

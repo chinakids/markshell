@@ -90,7 +90,22 @@ public class RemoteFile {
                 || lower.endsWith(".sql")
                 || lower.endsWith(".go")
                 || lower.endsWith(".kt")
-                || lower.endsWith(".yaml") || lower.endsWith(".yml");
+                || lower.endsWith(".yaml") || lower.endsWith(".yml")
+                // 无扩展名 dot 前缀 shell 启动文件（第卌六轮：与 .sh/.bash/.zsh 同类
+                // 即 shell 脚本——按迭代96 同判据（bash 高亮已备）路由到代码查看器）
+                || isShellDotName();
+    }
+
+    /** 无扩展名但实为 shell 脚本的点前缀启动文件（大小写不敏感白名单）。 */
+    private boolean isShellDotName() {
+        String n = name.toLowerCase();
+        return n.equals(".bashrc")
+                || n.equals(".bash_profile") || n.equals(".bash_login")
+                || n.equals(".bash_logout") || n.equals(".bash_aliases")
+                || n.equals(".zshrc") || n.equals(".zprofile")
+                || n.equals(".zshenv") || n.equals(".zlogin") || n.equals(".zlogout")
+                || n.equals(".profile") || n.equals(".envrc")
+                || n.equals(".kshrc") || n.equals(".cshrc") || n.equals(".tcshrc");
     }
 
     public boolean isImageFile() {
@@ -123,8 +138,26 @@ public class RemoteFile {
                 || lower.endsWith(".rs") || lower.endsWith(".swift") || lower.endsWith(".lua")
                 || lower.endsWith(".srt") || lower.endsWith(".lrc")
                 || lower.endsWith(".m3u") || lower.endsWith(".m3u8")
+                // 无扩展名 dot 前缀配置/清单文件特判（.gitignore/.npmrc 等，运维正餐；
+                // shell 启动类 .bashrc 等已在 isCodeFile 分流，此处不重复）
+                || isCommonDotName()
                 // 无扩展名静态说明/构建文件特判（README/Dockerfile/Makefile 等，git 仓库高频）
                 || isCommonPlainName();
+    }
+
+    /** 无扩展名但可确定是文本配置的点前缀文件（大小写不敏感白名单）。 */
+    private boolean isCommonDotName() {
+        String n = name.toLowerCase();
+        // .env 系列变体（.env.local/.env.production/.env.example 等，以 .env. 开头）
+        if (n.startsWith(".env.")) return true;
+        return n.equals(".gitignore") || n.equals(".gitattributes")
+                || n.equals(".gitconfig") || n.equals(".gitmodules")
+                || n.equals(".npmrc") || n.equals(".yarnrc") || n.equals(".bowerrc")
+                || n.equals(".editorconfig") || n.equals(".dockerignore")
+                || n.equals(".htaccess") || n.equals(".htpasswd")
+                || n.equals(".vimrc") || n.equals(".inputrc") || n.equals(".screenrc")
+                || n.equals(".hgignore") || n.equals(".flaskenv")
+                || n.equals(".eslintrc") || n.equals(".prettierrc") || n.equals(".babelrc");
     }
 
     /** 无扩展名但可确定是文本内容的常见文件名（大小写不敏感特判）。 */

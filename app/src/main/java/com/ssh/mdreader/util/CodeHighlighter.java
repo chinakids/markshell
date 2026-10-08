@@ -138,6 +138,9 @@ public class CodeHighlighter {
         // 手写 grammar（BashGrammar，CustomGrammarLocator 特判），与扩展名表同步）
         if (lower.endsWith(".sh") || lower.endsWith(".bash")
                 || lower.endsWith(".zsh"))                 return "bash";
+        // dot 前缀 shell 启动文件（第卌六轮：RemoteFile.isCodeFile 已含 .bashrc/.zshrc 等
+        // 白名单；按文件名判定无扩展名须显式映射，否则落入默认 javascript 错误高亮）
+        if (isShellDotName(lower))                        return "bash";
         // 有 grammar 的代码族（第 53 轮：PrismBundle 已含 go/kotlin/sql/yaml，
         // 与 RemoteFile.isCodeFile 扩展名表同步=路由与语言映射双面联动）
         if (lower.endsWith(".sql"))                        return "sql";
@@ -146,6 +149,18 @@ public class CodeHighlighter {
         if (lower.endsWith(".yaml") || lower.endsWith(".yml"))
                                                            return "yaml";
         return "javascript"; // sensible default
+    }
+
+    /** dot 前缀 shell 启动文件白名单（与 RemoteFile.isCodeFile 同源同步，
+     *  大小写不敏感；无扩展名须显式映射语言以避开默认 javascript）。 */
+    private static boolean isShellDotName(String n) {
+        return n.equals(".bashrc")
+                || n.equals(".bash_profile") || n.equals(".bash_login")
+                || n.equals(".bash_logout") || n.equals(".bash_aliases")
+                || n.equals(".zshrc") || n.equals(".zprofile")
+                || n.equals(".zshenv") || n.equals(".zlogin") || n.equals(".zlogout")
+                || n.equals(".profile") || n.equals(".envrc")
+                || n.equals(".kshrc") || n.equals(".cshrc") || n.equals(".tcshrc");
     }
 
     // ── Public API ─────────────────────────────────────────────────────────────
