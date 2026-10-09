@@ -158,6 +158,9 @@ public class RemoteFile {
                 // 无扩展名运维系统文本文件特判（sshd_config/known_hosts/mime.types 等，
                 // /etc 与 ~/.ssh 高频；与 dot 轮同判据白名单开放）
                 || isCommonServiceName()
+                // ~/.ssh 目录内无扩展名文件特判（config/authorized_keys/私钥等；按父目录
+                // 白名单=仅 .ssh 下命中，「config」等通用名不做全局误判）
+                || isDotSshFile()
                 // 无扩展名静态说明/构建文件特判（README/Dockerfile/Makefile 等，git 仓库高频）
                 || isCommonPlainName();
     }
@@ -189,6 +192,38 @@ public class RemoteFile {
                 || n.equals("mime.types")
                 || n.equals("services") || n.equals("protocols")
                 || n.equals("motd") || n.equals("issue") || n.equals("netrc");
+    }
+
+    /**
+     * 无扩展名但按父目录白名单可确定的 ~/.ssh 文件（大小写不敏感；仅当父目录为
+     * .ssh 才命中——「config」等通用名不全局误判）。名单依 OpenSSH 官方 man
+     * （ssh(1)/sshd(8)/ssh-keygen(1) FILES 节）：config、authorized_keys(/2)、
+     * authorized_principals、known_hosts2、environment 与私钥 id_* 族。
+     */
+    private boolean isDotSshFile() {
+        String n = name.toLowerCase();
+        boolean nameOk = n.equals("config")
+                || n.equals("authorized_keys") || n.equals("authorized_keys2")
+                || n.equals("authorized_principals")
+                || n.equals("known_hosts2")
+                || n.equals("environment")
+                || n.equals("id_rsa") || n.equals("id_dsa") || n.equals("id_ecdsa")
+                || n.equals("id_ed25519")
+                || n.equals("id_ecdsa_sk") || n.equals("id_ed25519_sk")
+                || n.equals("id_mldsa44_ed25519");
+        return nameOk && isInDotSshDir();
+    }
+
+    /** path 的父目录是否为 .ssh（OpenSSH 约定名，小写精确匹配；支持绝对/相对主目录）。 */
+    private boolean isInDotSshDir() {
+        if (path == null) return false;
+        int slash = path.lastIndexOf('/');
+        if (slash < 0) return false;
+        String parent = path.substring(0, slash);
+        while (parent.endsWith("/")) {
+            parent = parent.substring(0, parent.length() - 1);
+        }
+        return parent.equals(".ssh") || parent.endsWith("/.ssh");
     }
 
     /** 无扩展名但可确定是文本内容的常见文件名（大小写不敏感特判）。 */

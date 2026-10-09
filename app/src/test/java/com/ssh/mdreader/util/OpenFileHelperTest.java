@@ -352,6 +352,50 @@ public class OpenFileHelperTest {
         assertKind(OpenFileHelper.ViewerKind.TEXT, "/etc/SSHD_CONFIG");
     }
 
+    // ── Text ~/.ssh 无扩展名文件（迭代103：按父目录白名单，config/authorized_keys/私钥族） ──
+
+    @Test
+    public void textDotSshConfig() {
+        assertKind(OpenFileHelper.ViewerKind.TEXT, "/home/u/.ssh/config");
+        assertKind(OpenFileHelper.ViewerKind.TEXT, "/home/u/.ssh/CONFIG");
+    }
+
+    @Test
+    public void textDotSshAuthKeys() {
+        assertKind(OpenFileHelper.ViewerKind.TEXT, "/home/u/.ssh/authorized_keys");
+        assertKind(OpenFileHelper.ViewerKind.TEXT, "/home/u/.ssh/authorized_keys2");
+        assertKind(OpenFileHelper.ViewerKind.TEXT, "/home/u/.ssh/authorized_principals");
+    }
+
+    @Test
+    public void textDotSshKnownHosts2Environment() {
+        assertKind(OpenFileHelper.ViewerKind.TEXT, "/root/.ssh/known_hosts2");
+        assertKind(OpenFileHelper.ViewerKind.TEXT, "/root/.ssh/environment");
+    }
+
+    @Test
+    public void textDotSshPrivateKeys() {
+        assertKind(OpenFileHelper.ViewerKind.TEXT, "/home/u/.ssh/id_rsa");
+        assertKind(OpenFileHelper.ViewerKind.TEXT, "/home/u/.ssh/id_dsa");
+        assertKind(OpenFileHelper.ViewerKind.TEXT, "/home/u/.ssh/id_ecdsa");
+        assertKind(OpenFileHelper.ViewerKind.TEXT, "/home/u/.ssh/id_ed25519");
+        assertKind(OpenFileHelper.ViewerKind.TEXT, "/home/u/.ssh/id_ecdsa_sk");
+        assertKind(OpenFileHelper.ViewerKind.TEXT, "/home/u/.ssh/id_ed25519_sk");
+        assertKind(OpenFileHelper.ViewerKind.TEXT, "/home/u/.ssh/id_mldsa44_ed25519");
+    }
+
+    @Test
+    public void textDotSshParentScopedOnly() {
+        // 白名单按父目录开放：同名文件在非 .ssh 目录=仍不支持（不做全局误判）
+        assertNull(OpenFileHelper.detectViewerKind("/srv/app/config"));
+        assertNull(OpenFileHelper.detectViewerKind("/home/u/authorized_keys"));
+        assertNull(OpenFileHelper.detectViewerKind("/etc/id_rsa"));
+        // 相对主目录形态（主目录直接设为 .ssh 时）
+        assertKind(OpenFileHelper.ViewerKind.TEXT, ".ssh/config");
+        // 根下 .ssh 形态
+        assertKind(OpenFileHelper.ViewerKind.TEXT, "/.ssh/authorized_keys");
+    }
+
     // ── Code 系统级无点 shell 启动文件（第 47 轮：/etc/profile 等白名单） ──
 
     @Test
