@@ -48,8 +48,16 @@ public class SshManager {
 
     private static final String TAG = "SshManager";
     private static final int CONNECT_TIMEOUT_MS = 10_000;
-    /** Socket read timeout: bounds blocking channel I/O (e.g. liveness pwd()) on zombie links. */
-    private static final int IO_TIMEOUT_MS = 10_000;
+    /**
+     * 心跳/读超时机制（JSch 0.1.55 源码实证，Session.java）：{@code setServerAliveInterval(interval)}
+     * 内部即 {@code setTimeout(interval)}（Session.java:2417）——socket 读超时与心跳间隔绑定为同一值；
+     * Session.read 每读超时一次（间隔=interval）发一条 keepalive@jcraft.com（SSH_MSG_GLOBAL_REQUEST），
+     * 收到任何消息即归零计数；连续 {@code serverAliveCountMax}（此处=3）次无响应则抛异常判死。
+     * 因此**不得**再调 {@code setTimeout} 覆盖（历史上曾用 IO_TIMEOUT_MS=10s 覆盖，导致「心跳间隔」
+     * 设置项实际恒 10s 不生效——本轮修复）。判死耗时=心跳间隔×3（默认 5s×3=15s）；
+     * 用户把心跳调大（30/60s）即接受更长的无响应容忍期（设置项本义），阻塞读也会随之变长。
+     * 认证完成后 Session.connect 会把 timeout 字段应用到 socket（Session.java:523）。
+     */
     /** Keepalive heartbeat interval to the SSH server (JSch setServerAliveInterval). */
     static final int DEFAULT_HEARTBEAT_MS = 5_000;
     /** 合法心跳间隔范围（毫秒）；越界值回退默认，见 {@link #sanitizeHeartbeat(int)}。 */
@@ -87,6 +95,10 @@ public class SshManager {
     private volatile List<PortForwardRule> portForwardRules = Collections.emptyList();
     /** 已成功建立转发的本地端口（仅 worker 线程读写；cleanup/断开时显式移除）。 */
     private volatile List<Integer> activeForwardedPorts = Collections.emptyList();
+    /** 最近一次建连（含自动重连）时请求的端口转发规则快照；用于复用判定——
+     *  用户编辑转发规则后再次 connect 时，规则集与快照不一致则**必须重建连接**以应用新规则
+     *  （复用路径不改变既有会话状态，见 {@link #reuseEligible}）。仅 worker 线程写。 */
+    private volatile List<PortForwardRule> appliedForwardRules = Collections.emptyList();
     /** 最近一次建连的转发摘要（null=无规则或全部成功无跳过/失败）；UI 经 consume 读取并清空。 */
     private volatile String portForwardReport;
 
@@ -211,10 +223,15 @@ public class SshManager {
     /**
      * 连接复用资格判定（纯静态，包级可见以便单测）：复用=目标连接存活 && 同连接键（host:port:user
      * 规范化）&& 认证要素等价（见 {@link SshConnectionHelper#shouldReuseConnection}）&& 心跳设置未变
-     * （否则按「下次 connect 生效」语义须重建以应用新心跳）。
+     * （否则按「下次 connect 生效」语义须重建以应用新心跳）&& 端口转发规则集未变（{@link
+     * PortForwardHelper#sameEffectiveRules}——复用路径不重跑 setPortForwardingL，规则变更（增删改）
+     * 必须重建连接才能生效；规则集「生效等价」比较忽略展示名）。
      */
     static boolean reuseEligible(SshConfig existing, SshConfig requested, boolean alive,
-                                 int appliedHeartbeatMs, int requestedHeartbeatMs) {
+                                 int appliedHeartbeatMs, int requestedHeartbeatMs,
+                                 List<PortForwardRule> appliedRules,
+                                 List<PortForwardRule> requestedRules) {
+        if (!PortForwardHelper.sameEffectiveRules(appliedRules, requestedRules)) return false;
         if (appliedHeartbeatMs != requestedHeartbeatMs) return false;
         return SshConnectionHelper.shouldReuseConnection(existing, requested, alive);
     }
@@ -237,7 +254,8 @@ public class SshManager {
             // 不变量=「复用不改变既有会话的任何状态」（homeDirectory/fingerprint/服务端会话均保持，
             // 仅切换监听者）。
             if (reuseEligible(oldConfig, config, isConnected(),
-                    appliedHeartbeatMs, heartbeatIntervalMs)) {
+                    appliedHeartbeatMs, heartbeatIntervalMs,
+                    appliedForwardRules, portForwardRules)) {
                 Log.i(TAG, "复用现有连接（同目标同凭据）: "
                         + SshConnectionHelper.deriveConnectionKey(config));
                 if (cb != null) cb.onConnected();
@@ -285,9 +303,8 @@ public class SshManager {
         session.setServerAliveInterval(heartbeatIntervalMs);
         appliedHeartbeatMs = heartbeatIntervalMs;
         session.setServerAliveCountMax(HEARTBEAT_COUNT_MAX);
-        // Bound socket reads so channel I/O on a silently-broken link
-        // fails fast instead of blocking indefinitely.
-        session.setTimeout(IO_TIMEOUT_MS);
+        // 注意：不得再调 session.setTimeout(...) 覆盖——0.1.55 中 setServerAliveInterval
+        // 内部即 setTimeout(interval)，读超时=心跳间隔（详见 IO_TIMEOUT 注释块）。
         session.connect(CONNECT_TIMEOUT_MS);
 
         // 主机指纹校验（known_hosts）：TOFU 记录 / 一致放行 / 变更中止。
@@ -311,6 +328,8 @@ public class SshManager {
      * 摘要写入 {@link #portForwardReport} 供 UI 在 onConnected 后一次性提示。
      */
     private void applyPortForwardsSync() {
+        // 记录本次建连时刻的规则快照（含空规则），供复用判定（reuseEligible）比较。
+        appliedForwardRules = portForwardRules;
         List<PortForwardRule> rules = portForwardRules;
         if (rules == null || rules.isEmpty()) return;
         List<PortForwardHelper.EnablePlan> plan = PortForwardHelper.planEnable(rules);

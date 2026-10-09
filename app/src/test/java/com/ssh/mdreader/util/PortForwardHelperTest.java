@@ -235,4 +235,57 @@ public class PortForwardHelperTest {
         assertTrue(!report.contains("f6")); // 仅列举前 5 条
         assertTrue(report.contains("等7 条"));
     }
+
+    // ── sameEffectiveRule / sameEffectiveRules（连接复用判定） ─────────────────
+
+    @Test
+    public void sameEffectiveRule_ignoresDisplayNameAndBindNormalization() {
+        // 仅展示名不同=等价；绑定地址「空」与「127.0.0.1」应用结果相同=等价
+        assertTrue(PortForwardHelper.sameEffectiveRule(
+                rule("A", 8080, "db.internal", 5432, ""),
+                rule("B", 8080, " db.internal ", 5432, "127.0.0.1")));
+        // 远端主机大小写不敏感（主机名/IP 解析不受大小写影响）
+        assertTrue(PortForwardHelper.sameEffectiveRule(
+                rule("A", 8080, "DB.Internal", 5432, "0.0.0.0"),
+                rule("A", 8080, "db.internal", 5432, "0.0.0.0")));
+    }
+
+    @Test
+    public void sameEffectiveRule_effectiveFieldsDiffer() {
+        assertFalse(PortForwardHelper.sameEffectiveRule(
+                rule("A", 8080, "h", 5432, ""),
+                rule("A", 8081, "h", 5432, "")));
+        assertFalse(PortForwardHelper.sameEffectiveRule(
+                rule("A", 8080, "h", 5432, ""),
+                rule("A", 8080, "h", 5433, "")));
+        assertFalse(PortForwardHelper.sameEffectiveRule(
+                rule("A", 8080, "h", 5432, ""),
+                rule("A", 8080, "h2", 5432, "")));
+        assertFalse(PortForwardHelper.sameEffectiveRule(
+                rule("A", 8080, "h", 5432, "0.0.0.0"),
+                rule("A", 8080, "h", 5432, "127.0.0.1")));
+    }
+
+    @Test
+    public void sameEffectiveRule_nullEntries() {
+        assertFalse(PortForwardHelper.sameEffectiveRule(null, rule("A", 1, "h", 1, "")));
+        assertTrue(PortForwardHelper.sameEffectiveRule(null, null));
+    }
+
+    @Test
+    public void sameEffectiveRules_nullOrEmptyEquivalent() {
+        assertTrue(PortForwardHelper.sameEffectiveRules(null, null));
+        assertTrue(PortForwardHelper.sameEffectiveRules(null, new ArrayList<>()));
+        assertTrue(PortForwardHelper.sameEffectiveRules(new ArrayList<>(), null));
+    }
+
+    @Test
+    public void sameEffectiveRules_orderSensitiveAndSizeChecked() {
+        List<PortForwardRule> a = Arrays.asList(rule("A", 8080, "h", 1, ""), rule("B", 8081, "h", 2, ""));
+        List<PortForwardRule> reversed = Arrays.asList(rule("A", 8081, "h", 2, ""), rule("B", 8080, "h", 1, ""));
+        assertFalse(PortForwardHelper.sameEffectiveRules(a, reversed)); // 顺序=启用序，敏感
+        assertFalse(PortForwardHelper.sameEffectiveRules(
+                a, Arrays.asList(rule("A", 8080, "h", 1, "")))); // 长度不同
+        assertTrue(PortForwardHelper.sameEffectiveRules(a, new ArrayList<>(a))); // 同序同字段=等价
+    }
 }

@@ -64,7 +64,47 @@ public final class PortForwardHelper {
     }
 
     /**
-     * 同列表内本地端口冲突检测（纯函数）：返回第一个重复出现的本地端口；无冲突返回 -1。
+     * 两条规则是否「生效等价」（纯函数，供连接复用判定 {@code reuseEligible} 使用）：
+     * 展示名 name 仅用于展示、不参与隧道建立，比较时忽略；生效字段=本地端口、远端主机
+     * （trim+忽略大小写，主机名/IP 解析对大小写不敏感）、远端端口、绑定地址（normalize 后
+     * 空串=未绑定=将用默认 127.0.0.1，与显式 DEFAULT_BIND_ADDRESS 等价——两者应用结果相同）。
+     * null 条目按「无效条目」参与比较（两个 null 互为相等）。
+     */
+    public static boolean sameEffectiveRule(PortForwardRule a, PortForwardRule b) {
+        if (a == null || b == null) return a == b;
+        if (a.getLocalPort() != b.getLocalPort()) return false;
+        String h = a.getRemoteHost(), h2 = b.getRemoteHost();
+        if (h == null || h2 == null) {
+            if (h != h2) return false;
+        } else if (!h.trim().equalsIgnoreCase(h2.trim())) {
+            return false;
+        }
+        if (a.getRemotePort() != b.getRemotePort()) return false;
+        return effectiveBind(a.getBindAddress()).equals(effectiveBind(b.getBindAddress()));
+    }
+
+    /** 绑定地址生效值：normalize 后空串回退 {@link #DEFAULT_BIND_ADDRESS}（与 apply 时一致）。 */
+    private static String effectiveBind(String bind) {
+        String n = normalizeBindAddress(bind);
+        return n.isEmpty() ? DEFAULT_BIND_ADDRESS : n;
+    }
+
+    /**
+     * 两个规则列表是否「生效等价」（纯函数，保序逐条比较）：null 与空列表等价；长度不同
+     * 即不等。顺序敏感（applyPortForwardsSync 按序启用，同本地端口重复时首条优先——顺序
+     * 变化会改变实际启用集，故不等）。
+     */
+    public static boolean sameEffectiveRules(List<PortForwardRule> a, List<PortForwardRule> b) {
+        if (a == null || a.isEmpty()) return b == null || b.isEmpty();
+        if (b == null || b.isEmpty()) return false;
+        if (a.size() != b.size()) return false;
+        for (int i = 0; i < a.size(); i++) {
+            if (!sameEffectiveRule(a.get(i), b.get(i))) return false;
+        }
+        return true;
+    }
+
+    /** 同列表内本地端口冲突检测（纯函数）：返回第一个重复出现的本地端口；无冲突返回 -1。
      * 输入含 null 条目时跳过（null 条目无法参与冲突，由调用方清洗后再校验）。
      */
     public static int findLocalPortConflict(List<PortForwardRule> rules) {

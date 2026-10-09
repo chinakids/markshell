@@ -10,6 +10,7 @@ import com.jcraft.jsch.ChannelSftp;
 import com.jcraft.jsch.LsTestFactory;
 import com.jcraft.jsch.SftpATTRS;
 import com.jcraft.jsch.SftpException;
+import com.ssh.mdreader.model.PortForwardRule;
 import com.ssh.mdreader.model.RemoteFile;
 import com.ssh.mdreader.model.SearchResult;
 import com.ssh.mdreader.model.SshConfig;
@@ -449,33 +450,63 @@ public class SshManagerTest {
         assertTrue(attrs.isLink());
     }
 
-    // ── 连接复用资格判定（reuseEligible = SshConnectionHelper 谓词 + 心跳一致性） ──
+    // ── 连接复用资格判定（reuseEligible = SshConnectionHelper 谓词 + 心跳一致性 + 转发规则一致） ──
 
     private static SshConfig cfg(String host, String pass) {
         return new SshConfig("alias", host, 22, "u", pass, "/");
     }
 
+    private static final List<PortForwardRule> NO_RULES = java.util.Collections.emptyList();
+
+    private static PortForwardRule rule(int lport, String rhost, int rport) {
+        return new PortForwardRule("n", lport, rhost, rport, "");
+    }
+
     @Test
     public void reuseEligible_sameTargetSameCredsSameHeartbeat() {
-        assertTrue(SshManager.reuseEligible(cfg("h", "p"), cfg("h", "p"), true, 5000, 5000));
+        assertTrue(SshManager.reuseEligible(cfg("h", "p"), cfg("h", "p"), true, 5000, 5000,
+                NO_RULES, NO_RULES));
     }
 
     @Test
     public void reuseEligible_notAliveOrDifferentTarget() {
-        assertFalse(SshManager.reuseEligible(cfg("h", "p"), cfg("h", "p"), false, 5000, 5000));
-        assertFalse(SshManager.reuseEligible(cfg("h", "p"), cfg("h2", "p"), true, 5000, 5000));
+        assertFalse(SshManager.reuseEligible(cfg("h", "p"), cfg("h", "p"), false, 5000, 5000,
+                NO_RULES, NO_RULES));
+        assertFalse(SshManager.reuseEligible(cfg("h", "p"), cfg("h2", "p"), true, 5000, 5000,
+                NO_RULES, NO_RULES));
     }
 
     @Test
     public void reuseEligible_heartbeatChangedForcesReconnect() {
         // 用户改了心跳偏好：「下次 connect 生效」语义 → 即使同目标存活也必须重建
-        assertFalse(SshManager.reuseEligible(cfg("h", "p"), cfg("h", "p"), true, 5000, 10000));
+        assertFalse(SshManager.reuseEligible(cfg("h", "p"), cfg("h", "p"), true, 5000, 10000,
+                NO_RULES, NO_RULES));
         // 心跳相同则不受影响
-        assertTrue(SshManager.reuseEligible(cfg("h", "p"), cfg("h", "p"), true, 10000, 10000));
+        assertTrue(SshManager.reuseEligible(cfg("h", "p"), cfg("h", "p"), true, 10000, 10000,
+                NO_RULES, NO_RULES));
     }
 
     @Test
     public void reuseEligible_credentialChangeForcesReconnect() {
-        assertFalse(SshManager.reuseEligible(cfg("h", "old"), cfg("h", "new"), true, 5000, 5000));
+        assertFalse(SshManager.reuseEligible(cfg("h", "old"), cfg("h", "new"), true, 5000, 5000,
+                NO_RULES, NO_RULES));
+    }
+
+    @Test
+    public void reuseEligible_portForwardRuleChangeForcesReconnect() {
+        // 端口转发规则变更（增/删/改任一）必须重建连接才能应用新隧道（复用路径不重跑转发）
+        List<PortForwardRule> applied = new ArrayList<>();
+        applied.add(rule(8080, "db.internal", 5432));
+        List<PortForwardRule> changed = new ArrayList<>();
+        changed.add(rule(8080, "db.internal", 5433));
+        assertFalse(SshManager.reuseEligible(cfg("h", "p"), cfg("h", "p"), true, 5000, 5000,
+                applied, changed));
+        assertFalse(SshManager.reuseEligible(cfg("h", "p"), cfg("h", "p"), true, 5000, 5000,
+                NO_RULES, applied));
+        // 规则「生效等价」（仅展示名不同/绑定归一空=默认）不阻止复用
+        List<PortForwardRule> renamedOnly = new ArrayList<>();
+        renamedOnly.add(new PortForwardRule("另一个名字", 8080, "db.internal", 5432, ""));
+        assertTrue(SshManager.reuseEligible(cfg("h", "p"), cfg("h", "p"), true, 5000, 5000,
+                applied, renamedOnly));
     }
 }
