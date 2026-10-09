@@ -396,6 +396,47 @@ public class OpenFileHelperTest {
         assertKind(OpenFileHelper.ViewerKind.TEXT, "/.ssh/authorized_keys");
     }
 
+    // ── Text .pub 公钥文件（迭代104：~/.ssh 与 /etc/ssh 下按父目录白名单） ──
+
+    @Test
+    public void textSshPubUserKeys() {
+        assertKind(OpenFileHelper.ViewerKind.TEXT, "/home/u/.ssh/id_ed25519.pub");
+        assertKind(OpenFileHelper.ViewerKind.TEXT, "/home/u/.ssh/id_rsa.pub");
+        assertKind(OpenFileHelper.ViewerKind.TEXT, "/home/u/.ssh/id_dsa.pub");
+        assertKind(OpenFileHelper.ViewerKind.TEXT, "/home/u/.ssh/id_ecdsa.pub");
+        assertKind(OpenFileHelper.ViewerKind.TEXT, "/home/u/.ssh/id_ecdsa_sk.pub");
+        assertKind(OpenFileHelper.ViewerKind.TEXT, "/home/u/.ssh/id_ed25519_sk.pub");
+        assertKind(OpenFileHelper.ViewerKind.TEXT, "/home/u/.ssh/id_mldsa44_ed25519.pub");
+    }
+
+    @Test
+    public void textSshPubHostKeys() {
+        assertKind(OpenFileHelper.ViewerKind.TEXT, "/etc/ssh/ssh_host_rsa_key.pub");
+        assertKind(OpenFileHelper.ViewerKind.TEXT, "/etc/ssh/ssh_host_ecdsa_key.pub");
+        assertKind(OpenFileHelper.ViewerKind.TEXT, "/etc/ssh/ssh_host_ed25519_key.pub");
+        assertKind(OpenFileHelper.ViewerKind.TEXT, "/etc/ssh/ssh_host_mldsa44_ed25519_key.pub");
+    }
+
+    @Test
+    public void textSshPubCaseInsensitive() {
+        // 文件名扩展名大小写不敏感；目录名按 Linux 标准小写约定（.ssh/ssh）精确匹配
+        assertKind(OpenFileHelper.ViewerKind.TEXT, "/home/u/.ssh/ID_ED25519.PUB");
+        assertKind(OpenFileHelper.ViewerKind.TEXT, "/etc/ssh/SSH_HOST_RSA_KEY.PUB");
+    }
+
+    @Test
+    public void textSshPubParentScopedOnly() {
+        // 白名单按父目录开放：非 .ssh/ssh 目录的同名 .pub=仍不支持（不全局开放）
+        assertNull(OpenFileHelper.detectViewerKind("/srv/keys/id_rsa.pub"));
+        assertNull(OpenFileHelper.detectViewerKind("/home/u/keys.pub"));
+        assertNull(OpenFileHelper.detectViewerKind("/opt/ssh-custom/id_ed25519.pub"));
+        // 相对主目录形态（主目录直接设为 .ssh 或 /etc 时）
+        assertKind(OpenFileHelper.ViewerKind.TEXT, ".ssh/id_ed25519.pub");
+        assertKind(OpenFileHelper.ViewerKind.TEXT, "ssh/ssh_host_ed25519_key.pub");
+        // 根下 .ssh 形态
+        assertKind(OpenFileHelper.ViewerKind.TEXT, "/.ssh/id_rsa.pub");
+    }
+
     // ── Code 系统级无点 shell 启动文件（第 47 轮：/etc/profile 等白名单） ──
 
     @Test

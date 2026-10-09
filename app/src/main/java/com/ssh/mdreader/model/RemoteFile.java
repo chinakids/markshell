@@ -161,6 +161,9 @@ public class RemoteFile {
                 // ~/.ssh 目录内无扩展名文件特判（config/authorized_keys/私钥等；按父目录
                 // 白名单=仅 .ssh 下命中，「config」等通用名不做全局误判）
                 || isDotSshFile()
+                // .pub 公钥文件特判（~/.ssh/id_*.pub 与 /etc/ssh/ssh_host_*_key.pub；
+                // 单行文本公钥（type base64 comment），按父目录白名单=仅 .ssh/ssh 下命中）
+                || isSshPubFile()
                 // 无扩展名静态说明/构建文件特判（README/Dockerfile/Makefile 等，git 仓库高频）
                 || isCommonPlainName();
     }
@@ -214,8 +217,18 @@ public class RemoteFile {
         return nameOk && isInDotSshDir();
     }
 
-    /** path 的父目录是否为 .ssh（OpenSSH 约定名，小写精确匹配；支持绝对/相对主目录）。 */
+    /** path 的父目录是否为 .ssh（OpenSSH 用户级约定名；支持绝对/相对主目录）。 */
     private boolean isInDotSshDir() {
+        return isParentDir(".ssh");
+    }
+
+    /** path 的父目录是否在 ssh 配置目录白名单内（.ssh 用户级 / ssh 系统级=/etc/ssh）。 */
+    private boolean isInSshDir() {
+        return isParentDir(".ssh") || isParentDir("ssh");
+    }
+
+    /** path 的父目录（去尾斜杠后）是否恰为 dir 或以 dir/ 结尾，小写精确匹配。 */
+    private boolean isParentDir(String dir) {
         if (path == null) return false;
         int slash = path.lastIndexOf('/');
         if (slash < 0) return false;
@@ -223,7 +236,18 @@ public class RemoteFile {
         while (parent.endsWith("/")) {
             parent = parent.substring(0, parent.length() - 1);
         }
-        return parent.equals(".ssh") || parent.endsWith("/.ssh");
+        return parent.equals(dir) || parent.endsWith("/" + dir);
+    }
+
+    /**
+     * 按父目录白名单可确定的 OpenSSH 公钥文件（大小写不敏感；仅当父目录为 .ssh
+     * 或 ssh（/etc/ssh）才命中——其它目录的 .pub 不全局开放，避免误判）。
+     * 依据 OpenSSH 官方 man FILES 节：ssh-keygen(1) 的 ~/.ssh/id_*.pub（用户认证公钥）
+     * 与 sshd(8) 的 /etc/ssh/ssh_host_*_key.pub（主机公钥，world-readable）均为
+     * 「keytype base64 [comment]」单行文本。
+     */
+    private boolean isSshPubFile() {
+        return name.toLowerCase().endsWith(".pub") && isInSshDir();
     }
 
     /** 无扩展名但可确定是文本内容的常见文件名（大小写不敏感特判）。 */
