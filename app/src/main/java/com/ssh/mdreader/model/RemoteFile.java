@@ -145,6 +145,16 @@ public class RemoteFile {
                 || lower.endsWith(".properties") || lower.endsWith(".ini")
                 || lower.endsWith(".cfg") || lower.endsWith(".toml")
                 || lower.endsWith(".env")
+                // 运维配置扩展名（第 61 轮：apt 源 .list/.sources（sources.list(5)：
+                // 文件名须为 .list 或 .sources 两格式之一）、yum/dnf *.repo
+                // （yum.conf(5)：/etc/yum.repos.d 下 *.repo 为 INI 格式）、
+                // udev *.rules（udev(7)：规则文件必须 .rules 扩展名）——均明文，
+                // 无高亮语法按纯文本打开）
+                || lower.endsWith(".list") || lower.endsWith(".sources")
+                || lower.endsWith(".repo") || lower.endsWith(".rules")
+                // systemd unit 后缀（systemd.unit(5)：unit type suffix 必须为下列
+                // 之一，INI 明文配置；无对应 grammar 按纯文本打开）
+                || isSystemdUnitFile(lower)
                 // .sh/.bash/.zsh 已移至 isCodeFile（第 52 轮），此处不再包含
                 // .sql/.go/.kt/.yaml/.yml 已移至 isCodeFile（第 53 轮，Prism grammar 已备）
                 || lower.endsWith(".pl") || lower.endsWith(".pm") || lower.endsWith(".rb")
@@ -161,6 +171,10 @@ public class RemoteFile {
                 // ~/.ssh 目录内无扩展名文件特判（config/authorized_keys/私钥等；按父目录
                 // 白名单=仅 .ssh 下命中，「config」等通用名不做全局误判）
                 || isDotSshFile()
+                // /etc/sudoers.d 目录内文件特判（sudoers(5)：@includedir 读入该目录
+                // 全部文件作 sudoers 规则，仅跳过含 '.'/'~' 名的临时文件——片段文件
+                // 名任意且无扩展名要求；按父目录白名单=仅 sudoers.d 下命中）
+                || isInOpsRuleDir()
                 // .pub 公钥文件特判（~/.ssh/id_*.pub 与 /etc/ssh/ssh_host_*_key.pub；
                 // 单行文本公钥（type base64 comment），按父目录白名单=仅 .ssh/ssh 下命中）
                 || isSshPubFile()
@@ -194,7 +208,12 @@ public class RemoteFile {
                 || n.equals("crontab") || n.equals("aliases")
                 || n.equals("mime.types")
                 || n.equals("services") || n.equals("protocols")
-                || n.equals("motd") || n.equals("issue") || n.equals("netrc");
+                || n.equals("motd") || n.equals("issue") || n.equals("netrc")
+                // 运维权限/账户配置文件（第 61 轮：sudoers(5)「/etc/sudoers file or
+                // optionally in LDAP」、shadow(5) 加密口令文本、gshadow(5) 组影子
+                // 文本、login.defs(5) 站点级配置——均明文文本，白名单开放）
+                || n.equals("sudoers") || n.equals("shadow") || n.equals("gshadow")
+                || n.equals("login.defs");
     }
 
     /**
@@ -248,6 +267,25 @@ public class RemoteFile {
      */
     private boolean isSshPubFile() {
         return name.toLowerCase().endsWith(".pub") && isInSshDir();
+    }
+
+    /**
+     * systemd unit 后缀判定（大小写不敏感；systemd.unit(5)「unit type suffix must be
+     * one of .service, .socket, .device, .mount, .automount, .swap, .target, .path,
+     * .timer, .slice, or .scope」——均为 INI 明文配置，无 grammar 按纯文本打开）。
+     */
+    private boolean isSystemdUnitFile(String lower) {
+        return lower.endsWith(".service") || lower.endsWith(".socket")
+                || lower.endsWith(".device") || lower.endsWith(".mount")
+                || lower.endsWith(".automount") || lower.endsWith(".swap")
+                || lower.endsWith(".target") || lower.endsWith(".path")
+                || lower.endsWith(".timer") || lower.endsWith(".slice")
+                || lower.endsWith(".scope");
+    }
+
+    /** path 的父目录是否在运维规则目录白名单内（sudoers.d=/etc/sudoers.d 片段集，小写精确）。 */
+    private boolean isInOpsRuleDir() {
+        return isParentDir("sudoers.d");
     }
 
     /** 无扩展名但可确定是文本内容的常见文件名（大小写不敏感特判）。 */

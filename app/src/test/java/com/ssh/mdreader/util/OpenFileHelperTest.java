@@ -437,6 +437,64 @@ public class OpenFileHelperTest {
         assertKind(OpenFileHelper.ViewerKind.TEXT, "/.ssh/id_rsa.pub");
     }
 
+    // ── Text 运维配置文件补全（迭代105：sudoers/sources.list/.repo/systemd/udev 等） ──
+
+    @Test
+    public void textOpsExtListSourcesRepoRules() {
+        // sources.list(5)：/etc/apt/sources.list 与 sources.list.d 文件名须为
+        // .list（one-line）或 .sources（deb822）；yum.conf(5)：/etc/yum.repos.d 下
+        // *.repo；udev(7)：规则文件必须 .rules 扩展名——均明文走纯文本查看器
+        assertKind(OpenFileHelper.ViewerKind.TEXT, "/etc/apt/sources.list");
+        assertKind(OpenFileHelper.ViewerKind.TEXT, "/etc/apt/sources.list.d/debian.list");
+        assertKind(OpenFileHelper.ViewerKind.TEXT, "/etc/apt/sources.list.d/debian.sources");
+        assertKind(OpenFileHelper.ViewerKind.TEXT, "/etc/yum.repos.d/centos.repo");
+        assertKind(OpenFileHelper.ViewerKind.TEXT, "/etc/udev/rules.d/99-custom.rules");
+        // 非标准目录同名扩展名=按扩展名开放（.list 为明文惯例，无二进制误判风险）
+        assertKind(OpenFileHelper.ViewerKind.TEXT, "/home/u/project/playlist.list");
+    }
+
+    @Test
+    public void textOpsSystemdUnits() {
+        // systemd.unit(5)：unit type suffix 必须为 .service/.socket/.device/.mount/
+        // .automount/.swap/.target/.path/.timer/.slice/.scope 之一——INI 明文配置
+        assertKind(OpenFileHelper.ViewerKind.TEXT, "/etc/systemd/system/nginx.service");
+        assertKind(OpenFileHelper.ViewerKind.TEXT, "/lib/systemd/system/cron.service");
+        assertKind(OpenFileHelper.ViewerKind.TEXT, "/etc/systemd/system/mytimer.timer");
+        assertKind(OpenFileHelper.ViewerKind.TEXT, "/etc/systemd/system/foo.socket");
+        assertKind(OpenFileHelper.ViewerKind.TEXT, "/etc/systemd/system/auto.mount");
+        assertKind(OpenFileHelper.ViewerKind.TEXT, "/etc/systemd/system/multi-user.target");
+    }
+
+    @Test
+    public void textOpsServiceNameWhitelist() {
+        // sudoers(5) 策略由 /etc/sudoers 驱动；shadow(5) 加密口令文本；gshadow(5)
+        // 组影子文本；login.defs(5) 站点级配置——均明文，白名单开放
+        assertKind(OpenFileHelper.ViewerKind.TEXT, "/etc/sudoers");
+        assertKind(OpenFileHelper.ViewerKind.TEXT, "/etc/shadow");
+        assertKind(OpenFileHelper.ViewerKind.TEXT, "/etc/gshadow");
+        assertKind(OpenFileHelper.ViewerKind.TEXT, "/etc/login.defs");
+    }
+
+    @Test
+    public void textOpsSudoersDotDir() {
+        // sudoers(5)：@includedir 读入目录全部文件为 sudoers 规则（仅跳过含
+        // '.'/'~' 名的临时文件）——片段文件名任意且无扩展名要求，按父目录白名单开放
+        assertKind(OpenFileHelper.ViewerKind.TEXT, "/etc/sudoers.d/README");
+        assertKind(OpenFileHelper.ViewerKind.TEXT, "/etc/sudoers.d/openssh-server");
+        assertKind(OpenFileHelper.ViewerKind.TEXT, "/etc/sudoers.d/zz-custom");
+        // 根级形态（isParentDir endsWith 分支，与 /.ssh 同判据）
+        assertKind(OpenFileHelper.ViewerKind.TEXT, "/sudoers.d/backup.run");
+        // 非白名单目录的同名文件不误开（全局名与目录白名单都不命中）
+        assertNull(OpenFileHelper.detectViewerKind("/etc/default/grub"));
+    }
+
+    @Test
+    public void textOpsCaseInsensitive() {
+        // 扩展名大小写不敏感（目录名按 Linux 约定小写精确，与 .pub 轮同判据）
+        assertKind(OpenFileHelper.ViewerKind.TEXT, "/etc/APT/SOURCES.LIST");
+        assertKind(OpenFileHelper.ViewerKind.TEXT, "/etc/systemd/system/Nginx.Service");
+    }
+
     // ── Code 系统级无点 shell 启动文件（第 47 轮：/etc/profile 等白名单） ──
 
     @Test
