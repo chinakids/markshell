@@ -229,7 +229,21 @@ public class RemoteFile {
                 || n.equals("hosts.allow") || n.equals("hosts.deny")
                 // locale 生成清单（locale.gen(5)：/etc/locale.gen 列出 locale-gen
                 // 要生成的 locale，每行「locale charset」明文——精确名白名单）
-                || n.equals("locale.gen");
+                || n.equals("locale.gen")
+                // 无扩展名运维系统文件收尾盘点（第 65 轮：权威 man 源逐份核实）：
+                // os-release(5)（systemd）：/etc/os-release 与 /usr/lib/os-release
+                // 含 environment-like shell-compatible variable assignments
+                // （KEY="VALUE"）——键值赋值语义走纯文本（与 .env 同型）；
+                // resolv.conf(5)（glibc resolver）：/etc/resolv.conf 为 resolver
+                // 配置文件，nameserver/search 指令行明文；nsswitch.conf(5)（glibc
+                // NSS）：/etc/nsswitch.conf 为 Name Service Switch 配置（数据库名
+                // +服务列表明文）；sysctl.conf(5)：/etc/sysctl.conf 为含系统参数
+                // 键值（key = value，# 注释）的简单文本；shells(5)：/etc/shells
+                // 每行一个合法登录 shell 路径；environment（pam_env(8)）：默认
+                // /etc/environment 为简单变量赋值行——均按精确名白名单开放
+                || n.equals("os-release") || n.equals("resolv.conf")
+                || n.equals("nsswitch.conf") || n.equals("sysctl.conf")
+                || n.equals("shells") || n.equals("environment");
     }
 
     /**

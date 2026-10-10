@@ -532,6 +532,32 @@ public class OpenFileHelperTest {
         assertNull(OpenFileHelper.detectViewerKind("/opt/default/list"));
     }
 
+    // ── Text 无扩展名运维系统文件收尾盘点（第 65 轮：os-release/resolv.conf 等） ──
+
+    @Test
+    public void textOpsReleaseResolverEtc() {
+        // os-release(5)（systemd）：/etc/os-release 与 /usr/lib/os-release 含
+        // environment-like shell-compatible variable assignments（KEY="VALUE"），
+        // 键值赋值语义走纯文本（与 .env 同型）；resolv.conf(5)：/etc/resolv.conf
+        // 为 resolver 配置文件（nameserver/search 指令行）
+        assertKind(OpenFileHelper.ViewerKind.TEXT, "/etc/os-release");
+        assertKind(OpenFileHelper.ViewerKind.TEXT, "/usr/lib/os-release");
+        assertKind(OpenFileHelper.ViewerKind.TEXT, "/etc/OS-RELEASE");
+        assertKind(OpenFileHelper.ViewerKind.TEXT, "/etc/resolv.conf");
+        // nsswitch.conf(5)：NSS 配置；sysctl.conf(5)：sysctl 参数键值；
+        // shells(5)：合法登录 shell 列表；environment（pam_env(8)）：变量赋值行
+        assertKind(OpenFileHelper.ViewerKind.TEXT, "/etc/nsswitch.conf");
+        assertKind(OpenFileHelper.ViewerKind.TEXT, "/etc/sysctl.conf");
+        assertKind(OpenFileHelper.ViewerKind.TEXT, "/etc/shells");
+        assertKind(OpenFileHelper.ViewerKind.TEXT, "/etc/environment");
+        // 形近名不误判；mtab 有意排除（无现行 mtab(5) 页：Debian bookworm
+        // util-linux 与 Ubuntu jammy 均 404；现代发行版 /etc/mtab 为
+        // /proc/mounts 符号链接，内容随内核生成，运维阅读价值低）
+        assertNull(OpenFileHelper.detectViewerKind("/etc/osrelease"));
+        assertNull(OpenFileHelper.detectViewerKind("/etc/resolv_conf"));
+        assertNull(OpenFileHelper.detectViewerKind("/etc/mtab"));
+    }
+
     // ── Code 系统级无点 shell 启动文件（第 47 轮：/etc/profile 等白名单） ──
 
     @Test
