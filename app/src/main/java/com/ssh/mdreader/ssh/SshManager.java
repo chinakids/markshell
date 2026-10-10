@@ -34,6 +34,7 @@ import java.util.Vector;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
+import java.util.Locale;
 /**
  * Singleton owner of the SSH/SFTP connection.
  *
@@ -513,7 +514,7 @@ public class SshManager {
         if (e instanceof SftpException) {
             String m = e.getMessage();
             if (m == null) return true;
-            m = m.toLowerCase();
+            m = m.toLowerCase(Locale.ROOT);
             return m.contains("closed") || m.contains("connection")
                     || m.contains("eof") || m.contains("timeout") || m.contains("broken");
         }

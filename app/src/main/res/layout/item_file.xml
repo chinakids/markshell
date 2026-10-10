@@ -1,6 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <LinearLayout
     xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
     android:id="@+id/item_root"
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
@@ -60,7 +61,7 @@
         android:layout_marginStart="12dp"
         android:visibility="invisible"
         android:src="@drawable/ic_check_circle"
-        android:tint="@color/md_theme_primary"
+        app:tint="@color/md_theme_primary"
         android:contentDescription="已选中" />
 
 </LinearLayout>

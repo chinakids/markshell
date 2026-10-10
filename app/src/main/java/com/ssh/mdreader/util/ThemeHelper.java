@@ -1,5 +1,7 @@
 package com.ssh.mdreader.util;
 
+import java.util.Locale;
+
 /**
  * 外观主题纯函数层（零 android.* 依赖，JVM 可测）。
  *
@@ -78,7 +80,7 @@ public final class ThemeHelper {
      */
     public static String normalize(String raw) {
         if (raw == null) return DEFAULT_THEME;
-        String trimmed = raw.trim().toLowerCase();
+        String trimmed = raw.trim().toLowerCase(Locale.ROOT);
         if (isTheme(trimmed)) return trimmed;
         return DEFAULT_THEME;
     }

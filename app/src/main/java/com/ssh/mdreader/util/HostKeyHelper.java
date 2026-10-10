@@ -1,5 +1,6 @@
 package com.ssh.mdreader.util;
 
+import java.util.Locale;
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 
@@ -76,14 +77,14 @@ public final class HostKeyHelper {
             // 无类型前缀：无法判定算法，按无效处理
             return "";
         }
-        String type = s.substring(0, colon).trim().toUpperCase();
+        String type = s.substring(0, colon).trim().toUpperCase(Locale.ROOT);
         String body = s.substring(colon + 1).replaceAll("\\s+", "");
         if (body.isEmpty()) return "";
         if (TYPE_SHA256.equals(type)) {
             return PREFIX_SHA256 + body;
         }
         if (TYPE_MD5.equals(type)) {
-            String hex = body.replace(":", "").toLowerCase();
+            String hex = body.replace(":", "").toLowerCase(Locale.ROOT);
             return hex.isEmpty() ? "" : PREFIX_MD5 + hex;
         }
         return "";

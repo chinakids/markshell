@@ -12,6 +12,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 
+import java.util.Locale;
 /**
  * Helpers for the annotation system.
  *
@@ -122,7 +123,7 @@ public class AnnotationHelper {
     }
 
     private static boolean isHeaderRow(@NonNull String line) {
-        String norm = line.toLowerCase().replaceAll("[\"\\s]", "");
+        String norm = line.toLowerCase(Locale.ROOT).replaceAll("[\"\\s]", "");
         return norm.startsWith("id,") || norm.equals("id");
     }
 

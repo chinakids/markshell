@@ -4,6 +4,7 @@ import android.graphics.Canvas;
 import android.graphics.Color;
 import android.graphics.DashPathEffect;
 import android.graphics.Paint;
+import android.os.Build;
 import android.text.TextPaint;
 import android.text.style.ClickableSpan;
 import android.text.style.UnderlineSpan;
@@ -72,8 +73,12 @@ public class AnnotationSpan extends ClickableSpan {
             }
             // Enable underline with our custom color
             ds.setUnderlineText(true);
-            ds.underlineColor = UNDERLINE_COLOR;
-            ds.underlineThickness = (int) (STROKE_WIDTH_DP * density);
+            // TextPaint.underlineColor / underlineThickness 字段 API 29 才引入；
+            // minSdk 24 上直读字段会抛 NoSuchFieldError，需按版本守卫（低版本仅颜色/粗细退化）。
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                ds.underlineColor = UNDERLINE_COLOR;
+                ds.underlineThickness = (int) (STROKE_WIDTH_DP * density);
+            }
             // Note: Android's built-in underline doesn't support dash,
             // but the color + thickness will be correct. For dashed effect,
             // we also draw in draw() below as overlay.

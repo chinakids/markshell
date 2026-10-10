@@ -4,6 +4,7 @@ import com.ssh.mdreader.model.SshConfig;
 
 import java.util.Objects;
 
+import java.util.Locale;
 /**
  * 连接标识/复用判定纯函数层（JVM 可测，无 Android 依赖）。
  *
@@ -38,7 +39,7 @@ public final class SshConnectionHelper {
         if (user == null || user.trim().isEmpty()) return null;
         int port = config.getPort();
         if (port <= 0 || port > 65535) return null;
-        return host.trim().toLowerCase() + ":" + port + ":" + user.trim();
+        return host.trim().toLowerCase(Locale.ROOT) + ":" + port + ":" + user.trim();
     }
 
     /**

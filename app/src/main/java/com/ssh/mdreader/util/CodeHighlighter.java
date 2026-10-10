@@ -11,6 +11,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
+import java.util.Locale;
 import io.noties.prism4j.Prism4j;
 
 /**
@@ -113,7 +114,7 @@ public class CodeHighlighter {
      */
     @NonNull
     static String resolveLanguage(@NonNull String fileName) {
-        String lower = fileName.toLowerCase();
+        String lower = fileName.toLowerCase(Locale.ROOT);
         if (lower.endsWith(".json"))                     return "json";
         if (lower.endsWith(".py"))                       return "python";
         if (lower.endsWith(".html") || lower.endsWith(".htm"))

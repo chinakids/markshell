@@ -5,6 +5,7 @@ import com.ssh.mdreader.util.DownloadHelper;
 import java.util.ArrayList;
 import java.util.List;
 
+import java.util.Locale;
 public class RemoteFile {
     private final String name;
     private final String path;
@@ -56,18 +57,18 @@ public class RemoteFile {
 
     public boolean isMarkdown() {
         if (directory) return false;
-        String lower = name.toLowerCase();
+        String lower = name.toLowerCase(Locale.ROOT);
         return lower.endsWith(".md") || lower.endsWith(".markdown") || lower.endsWith(".mdown");
     }
 
     public boolean isCsv() {
         if (directory) return false;
-        return name.toLowerCase().endsWith(".csv");
+        return name.toLowerCase(Locale.ROOT).endsWith(".csv");
     }
 
     public boolean isCodeFile() {
         if (directory) return false;
-        String lower = name.toLowerCase();
+        String lower = name.toLowerCase(Locale.ROOT);
         return lower.endsWith(".json")
                 || lower.endsWith(".py")
                 || lower.endsWith(".js") || lower.endsWith(".mjs")
@@ -101,7 +102,7 @@ public class RemoteFile {
 
     /** 无扩展名但实为 shell 脚本的点前缀启动文件（大小写不敏感白名单）。 */
     private boolean isShellDotName() {
-        String n = name.toLowerCase();
+        String n = name.toLowerCase(Locale.ROOT);
         return n.equals(".bashrc")
                 || n.equals(".bash_profile") || n.equals(".bash_login")
                 || n.equals(".bash_logout") || n.equals(".bash_aliases")
@@ -113,7 +114,7 @@ public class RemoteFile {
 
     /** 无扩展名但实为 shell 脚本的系统级启动文件（/etc 下常见，大小写不敏感白名单）。 */
     private boolean isShellPlainName() {
-        String n = name.toLowerCase();
+        String n = name.toLowerCase(Locale.ROOT);
         return n.equals("profile")
                 || n.equals("bashrc")
                 || n.equals("csh.login") || n.equals("csh.cshrc") || n.equals("csh.logout")
@@ -124,7 +125,7 @@ public class RemoteFile {
 
     public boolean isImageFile() {
         if (directory) return false;
-        String lower = name.toLowerCase();
+        String lower = name.toLowerCase(Locale.ROOT);
         return lower.endsWith(".png")
                 || lower.endsWith(".jpg") || lower.endsWith(".jpeg")
                 || lower.endsWith(".gif")
@@ -134,7 +135,7 @@ public class RemoteFile {
 
     public boolean isTextFile() {
         if (directory) return false;
-        String lower = name.toLowerCase();
+        String lower = name.toLowerCase(Locale.ROOT);
         // 运维高频文本/配置/脚本扩展名（第卅五轮 #47：nagios/nginx/.env/docker-compose
         // 等点击不再「暂不支持此文件类型」；对标 markor PlaintextTextConverter
         // EXT_TEXT+EXT_CODE_HL 按文本打开的惯例，无对应高亮语法则走纯文本查看器）
@@ -193,7 +194,7 @@ public class RemoteFile {
 
     /** 无扩展名但可确定是文本配置的点前缀文件（大小写不敏感白名单）。 */
     private boolean isCommonDotName() {
-        String n = name.toLowerCase();
+        String n = name.toLowerCase(Locale.ROOT);
         // .env 系列变体（.env.local/.env.production/.env.example 等，以 .env. 开头）
         if (n.startsWith(".env.")) return true;
         return n.equals(".gitignore") || n.equals(".gitattributes")
@@ -208,7 +209,7 @@ public class RemoteFile {
 
     /** 无扩展名但可确定是文本的运维系统文件（/etc 与 ~/.ssh 高频，大小写不敏感白名单）。 */
     private boolean isCommonServiceName() {
-        String n = name.toLowerCase();
+        String n = name.toLowerCase(Locale.ROOT);
         return n.equals("sshd_config") || n.equals("ssh_config")
                 || n.equals("known_hosts") || n.equals("ssh_known_hosts")
                 || n.equals("hosts") || n.equals("hostname")
@@ -253,7 +254,7 @@ public class RemoteFile {
      * authorized_principals、known_hosts2、environment 与私钥 id_* 族。
      */
     private boolean isDotSshFile() {
-        String n = name.toLowerCase();
+        String n = name.toLowerCase(Locale.ROOT);
         boolean nameOk = n.equals("config")
                 || n.equals("authorized_keys") || n.equals("authorized_keys2")
                 || n.equals("authorized_principals")
@@ -296,7 +297,7 @@ public class RemoteFile {
      * 「keytype base64 [comment]」单行文本。
      */
     private boolean isSshPubFile() {
-        return name.toLowerCase().endsWith(".pub") && isInSshDir();
+        return name.toLowerCase(Locale.ROOT).endsWith(".pub") && isInSshDir();
     }
 
     /**
@@ -332,12 +333,12 @@ public class RemoteFile {
      *  grub-mkconfig 的 shell 脚本 source（须为合法 POSIX shell 输入），normally
      *  为 KEY=value 键值序列——按键值配置语义走纯文本（与 .env/systemd 同型）。 */
     private boolean isDefaultGrub() {
-        return name.toLowerCase().equals("grub") && isParentDir("default");
+        return name.toLowerCase(Locale.ROOT).equals("grub") && isParentDir("default");
     }
 
     /** 无扩展名但可确定是文本内容的常见文件名（大小写不敏感特判）。 */
     private boolean isCommonPlainName() {
-        String n = name.toLowerCase();
+        String n = name.toLowerCase(Locale.ROOT);
         return n.equals("readme")
                 || n.equals("dockerfile")
                 || n.equals("makefile")
