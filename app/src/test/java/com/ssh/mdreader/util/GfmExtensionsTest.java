@@ -27,7 +27,9 @@ import java.util.List;
  * {@code ~~text~~} 成 {@code Strikethrough} 节点。
  *
  * <p>行为基线=JVM 探针实证（commonmark-ext-autolink 0.13.0）：带 scheme 的 URL 与
- * 邮箱才链接；{@code www.} 裸域不链接（GFM 规范偏差，如实落档）；行内代码/围栏代码
+ * {@code www.} 裸域由 {@link GfmAutolinkPlugin} 配套的
+ * {@link WwwAutolinkPostProcessor} 补齐（迭代110，官方 0.13.0 仅启用 URL/EMAIL——
+ * javap 字节码实证，GFM 规范要求 www 自动链化）；行内代码/围栏代码
  * 不链接；已有链接内不重复链接；数字/版本串不误链。
  */
 public class GfmExtensionsTest {
@@ -109,10 +111,52 @@ public class GfmExtensionsTest {
     }
 
     @Test
-    public void autolink_www_bare_not_linked() {
-        // GFM 规范偏差如实落档：commonmark-ext-autolink 0.13.0 不链接 www. 裸域
+    public void autolink_www_bare_linked() {
+        // 迭代110：官方 0.13.0 不链 www. 裸域（只启用 URL/EMAIL），本层经
+        // WwwAutolinkPostProcessor 补齐（GFM spec：自动补 http scheme，显示原文）
         Node root = parser.parse("打开 www.example.com 浏览");
+        List<Link> links = linkNodes(root);
+        assertEquals(1, links.size());
+        assertEquals("http://www.example.com", links.get(0).getDestination());
+        assertEquals("www.example.com", ((Text) links.get(0).getFirstChild()).getLiteral());
+        List<Text> texts = textNodes(root);
+        assertTrue(texts.stream().anyMatch(t -> "打开 ".equals(t.getLiteral())));
+        assertTrue(texts.stream().anyMatch(t -> " 浏览".equals(t.getLiteral())));
+    }
+
+    @Test
+    public void autolink_www_path_parens_entity_gfmExamples() {
+        // GFM spec 黄金例（AST 级复核接线与拆分）
+        Node parens = parser.parse("(www.google.com/search?q=Markup+(business))");
+        List<Link> links = linkNodes(parens);
+        assertEquals(1, links.size());
+        assertEquals("http://www.google.com/search?q=Markup+(business)", links.get(0).getDestination());
+
+        Node entity = parser.parse("www.google.com/search?q=commonmark&hl;");
+        links = linkNodes(entity);
+        assertEquals(1, links.size());
+        assertEquals("http://www.google.com/search?q=commonmark", links.get(0).getDestination());
+
+        Node lt = parser.parse("www.commonmark.org/he<lp");
+        links = linkNodes(lt);
+        assertEquals(1, links.size());
+        assertEquals("http://www.commonmark.org/he", links.get(0).getDestination());
+    }
+
+    @Test
+    public void autolink_www_not_inside_scheme_url() {
+        // http://www.x.com 整体已是官方 URL 链接（www 前为 /，本层不重复处理）
+        Node root = parser.parse("http://www.example.com");
+        List<Link> links = linkNodes(root);
+        assertEquals(1, links.size());
+        assertEquals("http://www.example.com", links.get(0).getDestination());
+    }
+
+    @Test
+    public void autolink_www_skips_inline_code() {
+        Node root = parser.parse("行内 `www.code.com` 不链");
         assertEquals(0, linkNodes(root).size());
+        assertEquals(1, countOf(root, Code.class));
     }
 
     @Test

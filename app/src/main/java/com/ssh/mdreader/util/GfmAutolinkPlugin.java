@@ -21,11 +21,15 @@ import org.commonmark.parser.Parser;
  * 标准 {@code Link} 节点，渲染/点击走既有 {@link LinkTargetHelper} 通路（与
  * 显式链接同源，阅读器 LinkTapListener 已接线），零新增渲染逻辑。</p>
  *
- * <p><b>行为实证（JVM 探针 2026-10-07，commonmark {@code 0.13.0} +
- * {@code AutolinkExtension}）</b>：{@code http://}/{@code https://}/{@code ftp://}
- * 裸 URL 与邮箱自动生成 Link（邮箱加 {@code mailto:} 前缀）；<b>{@code www.} 裸域不链接</b>
- * （library 0.13.0 行为=GFM 规范偏差，如实落档）；行内代码/围栏代码块内不链接；
- * 已有 Link 内文本不重复链接；数字/版本串（{@code 123.456.789}、
+ * <p><b>行为实证（JVM 探针 2026-10-07 + 字节码 2026-10-10，commonmark
+ * {@code 0.13.0} + {@code AutolinkExtension}）</b>：{@code http://}/{@code https://}/
+ * {@code ftp://} 裸 URL 与邮箱自动生成 Link（邮箱加 {@code mailto:} 前缀）；
+ * <b>{@code www.} 裸域由官方扩展缺失、本插件 via
+ * {@link WwwAutolinkPostProcessor} 补齐</b>（官方 0.13.0 的
+ * {@code AutolinkPostProcessor} 构造器仅启用 {@code EnumSet.of(URL, EMAIL)}，
+ * javap 字节码实证——底层 nibor autolink 0.10.0 库支持 {@code WWW} 类型但未启用；
+ * 规则实现见 {@link WwwAutolinkHelper}，与 GFM spec 对齐）；行内代码/围栏代码块内
+ * 不链接；已有 Link 内文本不重复链接；数字/版本串（{@code 123.456.789}、
  * {@code host=1.2.3.4 port=22}）不误链。</p>
  *
  * <p><b>注册顺序约束（重要）</b>：本插件必须注册在 {@code TaskListPlugin}
@@ -54,5 +58,9 @@ public final class GfmAutolinkPlugin extends AbstractMarkwonPlugin {
     @Override
     public void configureParser(@NonNull Parser.Builder builder) {
         builder.extensions(Collections.singletonList(AutolinkExtension.create()));
+        // 官方 0.13.0 AutolinkExtension 只启用 URL/EMAIL（javap 实证），www 裸域
+        // 由本插件补齐（GFM 规则见 WwwAutolinkHelper；顺序与 AutolinkExtension 无交叉：
+        // 官方不碰 www，本层 inLink 守卫防嵌套）。
+        builder.postProcessor(new WwwAutolinkPostProcessor());
     }
 }
