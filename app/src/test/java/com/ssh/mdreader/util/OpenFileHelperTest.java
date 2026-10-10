@@ -484,8 +484,9 @@ public class OpenFileHelperTest {
         assertKind(OpenFileHelper.ViewerKind.TEXT, "/etc/sudoers.d/zz-custom");
         // 根级形态（isParentDir endsWith 分支，与 /.ssh 同判据）
         assertKind(OpenFileHelper.ViewerKind.TEXT, "/sudoers.d/backup.run");
-        // 非白名单目录的同名文件不误开（全局名与目录白名单都不命中）
-        assertNull(OpenFileHelper.detectViewerKind("/etc/default/grub"));
+        // 非白名单目录的同名文件不误开（全局名与目录白名单都不命中）；
+        // default 目录中未开放名的文件仍不支持（/etc/default/grub 已于第 63 轮开放）
+        assertNull(OpenFileHelper.detectViewerKind("/etc/default/ssh"));
     }
 
     @Test
@@ -493,6 +494,42 @@ public class OpenFileHelperTest {
         // 扩展名大小写不敏感（目录名按 Linux 约定小写精确，与 .pub 轮同判据）
         assertKind(OpenFileHelper.ViewerKind.TEXT, "/etc/APT/SOURCES.LIST");
         assertKind(OpenFileHelper.ViewerKind.TEXT, "/etc/systemd/system/Nginx.Service");
+    }
+
+    // ── Text 运维文件补全走查续（迭代107：pam.d/hosts.allow|deny/default-grub/locale.gen） ──
+
+    @Test
+    public void textOpsHostsAccessLocaleGen() {
+        // hosts_access(5)（tcpd）：/etc/hosts.allow 命中则授权、否则 /etc/hosts.deny
+        // 命中则拒绝、否则授权——内容为「daemon: client」规则行明文；locale.gen(5)：
+        // /etc/locale.gen 列出 locale-gen 要生成的 locale（每行「locale charset」）
+        // ——文件名含点但无扩展名语义，按精确名白名单开放
+        assertKind(OpenFileHelper.ViewerKind.TEXT, "/etc/hosts.allow");
+        assertKind(OpenFileHelper.ViewerKind.TEXT, "/etc/hosts.deny");
+        assertKind(OpenFileHelper.ViewerKind.TEXT, "/etc/locale.gen");
+    }
+
+    @Test
+    public void textOpsPamDir() {
+        // pam.conf(5)：/etc/pam.d/ 目录中每个文件=一个服务的 PAM 配置（文件名=服务名
+        // 小写），规则行明文——按父目录白名单开放（与 sudoers.d 同判据，名任意）
+        assertKind(OpenFileHelper.ViewerKind.TEXT, "/etc/pam.d/common-auth");
+        assertKind(OpenFileHelper.ViewerKind.TEXT, "/etc/pam.d/sshd");
+        assertKind(OpenFileHelper.ViewerKind.TEXT, "/etc/pam.d/login");
+        // 根级形态（isParentDir endsWith 分支，与 /.ssh 同判据）
+        assertKind(OpenFileHelper.ViewerKind.TEXT, "/pam.d/custom");
+    }
+
+    @Test
+    public void textOpsDefaultGrub() {
+        // GNU GRUB Manual Simple configuration：/etc/default/grub 被 grub-mkconfig 的
+        // shell 脚本 source（normally 为 KEY=value 键值序列）——按键值配置语义走纯文本；
+        // 父目录 default+文件名 grub 双条件白名单：非 default 目录「grub」不误判、
+        // default 目录其它未开放名不开放
+        assertKind(OpenFileHelper.ViewerKind.TEXT, "/etc/default/grub");
+        assertKind(OpenFileHelper.ViewerKind.TEXT, "/etc/default/GRUB");
+        assertNull(OpenFileHelper.detectViewerKind("/srv/app/grub"));
+        assertNull(OpenFileHelper.detectViewerKind("/opt/default/list"));
     }
 
     // ── Code 系统级无点 shell 启动文件（第 47 轮：/etc/profile 等白名单） ──

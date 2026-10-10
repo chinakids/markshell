@@ -175,6 +175,15 @@ public class RemoteFile {
                 // 全部文件作 sudoers 规则，仅跳过含 '.'/'~' 名的临时文件——片段文件
                 // 名任意且无扩展名要求；按父目录白名单=仅 sudoers.d 下命中）
                 || isInOpsRuleDir()
+                // /etc/pam.d 目录内文件特判（pam.conf(5)：目录中每个文件=一个服务
+                // 的 PAM 配置（文件名=服务名小写），内容为 type control module-path
+                // module-args 规则行明文——按父目录白名单开放，与 sudoers.d 同判据）
+                || isInPamDir()
+                // /etc/default/grub 特判（GNU GRUB 手册 Simple configuration：该文件
+                // 被 grub-mkconfig 的 shell 脚本 source，normally 为 KEY=value 键值
+                // 序列——按父目录 default+文件名 grub 双条件白名单，「grub」通用名
+                // 不全局误判；按键值配置语义走纯文本，与 .env/systemd 同型）
+                || isDefaultGrub()
                 // .pub 公钥文件特判（~/.ssh/id_*.pub 与 /etc/ssh/ssh_host_*_key.pub；
                 // 单行文本公钥（type base64 comment），按父目录白名单=仅 .ssh/ssh 下命中）
                 || isSshPubFile()
@@ -213,7 +222,14 @@ public class RemoteFile {
                 // optionally in LDAP」、shadow(5) 加密口令文本、gshadow(5) 组影子
                 // 文本、login.defs(5) 站点级配置——均明文文本，白名单开放）
                 || n.equals("sudoers") || n.equals("shadow") || n.equals("gshadow")
-                || n.equals("login.defs");
+                || n.equals("login.defs")
+                // TCP wrapper 访问控制（第 63 轮：hosts_access(5)——「/etc/hosts.allow
+                // 命中则授权、否则 /etc/hosts.deny 命中则拒绝、否则授权」，内容为
+                // 「daemon: client」规则行明文；文件名含点但无扩展名语义=精确名白名单）
+                || n.equals("hosts.allow") || n.equals("hosts.deny")
+                // locale 生成清单（locale.gen(5)：/etc/locale.gen 列出 locale-gen
+                // 要生成的 locale，每行「locale charset」明文——精确名白名单）
+                || n.equals("locale.gen");
     }
 
     /**
@@ -286,6 +302,23 @@ public class RemoteFile {
     /** path 的父目录是否在运维规则目录白名单内（sudoers.d=/etc/sudoers.d 片段集，小写精确）。 */
     private boolean isInOpsRuleDir() {
         return isParentDir("sudoers.d");
+    }
+
+    /** path 的父目录是否为 pam.d（PAM 服务配置目录；小写精确）。
+     *  依据 pam.conf(5)（Linux-PAM）：「/etc/pam.d/ 目录中每个文件=一个服务的个人
+     *  配置，文件名=服务名（小写），语法与 /etc/pam.conf 相同但无服务字段」——
+     *  与 sudoers.d 同判据：目录即配置集，按父目录白名单开放。 */
+    private boolean isInPamDir() {
+        return isParentDir("pam.d");
+    }
+
+    /** /etc/default/grub 特判（父目录 default+文件名 grub 双条件，大小写不敏感；
+     *  「grub」通用名不全局误判，default 目录其它文件亦不开放）。
+     *  依据 GNU GRUB Manual「Simple configuration」：/etc/default/grub 由
+     *  grub-mkconfig 的 shell 脚本 source（须为合法 POSIX shell 输入），normally
+     *  为 KEY=value 键值序列——按键值配置语义走纯文本（与 .env/systemd 同型）。 */
+    private boolean isDefaultGrub() {
+        return name.toLowerCase().equals("grub") && isParentDir("default");
     }
 
     /** 无扩展名但可确定是文本内容的常见文件名（大小写不敏感特判）。 */
