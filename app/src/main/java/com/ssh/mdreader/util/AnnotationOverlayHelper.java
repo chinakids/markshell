@@ -1,5 +1,6 @@
 package com.ssh.mdreader.util;
 
+import android.annotation.SuppressLint;
 import android.content.ClipData;
 import android.content.ClipboardManager;
 import android.content.Context;
@@ -166,7 +167,9 @@ public class AnnotationOverlayHelper {
     /**
      * 装配批注 UI（原 initDrawer + initViews 中的批注触摸/选区菜单部分）：
      * 抽屉宽度/锁、列表适配器与条目回调、正文点击命中检测、文本选择菜单「批注」。
-     */
+     * 触摸检测 onTouch 已在单击判定时调用 tvContent.performClick()（无障碍要求）；
+     * tvContent 为 framework TextView 无法 override performClick，故抑制固定 lint。 */
+    @SuppressLint("ClickableViewAccessibility")
     public void init() {
         // ── Drawer ──────────────────────────────────────────────────────────
         int drawerWidth = (int) (context.getResources().getDisplayMetrics().widthPixels * 0.75f);
@@ -220,6 +223,7 @@ public class AnnotationOverlayHelper {
                     if (dt < ViewConfiguration.getLongPressTimeout()
                             && dx < slop && dy < slop
                             && tvContent.getSelectionStart() == tvContent.getSelectionEnd()) {
+                        tvContent.performClick();
                         handleAnnotationClick(event);
                         return true;
                     }

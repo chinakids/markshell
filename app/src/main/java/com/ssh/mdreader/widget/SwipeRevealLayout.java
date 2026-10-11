@@ -134,7 +134,15 @@ public class SwipeRevealLayout extends FrameLayout {
             dragHelper.processTouchEvent(event);
             return true;
         }
+        if (event.getActionMasked() == MotionEvent.ACTION_UP) {
+            performClick();
+        }
         return super.onTouchEvent(event);
+    }
+
+    @Override
+    public boolean performClick() {
+        return super.performClick();
     }
 
     @Override

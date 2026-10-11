@@ -1,10 +1,11 @@
 <?xml version="1.0" encoding="utf-8"?>
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
+    xmlns:tools="http://schemas.android.com/tools"
+    tools:ignore="InconsistentLayout"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    android:orientation="horizontal"
-    android:background="@color/md_theme_background">
+    android:orientation="horizontal">
 
     <!-- ── 左侧：文件树 (weight=2) ── -->
     <androidx.coordinatorlayout.widget.CoordinatorLayout
@@ -41,6 +42,7 @@
                 android:visibility="gone">
 
                 <EditText
+                    android:importantForAutofill="no"
                     android:id="@+id/et_filter_query"
                     android:layout_width="0dp"
                     android:layout_height="wrap_content"
@@ -222,21 +224,13 @@
         android:background="#0D0D0D">
 
         <!-- 空状态 -->
-        <LinearLayout
-            android:id="@+id/layout_preview_empty"
-            android:layout_width="match_parent"
-            android:layout_height="match_parent"
-            android:orientation="vertical"
-            android:gravity="center">
-
-            <TextView
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:text="@string/preview_empty_hint"
-                android:textColor="#666666"
-                android:textSize="16sp" />
-
-        </LinearLayout>
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_gravity="center"
+            android:text="@string/preview_empty_hint"
+            android:textColor="#666666"
+            android:textSize="16sp" />
 
     </FrameLayout>
 

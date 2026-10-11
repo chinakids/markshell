@@ -43,6 +43,7 @@
                     android:paddingEnd="8dp">
 
                     <EditText
+                        android:importantForAutofill="no"
                         android:id="@+id/et_find_query"
                         android:layout_width="0dp"
                         android:layout_height="wrap_content"
@@ -102,6 +103,7 @@
                     android:visibility="gone">
 
                     <EditText
+                        android:importantForAutofill="no"
                         android:id="@+id/et_replace_query"
                         android:layout_width="0dp"
                         android:layout_height="wrap_content"
@@ -309,6 +311,7 @@
 
         <EditText
             android:id="@+id/et_editor"
+        android:importantForAutofill="no"
             android:layout_width="match_parent"
             android:layout_height="match_parent"
             android:background="@color/md_theme_background"

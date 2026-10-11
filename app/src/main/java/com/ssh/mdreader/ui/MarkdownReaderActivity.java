@@ -1,9 +1,10 @@
 package com.ssh.mdreader.ui;
 
-import android.os.Bundle;
+import android.annotation.SuppressLint;
 import android.content.Intent;
 import android.graphics.Typeface;
 import android.net.Uri;
+import android.os.Bundle;
 import android.text.Editable;
 import android.text.InputFilter;
 import android.text.Selection;
@@ -15,6 +16,7 @@ import android.text.style.UnderlineSpan;
 import android.util.TypedValue;
 import android.view.Menu;
 import android.view.MenuItem;
+import android.view.MotionEvent;
 import android.view.View;
 import android.view.ScaleGestureDetector;
 import android.view.inputmethod.EditorInfo;
@@ -507,6 +509,7 @@ public class MarkdownReaderActivity extends BaseActivity implements AnnotationOv
 
     // ── Initialisation ────────────────────────────────────────────────────────
 
+    @SuppressLint("ClickableViewAccessibility") // onTouch 已在 ACTION_UP 调用 scrollView.performClick()；framework 类无法 override performClick，抑制固定 lint
     private void initViews() {
         tvContent    = findViewById(R.id.tv_content);
         etEditor     = findViewById(R.id.et_editor);
@@ -560,6 +563,9 @@ public class MarkdownReaderActivity extends BaseActivity implements AnnotationOv
 
         scrollView.setOnTouchListener((v, event) -> {
             scaleDetector.onTouchEvent(event);
+            if (event.getActionMasked() == MotionEvent.ACTION_UP) {
+                scrollView.performClick();
+            }
             return event.getPointerCount() >= 2;
         });
 

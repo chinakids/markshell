@@ -1,6 +1,7 @@
 package com.ssh.mdreader.ui;
 
 import android.animation.ValueAnimator;
+import android.annotation.SuppressLint;
 import android.content.ContentValues;
 import android.graphics.Bitmap;
 import android.graphics.BitmapFactory;
@@ -60,6 +61,7 @@ public class ImageViewerActivity extends BaseActivity {
     private String fileName;
     private ValueAnimator currentAnimator;
 
+    @SuppressLint("ClickableViewAccessibility") // onTouch 已在 ACTION_UP 调用 frameContainer.performClick()；framework 类无法 override performClick，抑制固定 lint
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
@@ -247,6 +249,7 @@ public class ImageViewerActivity extends BaseActivity {
             case MotionEvent.ACTION_UP:
             case MotionEvent.ACTION_POINTER_UP:
                 mode = NONE;
+                frameContainer.performClick();
                 animateToBounds();
                 break;
         }

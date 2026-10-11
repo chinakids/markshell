@@ -13,6 +13,7 @@
     android:visibility="gone">
 
     <EditText
+    android:importantForAutofill="no"
         android:id="@+id/viewer_find_query"
         android:layout_width="0dp"
         android:layout_height="wrap_content"

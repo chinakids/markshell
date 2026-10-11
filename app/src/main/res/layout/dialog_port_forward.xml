@@ -17,6 +17,7 @@
 
     <EditText
         android:id="@+id/dialog_pf_name"
+    android:importantForAutofill="no"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:minLines="1"
@@ -32,6 +33,7 @@
 
     <EditText
         android:id="@+id/dialog_pf_local_port"
+    android:importantForAutofill="no"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:minLines="1"
@@ -47,6 +49,7 @@
 
     <EditText
         android:id="@+id/dialog_pf_remote_host"
+    android:importantForAutofill="no"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:minLines="1"
@@ -62,6 +65,7 @@
 
     <EditText
         android:id="@+id/dialog_pf_remote_port"
+    android:importantForAutofill="no"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:minLines="1"
@@ -77,6 +81,7 @@
 
     <EditText
         android:id="@+id/dialog_pf_bind"
+    android:importantForAutofill="no"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:minLines="1"
