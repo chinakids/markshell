@@ -46,6 +46,7 @@ import com.ssh.mdreader.util.GfmAutolinkPlugin;
 import com.ssh.mdreader.util.LinkTargetHelper;
 import com.ssh.mdreader.util.MarkdownAutoIndentFilter;
 import com.ssh.mdreader.util.MarkdownFormatHelper;
+import com.ssh.mdreader.util.MarkdownLinkHelper;
 import com.ssh.mdreader.util.MdCodeHighlightPlugin;
 import com.ssh.mdreader.util.OpenFileHelper;
 import com.ssh.mdreader.util.PreferenceManager;
@@ -546,6 +547,8 @@ public class MarkdownReaderActivity extends BaseActivity implements AnnotationOv
         findViewById(R.id.btn_format_quote).setOnClickListener(v -> applyFormat(6, 0));
         findViewById(R.id.btn_format_strike).setOnClickListener(v -> applyFormat(7, 0));
         findViewById(R.id.btn_format_code).setOnClickListener(v -> applyFormat(8, 0));
+        findViewById(R.id.btn_format_link).setOnClickListener(v -> applyInsertLink(false));
+        findViewById(R.id.btn_format_image).setOnClickListener(v -> applyInsertLink(true));
         findViewById(R.id.btn_format_tools).setOnClickListener(v -> showTextToolsDialog());
 
         scaleDetector = new ScaleGestureDetector(this,
@@ -1143,6 +1146,44 @@ public class MarkdownReaderActivity extends BaseActivity implements AnnotationOv
         }
         etEditor.setText(r.text);
         etEditor.setSelection(r.selStart, r.selEnd);
+    }
+
+    /**
+     * 插入链接/图片（能力发现第七十一轮：markor insert_link/insert_image 对齐，纯函数层
+     * {@link MarkdownLinkHelper}）。流程：读当前选区/光标 → 光标在已有链接上则预填其标题与地址
+     * （编辑语义），有选区则预填标题=选区文本（markor 同：确认后选区被替换为链接语法）→
+     * 双输入对话框（标题+地址）→ 确认后纯函数替换并设置选区（光标落插入内容末尾；
+     * 地址为空 no-op 不触发文本变化）。
+     */
+    private void applyInsertLink(boolean isImage) {
+        if (!editMode || etEditor == null) return;
+        int s = etEditor.getSelectionStart();
+        int e = etEditor.getSelectionEnd();
+        if (s < 0) s = etEditor.length();
+        if (e < 0) e = s;
+        String text = etEditor.getText().toString();
+        String initialTitle = null;
+        String initialUrl = null;
+        if (s != e) {
+            initialTitle = text.substring(s, e);
+        } else {
+            MarkdownLinkHelper.LinkInfo li = MarkdownLinkHelper.extract(text, s);
+            if (li.isValid()) {
+                initialTitle = li.title;
+                initialUrl = li.url;
+            }
+        }
+        String dialogTitle = isImage ? "插入图片" : "插入链接";
+        final int fs = s;
+        final int fe = e;
+        DialogHelper.showInsertLinkDialog(this, dialogTitle,
+                "插入", "取消", initialTitle, initialUrl, (title, url) -> {
+                    if (!editMode || etEditor == null) return;
+                    MarkdownLinkHelper.Result r = MarkdownLinkHelper.insertLink(text, fs, fe, title, url, isImage);
+                    if (r.text == null || r.text.equals(etEditor.getText().toString())) return;
+                    etEditor.setText(r.text);
+                    etEditor.setSelection(r.selStart, r.selEnd);
+                });
     }
 
     /** 查找扫描源：编辑态=编辑器文本（源 Markdown），阅读态=渲染后文本（所见即所搜）。 */

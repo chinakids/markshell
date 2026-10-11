@@ -442,6 +442,64 @@ public class DialogHelper {
         }
     }
 
+    // ── 插入链接/图片对话框 ──────────────────────────────────────────────────
+
+    public interface OnInsertLinkListener {
+        /** 用户确认时回调（标题/地址已收集；地址合法性（非空）由调用方经纯函数层处理）。 */
+        void onResult(String title, String url);
+    }
+
+    /**
+     * 插入链接/图片对话框（标题+地址双输入，布局 dialog_insert_link；markor select_path_dialog
+     * 的两字段语义——本项目为 SSH 远程阅读器，目标地址由用户直接输入 URL/相对路径，不做本地文件浏览）。
+     * {@code initialTitle}/{@code initialUrl} 非 null 时预填（编辑已有链接场景，预填并全选地址便于覆盖）。
+     */
+    public static void showInsertLinkDialog(@NonNull Context context,
+                                            @NonNull String title,
+                                            @NonNull String positiveText,
+                                            @NonNull String negativeText,
+                                            @Nullable String initialTitle,
+                                            @Nullable String initialUrl,
+                                            @NonNull OnInsertLinkListener listener) {
+        if (!canShow(context)) return;
+
+        Dialog dialog = new Dialog(context, R.style.BrandDialog);
+        View view = LayoutInflater.from(context).inflate(R.layout.dialog_insert_link, null);
+        dialog.setContentView(view);
+        applyDialogSize(dialog);
+
+        ((TextView) view.findViewById(R.id.dialog_insert_link_title)).setText(title);
+
+        EditText etUrl = view.findViewById(R.id.dialog_insert_link_url);
+        EditText etTitle = view.findViewById(R.id.dialog_insert_link_title_et);
+        if (initialUrl != null) etUrl.setText(initialUrl);
+        if (initialTitle != null && !initialTitle.isEmpty()) etTitle.setText(initialTitle);
+
+        TextView btnNeg = view.findViewById(R.id.dialog_insert_link_btn_negative);
+        btnNeg.setText(negativeText);
+        btnNeg.setOnClickListener(v -> dismissWithKeyboard(dialog, etUrl));
+
+        TextView btnPos = view.findViewById(R.id.dialog_insert_link_btn_positive);
+        btnPos.setText(positiveText);
+        btnPos.setOnClickListener(v -> {
+            String url = etUrl.getText() != null ? etUrl.getText().toString() : "";
+            String t = etTitle.getText() != null ? etTitle.getText().toString() : "";
+            dismissWithKeyboard(dialog, etUrl);
+            listener.onResult(t, url);
+        });
+
+        dialog.setCancelable(true);
+        dialog.show();
+
+        etUrl.postDelayed(() -> {
+            etUrl.requestFocus();
+            if (initialUrl != null && !initialUrl.isEmpty()) etUrl.setSelection(0, etUrl.length());
+            InputMethodManager imm = (InputMethodManager)
+                    context.getSystemService(Context.INPUT_METHOD_SERVICE);
+            if (imm != null) imm.showSoftInput(etUrl, InputMethodManager.SHOW_IMPLICIT);
+        }, 100);
+    }
+
     /** 对话框宽度设为屏幕 88%、居中；util 包内共享（以 DirectoryPickerDialog 复用）。 */
     static void applyDialogSize(Dialog dialog) {
         Window window = dialog.getWindow();
