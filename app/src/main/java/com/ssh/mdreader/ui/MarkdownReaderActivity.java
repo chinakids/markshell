@@ -39,6 +39,7 @@ import com.ssh.mdreader.ssh.SshManager;
 import com.ssh.mdreader.util.AnnotationHelper;
 import com.ssh.mdreader.util.AnnotationOverlayHelper;
 import com.ssh.mdreader.util.DialogHelper;
+import com.ssh.mdreader.util.TextToolsHelper;
 import com.ssh.mdreader.util.EditHistoryHelper;
 import com.ssh.mdreader.util.FindHelper;
 import com.ssh.mdreader.util.GfmAutolinkPlugin;
@@ -545,6 +546,7 @@ public class MarkdownReaderActivity extends BaseActivity implements AnnotationOv
         findViewById(R.id.btn_format_quote).setOnClickListener(v -> applyFormat(6, 0));
         findViewById(R.id.btn_format_strike).setOnClickListener(v -> applyFormat(7, 0));
         findViewById(R.id.btn_format_code).setOnClickListener(v -> applyFormat(8, 0));
+        findViewById(R.id.btn_format_tools).setOnClickListener(v -> showTextToolsDialog());
 
         scaleDetector = new ScaleGestureDetector(this,
                 new ScaleGestureDetector.SimpleOnScaleGestureListener() {
@@ -1088,6 +1090,56 @@ public class MarkdownReaderActivity extends BaseActivity implements AnnotationOv
             case 7:  r = MarkdownFormatHelper.wrapSelection(text, s, e, "~~", "~~"); break;
             case 8:  r = MarkdownFormatHelper.wrapSelection(text, s, e, "`", "`"); break;
             default: return;
+        }
+        etEditor.setText(r.text);
+        etEditor.setSelection(r.selStart, r.selEnd);
+    }
+
+    /**
+     * 文本工具（能力发现第七十轮：markor TextActions 对齐，纯函数层 {@link TextToolsHelper}）。
+     * 格式栏「Aa」入口→列表对话框 9 项：大小写 5（全大写/全小写/逐词首字母大写/逐句首字母大写/
+     * 大小写互换）+ 行级操作 4（复制行/删除行/上移一行/下移一行）；行移动后接有序列表重编号
+     * （markor moveLine→runRenumberOrderedListIfRequired 同）。
+     */
+    private void showTextToolsDialog() {
+        DialogHelper.showListDialog(this, "文本工具",
+                new String[]{"全大写", "全小写", "逐词首字母大写", "逐句首字母大写", "大小写互换",
+                        "复制行", "删除行", "上移一行", "下移一行"},
+                null, (dialog, which) -> applyTextTool(which));
+    }
+
+    private void applyTextTool(int which) {
+        if (!editMode || etEditor == null) return;
+        int s = etEditor.getSelectionStart();
+        int e = etEditor.getSelectionEnd();
+        if (s < 0) s = etEditor.length();
+        if (e < 0) e = s;
+        String text = etEditor.getText().toString();
+        TextToolsHelper.Result r;
+        switch (which) {
+            case 0: r = TextToolsHelper.toUpperCase(text, s, e); break;
+            case 1: r = TextToolsHelper.toLowerCase(text, s, e); break;
+            case 2: r = TextToolsHelper.capitalizeWords(text, s, e); break;
+            case 3: r = TextToolsHelper.capitalizeSentences(text, s, e); break;
+            case 4: r = TextToolsHelper.switchCase(text, s, e); break;
+            case 5: r = TextToolsHelper.duplicateLines(text, s, e); break;
+            case 6: r = TextToolsHelper.deleteLines(text, s, e); break;
+            case 7: r = TextToolsHelper.moveLinesUp(text, s, e); break;
+            case 8: r = TextToolsHelper.moveLinesDown(text, s, e); break;
+            default: return;
+        }
+        if (r.text == null || r.text.equals(text)) return;   // no-op：不触发文本变化（防空历史步）
+        if (which == 7 || which == 8) {
+            // 行移动后重编号有序列表（markor moveLine 同语义）
+            MarkdownFormatHelper.Result rn = MarkdownFormatHelper.renumberOrderedList(r.text, r.selStart, r.selEnd);
+            if (!rn.text.equals(r.text)) {
+                etEditor.setText(rn.text);
+                etEditor.setSelection(rn.selStart, rn.selEnd);
+            } else {
+                etEditor.setText(r.text);
+                etEditor.setSelection(r.selStart, r.selEnd);
+            }
+            return;
         }
         etEditor.setText(r.text);
         etEditor.setSelection(r.selStart, r.selEnd);

@@ -51,4 +51,7 @@
     <!-- Menu -->
     <string name="action_settings">设置</string>
     <string name="action_about">关于</string>
+
+    <!-- 编辑模式格式栏（能力发现第七十轮：文本工具入口） -->
+    <string name="btn_format_tools_label">Aa</string>
 </resources>

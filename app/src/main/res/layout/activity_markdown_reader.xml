@@ -279,6 +279,18 @@
                         android:contentDescription="行内代码（`文本`）"
                         android:src="@drawable/ic_code_inline" />
 
+                    <TextView
+                        android:id="@+id/btn_format_tools"
+                        android:layout_width="40dp"
+                        android:layout_height="40dp"
+                        android:background="?attr/selectableItemBackgroundBorderless"
+                        android:contentDescription="文本工具（大小写变换/行操作）"
+                        android:gravity="center"
+                        android:text="@string/btn_format_tools_label"
+                        android:textColor="#BB86FC"
+                        android:textSize="14sp"
+                        android:textStyle="bold" />
+
                 </LinearLayout>
 
             </HorizontalScrollView>
