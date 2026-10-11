@@ -135,6 +135,11 @@ public class MarkdownReaderActivity extends BaseActivity implements AnnotationOv
     private View findBar;
     private EditText etFindQuery;
     private TextView tvFindStatus;
+    /** 查找选项开关（「Aa」区分大小写 / 「词」整词匹配）；默认=大小写不敏感+字面包含（既有行为）。 */
+    private TextView btnFindCase;
+    private TextView btnFindWord;
+    private boolean findCaseSensitive;
+    private boolean findWholeWord;
     /** 替换行（仅编辑模式可见；路线图 #11）与替换输入框。 */
     private View replaceRow;
     private EditText etReplaceQuery;
@@ -1008,6 +1013,24 @@ public class MarkdownReaderActivity extends BaseActivity implements AnnotationOv
         findViewById(R.id.btn_find_prev).setOnClickListener(v -> findStep(-1));
         findViewById(R.id.btn_find_next).setOnClickListener(v -> findStep(1));
         findViewById(R.id.btn_find_close).setOnClickListener(v -> hideFindBar());
+        // 查找选项（标记法：选中=高亮强调色；状态持久化，读/编辑/替换共用）
+        btnFindCase = findViewById(R.id.btn_find_case);
+        btnFindWord = findViewById(R.id.btn_find_word);
+        findCaseSensitive = prefManager.getFindCaseSensitive();
+        findWholeWord = prefManager.getFindWholeWord();
+        btnFindCase.setOnClickListener(v -> {
+            findCaseSensitive = !findCaseSensitive;
+            prefManager.saveFindCaseSensitive(findCaseSensitive);
+            updateFindOptionButtons();
+            rebuildFind(false);
+        });
+        btnFindWord.setOnClickListener(v -> {
+            findWholeWord = !findWholeWord;
+            prefManager.saveFindWholeWord(findWholeWord);
+            updateFindOptionButtons();
+            rebuildFind(false);
+        });
+        updateFindOptionButtons();
         etFindQuery.setOnEditorActionListener((v, actionId, event) -> {
             if (actionId == EditorInfo.IME_ACTION_SEARCH) {
                 findStep(1);   // 键盘搜索键 = 下一处（循环）
@@ -1058,6 +1081,18 @@ public class MarkdownReaderActivity extends BaseActivity implements AnnotationOv
     private void updateReplaceRowVisibility() {
         if (replaceRow != null) {
             replaceRow.setVisibility(editMode ? View.VISIBLE : View.GONE);
+        }
+    }
+
+    /** 查找选项按钮视觉：开启=强调色高亮（#BB86FC），关闭=灰（与占位色 #888888 同）。 */
+    private void updateFindOptionButtons() {
+        int onColor = 0xFFBB86FC;
+        int offColor = 0xFF888888;
+        if (btnFindCase != null) {
+            btnFindCase.setTextColor(findCaseSensitive ? onColor : offColor);
+        }
+        if (btnFindWord != null) {
+            btnFindWord.setTextColor(findWholeWord ? onColor : offColor);
         }
     }
 
@@ -1200,7 +1235,7 @@ public class MarkdownReaderActivity extends BaseActivity implements AnnotationOv
         if (findBar.getVisibility() != View.VISIBLE) return;
         String query = etFindQuery.getText().toString();
         int prev = findCurrentIndex;
-        findMatches = FindHelper.scanAll(findSource(), query, true);
+        findMatches = FindHelper.scanAll(findSource(), query, !findCaseSensitive, findWholeWord);
         if (findMatches.isEmpty()) {
             findCurrentIndex = -1;
             tvFindStatus.setText(query.isEmpty() ? "" : "未找到");
@@ -1259,10 +1294,11 @@ public class MarkdownReaderActivity extends BaseActivity implements AnnotationOv
         if (query.isEmpty()) return;
         String text = etEditor.getText().toString();
         String updated = ReplaceHelper.replaceOccurrence(text, query,
-                etReplaceQuery.getText().toString(), true, idx);
+                etReplaceQuery.getText().toString(), !findCaseSensitive, findWholeWord, idx);
         if (!updated.equals(text)) {
             etEditor.setText(updated);
-            findMatches = FindHelper.scanAll(etEditor.getText(), query, true);
+            findMatches = FindHelper.scanAll(etEditor.getText(), query,
+                    !findCaseSensitive, findWholeWord);
             if (findMatches.isEmpty()) {
                 findCurrentIndex = -1;
                 tvFindStatus.setText("未找到");
@@ -1285,19 +1321,20 @@ public class MarkdownReaderActivity extends BaseActivity implements AnnotationOv
             return;
         }
         String text = etEditor.getText().toString();
-        List<FindHelper.Match> all = FindHelper.scanAll(text, query, true);
+        List<FindHelper.Match> all = FindHelper.scanAll(text, query, !findCaseSensitive, findWholeWord);
         if (all.isEmpty()) {
             tvFindStatus.setText("未找到");
             return;
         }
         int total = all.size();
         String updated = ReplaceHelper.replaceAll(text, query,
-                etReplaceQuery.getText().toString(), true);
+                etReplaceQuery.getText().toString(), !findCaseSensitive, findWholeWord);
         if (!updated.equals(text)) {
             etEditor.setText(updated);
             UiUtils.showToast(this, "已替换 " + total + " 处");
         }
-        findMatches = FindHelper.scanAll(etEditor.getText(), query, true);
+        findMatches = FindHelper.scanAll(etEditor.getText(), query,
+                !findCaseSensitive, findWholeWord);
         if (findMatches.isEmpty()) {
             findCurrentIndex = -1;
             tvFindStatus.setText(query.isEmpty() ? "" : "未找到");

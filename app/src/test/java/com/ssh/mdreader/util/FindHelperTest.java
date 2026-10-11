@@ -155,4 +155,106 @@ public class FindHelperTest {
         next = FindHelper.advance(ms, 999, -1);
         assertTrue(next >= 0 && next < ms.size());
     }
+
+    // ── scanAll: 整词匹配（wholeWord，对齐 markor 正则 \b 边界的字面实现）──────
+
+    @Test
+    public void scan_wholeWord_standaloneMatches() {
+        List<Match> ms = FindHelper.scanAll("say hello world", "hello", true, true);
+        assertEquals(1, ms.size());
+        assertEquals(4, ms.get(0).start);
+        assertEquals(9, ms.get(0).end);
+    }
+
+    @Test
+    public void scan_wholeWord_rejectsInsideWord() {
+        assertTrue(FindHelper.scanAll("catalog", "cat", true, true).isEmpty());
+        assertTrue(FindHelper.scanAll("cats", "cat", true, true).isEmpty());
+        assertTrue(FindHelper.scanAll("xcat", "cat", true, true).isEmpty());
+    }
+
+    @Test
+    public void scan_wholeWord_digitAndUnderscoreAreWordChars() {
+        // 数字/下划线属于词字符（与 Java 正则默认 \w 一致）
+        assertTrue(FindHelper.scanAll("cat_dog", "cat", true, true).isEmpty());
+        assertTrue(FindHelper.scanAll("cat2", "cat", true, true).isEmpty());
+        assertEquals(1, FindHelper.scanAll("cat dog", "cat", true, true).size());
+    }
+
+    @Test
+    public void scan_wholeWord_cjkIsNonWordSeparator() {
+        // 中文等非 ASCII 字符=分隔符：「测试」在中文相邻处命中（markor \b 会 0 命中，
+        // 本项目按 CJK 天然分隔处理，更符合中文用户预期）
+        assertEquals(1, FindHelper.scanAll("中文测试文本", "测试", true, true).size());
+        // 与 ASCII 字母相邻则视为嵌入单词（与 catalog 同规则）
+        assertTrue(FindHelper.scanAll("abc测试def", "测试", true, true).isEmpty());
+    }
+
+    @Test
+    public void scan_wholeWord_rejectedAdvancesByOne_keepsLaterMatches() {
+        // "catcatalog cat"：前两处 "cat"（0 与 3）被拒后须从 i+1 续扫，末处独立 cat 命中
+        List<Match> ms = FindHelper.scanAll("catcatalog cat", "cat", true, true);
+        assertEquals(1, ms.size());
+        assertEquals(11, ms.get(0).start);
+        assertEquals(14, ms.get(0).end);
+    }
+
+    @Test
+    public void scan_wholeWord_overlappingAllRejected() {
+        // "aaa" 中 "aa"：两处候选均被边界拒绝 → 空（整词模式须逐位检查重叠候选）
+        assertTrue(FindHelper.scanAll("aaa", "aa", true, true).isEmpty());
+    }
+
+    @Test
+    public void scan_wholeWord_combinesWithIgnoreCase() {
+        // 整词 + 大小写组合：两个独立单词且大小写不敏感
+        List<Match> ms = FindHelper.scanAll("Cat dog CAT", "cat", true, true);
+        assertEquals(2, ms.size());
+        assertEquals(0, ms.get(0).start);
+        assertEquals(8, ms.get(1).start);
+    }
+
+    @Test
+    public void scan_wholeWord_caseSensitive_combined() {
+        // 大小写敏感 + 整词：「Hello」在 "Hello hello" 中仅命中开头一处（第二处小写不匹配）
+        List<Match> ms = FindHelper.scanAll("Hello hello", "Hello", false, true);
+        assertEquals(1, ms.size());
+        assertEquals(0, ms.get(0).start);
+        // 大小写不敏感 + 整词：两处独立 hello 均命中
+        ms = FindHelper.scanAll("Hello hello", "Hello", true, true);
+        assertEquals(2, ms.size());
+        assertEquals(6, ms.get(1).start);
+    }
+
+    @Test
+    public void scan_wholeWord_punctuationSeparates() {
+        // 标点/空白 = 非词字符：- 与 . 均构成边界
+        List<Match> ms = FindHelper.scanAll("cat.cat,cat", "cat", true, true);
+        assertEquals(3, ms.size());
+        ms = FindHelper.scanAll("cat-cat", "cat", true, true);
+        assertEquals(2, ms.size());
+    }
+
+    @Test
+    public void scan_wholeWord_textStartEndAreBoundaries() {
+        assertEquals(1, FindHelper.scanAll("cat", "cat", true, true).size());
+        assertEquals(1, FindHelper.scanAll("cat ", "cat", true, true).size());
+        assertEquals(1, FindHelper.scanAll(" cat", "cat", true, true).size());
+    }
+
+    @Test
+    public void scan_wholeWord_emptyOrTooLongQuery() {
+        assertTrue(FindHelper.scanAll("abc", "", true, true).isEmpty());
+        assertTrue(FindHelper.scanAll("cat", "catalog", true, true).isEmpty());
+        assertTrue(FindHelper.scanAll(null, "x", true, true).isEmpty());
+    }
+
+    @Test
+    public void scan_threeArgs_delegatesToWholeWordOff() {
+        // 3 参重载=4 参 wholeWord=false：既有调用方（ViewerFindBar 等）行为不变
+        List<Match> ms3 = FindHelper.scanAll("catalog cat", "cat", true);
+        assertEquals(2, ms3.size());   // 字面包含：catalog 内也命中
+        List<Match> ms4 = FindHelper.scanAll("catalog cat", "cat", true, false);
+        assertEquals(ms3.size(), ms4.size());
+    }
 }

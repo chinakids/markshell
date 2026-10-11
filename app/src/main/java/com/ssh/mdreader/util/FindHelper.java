@@ -54,6 +54,32 @@ public final class FindHelper {
      * @param ignoreCase true=逐字符不区分大小写
      */
     public static List<Match> scanAll(CharSequence haystack, String query, boolean ignoreCase) {
+        return scanAll(haystack, query, ignoreCase, false);
+    }
+
+    /**
+     * 全量扫描 + 可选<b>整词过滤</b>（匹配语义与 3 参重载完全一致，仅追加词边界条件）。
+     *
+     * <p><b>整词语义</b>（文档化，对齐 markor {@code TextSearchHandler} 的
+     * {@code "\b"+query+"\b"} 正则词边界）：词字符 = ASCII 字母/数字/下划线
+     * （{@code [A-Za-z0-9_]}，与 Java 正则默认 {@code \w} 一致）；匹配区间两端
+     * 都必须位于文本边界或紧邻非词字符——即「cat」不命中 {@code catalog}/{@code cats}/
+     * {@code cat_dog}，但命中 {@code cat-dog} 或句首/句尾的独立 {@code cat}。
+     *
+     * <p>中文等非 ASCII 字符视为<b>非词字符</b>（分隔符）：「测试」在
+     * {@code 中文测试文本} 中命中（直觉语义）；但在 {@code abc测试def} 中不命中
+     * （与 ASCII 字母相邻，视为嵌入单词）。注：markor 的 {@code \b} 对两侧均为
+     * 非词字符时（如中文相邻处）不构成边界、中文查询会 0 命中；本项目按「CJK
+     * 天然分隔」处理，更符合中文用户预期，ASCII 侧语义与 markor 一致。</p>
+     *
+     * <p>被过滤的候选匹配不占用「非重叠」推进位：从 {@code i+1} 继续扫描（可能
+     * 与另一字面匹配重叠，如 {@code "aaa"} 中 {@code "aa"} 整词应 0 命中需逐位
+     * 检查）。</p>
+     *
+     * @param wholeWord true=仅保留两端均为词边界的匹配
+     */
+    public static List<Match> scanAll(CharSequence haystack, String query, boolean ignoreCase,
+                                      boolean wholeWord) {
         if (haystack == null || query == null || query.isEmpty()) return Collections.emptyList();
         int n = haystack.length();
         int qLen = query.length();
@@ -63,10 +89,26 @@ public final class FindHelper {
         while (from + qLen <= n) {
             int i = indexOfHaystack(haystack, query, from, ignoreCase);
             if (i < 0) break;
+            if (wholeWord && !isWholeWord(haystack, i, i + qLen)) {
+                from = i + 1;   // 整词过滤拒绝：仅前进 1 字符，不跳过潜在重叠匹配
+                continue;
+            }
             result.add(new Match(i, i + qLen));
             from = i + qLen;   // 非重叠推进
         }
         return result;
+    }
+
+    /** 整词边界判定：匹配两端均在文本边界或紧邻非词字符（词字符=ASCII 字母/数字/下划线）。 */
+    private static boolean isWholeWord(CharSequence s, int start, int end) {
+        boolean leftOk = start <= 0 || !isAsciiWordChar(s.charAt(start - 1));
+        boolean rightOk = end >= s.length() || !isAsciiWordChar(s.charAt(end));
+        return leftOk && rightOk;
+    }
+
+    private static boolean isAsciiWordChar(char c) {
+        return (c >= 'A' && c <= 'Z') || (c >= 'a' && c <= 'z')
+                || (c >= '0' && c <= '9') || c == '_';
     }
 
     /**

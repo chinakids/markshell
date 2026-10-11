@@ -124,4 +124,40 @@ public class ReplaceHelperTest {
         assertNull(ReplaceHelper.replaceOccurrence(null, "a", "b", false, 0));
         assertEquals("abc", ReplaceHelper.replaceOccurrence("abc", "", "X", false, 0));
     }
+
+    // ── 整词替换（wholeWord，与 FindHelper.scanAll(..., wholeWord) 同口径）──────
+
+    @Test
+    public void replaceAll_wholeWord_onlyReplacesStandalone() {
+        // catalog 内 cat 不替换，独立 cat 替换
+        assertEquals("catalog X", ReplaceHelper.replaceAll("catalog cat", "cat", "X", true, true));
+        // 全匹配模式（wholeWord=false）catalog 内也替换
+        assertEquals("Xalog X", ReplaceHelper.replaceAll("catalog cat", "cat", "X", true, false));
+    }
+
+    @Test
+    public void replaceOccurrence_wholeWord_indexCountsFiltered() {
+        // "cat catalog cat"：整词过滤后仅 2 处（首尾），occurrenceIndex=1 → 替换末处
+        String out = ReplaceHelper.replaceOccurrence(
+                "cat catalog cat", "cat", "X", true, true, 1);
+        assertEquals("cat catalog X", out);
+        // 越界（过滤后仅 2 处）→ 原样
+        assertEquals("cat catalog cat",
+                ReplaceHelper.replaceOccurrence("cat catalog cat", "cat", "X", true, true, 2));
+    }
+
+    @Test
+    public void replaceAll_wholeWord_combinedWithIgnoreCase() {
+        assertEquals("X dog X", ReplaceHelper.replaceAll("Cat dog CAT", "cat", "X", true, true));
+        // 大小写敏感 + 整词：两处均不命中（小写 cat 不存在独立形式）
+        assertEquals("Cat dog CAT", ReplaceHelper.replaceAll("Cat dog CAT", "cat", "X", false, true));
+    }
+
+    @Test
+    public void replaceAll_wholeWord_cjkSeparator() {
+        // 中文=分隔符：「测试」命中（CJK 相邻仍整词）
+        assertEquals("中文X文本", ReplaceHelper.replaceAll("中文测试文本", "测试", "X", true, true));
+        // 与 ASCII 字母相邻 → 不替换
+        assertEquals("abc测试def", ReplaceHelper.replaceAll("abc测试def", "测试", "X", true, true));
+    }
 }

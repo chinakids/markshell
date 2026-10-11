@@ -29,6 +29,10 @@ public class PreferenceManager implements HostKeyStore {
     /** 查看器「打开后跳到底部」（布尔）：走查 #34，markor editor_start_editing_on_bottom 同型。 */
     private static final String KEY_START_ON_BOTTOM = "viewer_start_on_bottom";
     private static final String KEY_CODE_WRAP = "code_viewer_wrap";
+    /** 文档内查找「区分大小写」（bool）。默认 false=大小写不敏感（路线图 #8 既有行为）。 */
+    private static final String KEY_FIND_CASE_SENSITIVE = "find_case_sensitive";
+    /** 文档内查找「整词匹配」（bool）。默认 false=字面包含（对齐 markor 查选项，读/编共用）。 */
+    private static final String KEY_FIND_WHOLE_WORD = "find_whole_word";
     private static final String KEY_FILE_SORT_MODE = "file_sort_mode";
     /** 外观主题（string：system/light/dark，取值/归一化见 ThemeHelper）：走查 #54——DayNight 手动三态，等价 markor pref_key__app_theme。 */
     private static final String KEY_THEME_MODE = "theme_mode";
@@ -243,6 +247,24 @@ public class PreferenceManager implements HostKeyStore {
 
     public boolean getCodeWrap() {
         return prefs.getBoolean(KEY_CODE_WRAP, false);
+    }
+
+    /** 文档内查找「区分大小写」（默认 false=大小写不敏感，=路线图 #8 既有行为）。 */
+    public boolean getFindCaseSensitive() {
+        return prefs.getBoolean(KEY_FIND_CASE_SENSITIVE, false);
+    }
+
+    public void saveFindCaseSensitive(boolean enabled) {
+        prefs.edit().putBoolean(KEY_FIND_CASE_SENSITIVE, enabled).apply();
+    }
+
+    /** 文档内查找「整词匹配」（默认 false=字面包含，=既有行为）。 */
+    public boolean getFindWholeWord() {
+        return prefs.getBoolean(KEY_FIND_WHOLE_WORD, false);
+    }
+
+    public void saveFindWholeWord(boolean enabled) {
+        prefs.edit().putBoolean(KEY_FIND_WHOLE_WORD, enabled).apply();
     }
 
     /** 外观主题（string：follow system/light/dark）。写入前经 ThemeHelper.normalize，脏值一律回退默认。 */

@@ -32,8 +32,18 @@ public final class ReplaceHelper {
      */
     public static String replaceAll(CharSequence text, String query, String replacement,
                                     boolean ignoreCase) {
+        return replaceAll(text, query, replacement, ignoreCase, false);
+    }
+
+    /**
+     * 同上 + 整词过滤：仅当 {@code wholeWord=true} 时，匹配区间的替换必须与
+     * {@link FindHelper#scanAll(CharSequence, String, boolean, boolean)} 同口径——
+     * 「替哪些」由同一扫描决定，确保「找出 N 处、实际替 N 处」一致。
+     */
+    public static String replaceAll(CharSequence text, String query, String replacement,
+                                    boolean ignoreCase, boolean wholeWord) {
         if (text == null) return null;
-        List<FindHelper.Match> matches = FindHelper.scanAll(text, query, ignoreCase);
+        List<FindHelper.Match> matches = FindHelper.scanAll(text, query, ignoreCase, wholeWord);
         if (matches.isEmpty()) return text.toString();
         String repl = replacement != null ? replacement : "";
         StringBuilder sb = new StringBuilder(
@@ -54,8 +64,18 @@ public final class ReplaceHelper {
      */
     public static String replaceOccurrence(CharSequence text, String query, String replacement,
                                            boolean ignoreCase, int occurrenceIndex) {
+        return replaceOccurrence(text, query, replacement, ignoreCase, false, occurrenceIndex);
+    }
+
+    /**
+     * 同上 + 整词过滤（与 {@link #replaceAll(CharSequence, String, String, boolean, boolean)}
+     * 同口径：过滤后的匹配序才是「第 N 处」的计数基准）。
+     */
+    public static String replaceOccurrence(CharSequence text, String query, String replacement,
+                                           boolean ignoreCase, boolean wholeWord,
+                                           int occurrenceIndex) {
         if (text == null) return null;
-        List<FindHelper.Match> matches = FindHelper.scanAll(text, query, ignoreCase);
+        List<FindHelper.Match> matches = FindHelper.scanAll(text, query, ignoreCase, wholeWord);
         if (occurrenceIndex < 0 || occurrenceIndex >= matches.size()) return text.toString();
         String repl = replacement != null ? replacement : "";
         StringBuilder sb = new StringBuilder(text.length() + (repl.length() - query.length()));
