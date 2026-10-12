@@ -317,6 +317,14 @@
                         android:contentDescription="插入图片（![标题](地址)）"
                         android:src="@drawable/ic_image" />
 
+                    <ImageButton
+                        android:id="@+id/btn_format_table"
+                        android:layout_width="40dp"
+                        android:layout_height="40dp"
+                        android:background="?attr/selectableItemBackgroundBorderless"
+                        android:contentDescription="插入表格（选择列数）"
+                        android:src="@drawable/ic_table" />
+
                     <TextView
                         android:id="@+id/btn_format_tools"
                         android:layout_width="40dp"

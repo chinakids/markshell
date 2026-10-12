@@ -554,6 +554,7 @@ public class MarkdownReaderActivity extends BaseActivity implements AnnotationOv
         findViewById(R.id.btn_format_code).setOnClickListener(v -> applyFormat(8, 0));
         findViewById(R.id.btn_format_link).setOnClickListener(v -> applyInsertLink(false));
         findViewById(R.id.btn_format_image).setOnClickListener(v -> applyInsertLink(true));
+        findViewById(R.id.btn_format_table).setOnClickListener(v -> applyInsertTable());
         findViewById(R.id.btn_format_tools).setOnClickListener(v -> showTextToolsDialog());
 
         scaleDetector = new ScaleGestureDetector(this,
@@ -1219,6 +1220,28 @@ public class MarkdownReaderActivity extends BaseActivity implements AnnotationOv
                     etEditor.setText(r.text);
                     etEditor.setSelection(r.selStart, r.selEnd);
                 });
+    }
+
+    /**
+     * 插入表格（markor 表格按钮对齐，纯函数层 {@link MarkdownFormatHelper#insertTable}）。
+     * 列表对话框选择列数（2-5，记忆上次选择），确认后在光标行后插入完整表格模板
+     * （表头+分隔+数据行，光标落在表头第一个单元格）。
+     */
+    private void applyInsertTable() {
+        if (!editMode || etEditor == null) return;
+        String[] items = {"2 列", "3 列", "4 列", "5 列"};
+        DialogHelper.showListDialog(this, "表格列数", items, null, (dialog, which) -> {
+            if (!editMode || etEditor == null) return;
+            int cols = which + MarkdownFormatHelper.TABLE_COLS_MIN;
+            prefManager.saveTableCols(cols);
+            int s = etEditor.getSelectionStart();
+            if (s < 0) s = etEditor.length();
+            String text = etEditor.getText().toString();
+            MarkdownFormatHelper.Result r = MarkdownFormatHelper.insertTable(text, s, cols);
+            if (r.text == null || r.text.equals(text)) return;
+            etEditor.setText(r.text);
+            etEditor.setSelection(r.selStart, r.selEnd);
+        });
     }
 
     /** 查找扫描源：编辑态=编辑器文本（源 Markdown），阅读态=渲染后文本（所见即所搜）。 */

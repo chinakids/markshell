@@ -22,6 +22,8 @@ public class PreferenceManager implements HostKeyStore {
     private static final String PREF_NAME = "ssh_md_reader_prefs";
     private static final String KEY_SAVED_CONNECTIONS = "saved_connections";
     private static final String KEY_FONT_SIZE = "font_size";
+    /** 编辑表格插入上次使用的列数（2-5，markor pref_key_last_used_table_size 同型）。 */
+    private static final String KEY_TABLE_COLS = "table_cols";
     /** Code/Text 查看器缩放字号（sp，float）：走查 #38——查看器双指缩放持久化，与阅读器 KEY_FONT_SIZE 互不影响。 */
     private static final String KEY_VIEWER_TEXT_SIZE = "viewer_text_size";
     private static final String KEY_SHOW_HIDDEN = "show_hidden";
@@ -202,6 +204,16 @@ public class PreferenceManager implements HostKeyStore {
 
     public int getFontSize(int defaultValue) {
         return prefs.getInt(KEY_FONT_SIZE, defaultValue);
+    }
+
+    /** 编辑表格插入上次列数（2-5）。无记录返回 {@code defaultValue}（默认 3）。 */
+    public int getTableCols(int defaultValue) {
+        return prefs.getInt(KEY_TABLE_COLS, defaultValue);
+    }
+
+    /** 保存编辑表格插入列数（markor lastUsedTableSize 同型：下次对话框预选）。 */
+    public void saveTableCols(int cols) {
+        prefs.edit().putInt(KEY_TABLE_COLS, cols).apply();
     }
 
     /** 查看器缩放字号（sp）。无记录返回 {@code defaultValue}（调用方传 ViewerTextSizeHelper.DEFAULT_TEXT_SIZE）。 */

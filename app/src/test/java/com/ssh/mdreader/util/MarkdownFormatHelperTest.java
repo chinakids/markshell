@@ -645,4 +645,68 @@ public class MarkdownFormatHelperTest {
         // 分隔符「)」保留（markor delimiter 同型）
         assertEquals("2) ", MarkdownFormatHelper.newlineContinuation("1) item", 7));
     }
+
+    // ── insertTable：表格插入（markor 表格按钮对齐）──────────────────────────
+
+    private static final String T3 = "|   |   |   |\n| --- | --- | --- |\n|   |   |   |\n";
+
+    @Test
+    public void table_emptyText_insertsTemplateAtStart() {
+        MarkdownFormatHelper.Result r = MarkdownFormatHelper.insertTable("", 0, 3);
+        assertEquals(T3, r.text);
+        assertEquals(2, r.selStart);   // 「| 」之后=第一格
+        assertEquals(2, r.selEnd);
+    }
+
+    @Test
+    public void table_cursorInNonBlankLine_appendsAfterLine() {
+        // 光标在非空行：表格另起于行尾之后，表格前有空行（GFM 渲染前提）
+        MarkdownFormatHelper.Result r = MarkdownFormatHelper.insertTable("hello", 1, 3);
+        assertEquals("hello\n\n" + T3, r.text);
+        // 表头行起点=7（"hello\n\n" 之后），「| 」之后=+2
+        assertEquals(7 + 2, r.selStart);
+    }
+
+    @Test
+    public void table_blankLine_reusesLineAndKeepsSpacing() {
+        // 光标在空行：表格占用该空行，表格前仍保证空行（原空行的换行保留在表格后）
+        MarkdownFormatHelper.Result r = MarkdownFormatHelper.insertTable("aa\n\nbb", 3, 3);
+        assertEquals("aa\n\n" + T3 + "\nbb", r.text);
+        assertEquals(4 + 2, r.selStart);
+    }
+
+    @Test
+    public void table_followedByNonBlankLine_notMerged() {
+        // 表格后紧贴非空行：表格块以换行结尾，不把下一行并入表格行
+        MarkdownFormatHelper.Result r = MarkdownFormatHelper.insertTable("aa\nbb", 1, 3);
+        assertEquals("aa\n\n" + T3 + "bb", r.text);
+    }
+
+    @Test
+    public void table_colsVariants() {
+        assertEquals("|   |   |\n| --- | --- |\n|   |   |\n",
+                MarkdownFormatHelper.insertTable("", 0, 2).text);
+        assertEquals("|   |   |   |   |   |\n| --- | --- | --- | --- | --- |\n|   |   |   |   |   |\n",
+                MarkdownFormatHelper.insertTable("", 0, 5).text);
+    }
+
+    @Test
+    public void table_colsClampedToBounds() {
+        assertEquals(MarkdownFormatHelper.insertTable("", 0, 2).text,
+                MarkdownFormatHelper.insertTable("", 0, 1).text);
+        assertEquals(MarkdownFormatHelper.insertTable("", 0, 5).text,
+                MarkdownFormatHelper.insertTable("", 0, 9).text);
+    }
+
+    @Test
+    public void table_cursorClamped() {
+        MarkdownFormatHelper.Result r = MarkdownFormatHelper.insertTable("hi", 999, 3);
+        assertEquals(MarkdownFormatHelper.insertTable("hi", 2, 3).text, r.text);
+    }
+
+    @Test
+    public void table_nullText_returnsNull() {
+        MarkdownFormatHelper.Result r = MarkdownFormatHelper.insertTable(null, 0, 3);
+        assertEquals(null, r.text);
+    }
 }

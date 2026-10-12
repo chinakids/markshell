@@ -11,6 +11,9 @@ package com.ssh.mdreader.util;
  *       多行选区逐行独立切换。</li>
  *   <li><b>无序列表</b>=replaceWithUnorderedListPrefixOrRemovePrefix：行级切换——已是无序列表则移除，
  *       其它前缀（有序/标题/引用）替换为目标前缀，无前缀则插入。</li>
+ *   <li><b>表格</b>=insertTableRow（列数对话框，见 {@link #insertTable}）：插入 GFM 表格模板
+ *       （表头行+分隔行+数据行）；与 markor 差异：markor 点击=仅骨架行（非合法表格）/长按=带表头，
+ *       本项目统一生成<b>含表头</b>的合法表格（落档见迭代日志）。</li>
  * </ul>
  *
  * <p>全部为纯函数（无 Android 依赖），JVM 单测覆盖；返回 {@link Result}（新文本 + 新选区），
@@ -476,6 +479,72 @@ public final class MarkdownFormatHelper {
      */
     public static Result toggleTaskList(String text, int start, int end) {
         return toggleLinePrefix(text, start, end, P_UNCHECKED, 0, "- [ ] ", "- [x] ");
+    }
+
+    // ── 表格插入（markor abid_markdown_table_insert_columns 对齐，2026-11 走查新增）─────
+
+    /** 表格列数边界（markor showInsertTableRowDialog 可选 2-5，同款夹取）。 */
+    public static final int TABLE_COLS_MIN = 2;
+    public static final int TABLE_COLS_MAX = 5;
+
+    /**
+     * 插入 GFM 表格模板（markor insertTableRow 语义对位，差异见类注释）。
+     *
+     * <p>生成三行模板：表头行（空单元格）+ 分隔行（{@code | --- | …}）+ 数据行（空单元格），
+     * 列数已在 {@link #TABLE_COLS_MIN}..{@link #TABLE_COLS_MAX} 夹取。插入位置规则：</p>
+     * <ul>
+     *   <li>表格插入在<b>光标所在行之后</b>独立成块（光标行非空=自动另起，不劈开当前行）；</li>
+     *   <li>表格前保证<b>至少一个空行</b>（GFM 表格渲染前提；markor 仅光标行为空行时才补空行，
+     *       本项目统一补足并如实落档差异）；</li>
+     *   <li>光标落在表头行第一个单元格内（可直接输入表头）。</li>
+     * </ul>
+     */
+    public static Result insertTable(String text, int cursor, int cols) {
+        if (text == null) return new Result(null, cursor, cursor);
+        int n = text.length();
+        int s = clamp(cursor, 0, n);
+        int c = cols < TABLE_COLS_MIN ? TABLE_COLS_MIN : (cols > TABLE_COLS_MAX ? TABLE_COLS_MAX : cols);
+
+        int lineStart = lineStartOf(text, s);
+        int lineEnd = text.indexOf('\n', lineStart);
+        if (lineEnd < 0) lineEnd = n;
+
+        // 光标行是否有非空白内容（空行=可被表格占用；非空行=表格另起一行）
+        boolean lineBlank = true;
+        for (int i = lineStart; i < lineEnd && lineBlank; i++) {
+            lineBlank = Character.isWhitespace(text.charAt(i));
+        }
+
+        int ins;
+        if (lineBlank) {
+            ins = lineStart;                       // 表格占用光标所在空行
+        } else {
+            ins = (lineEnd < n) ? lineEnd + 1 : lineEnd;   // 行尾换行之后
+        }
+
+        StringBuilder table = new StringBuilder();
+        table.append('|');
+        for (int i = 0; i < c; i++) table.append("   |");
+        StringBuilder sep = new StringBuilder();
+        sep.append('|');
+        for (int i = 0; i < c; i++) sep.append(" --- |");
+        StringBuilder block = new StringBuilder();
+        int prefixLen = 0;
+        if (ins > 0) {
+            // 表格前保证至少一个空行（GFM 表格渲染前提；文档开头除外）
+            if (text.charAt(ins - 1) == '\n') {
+                block.append('\n');
+                prefixLen = 1;
+            } else {
+                block.append("\n\n");
+                prefixLen = 2;
+            }
+        }
+        block.append(table).append('\n').append(sep).append('\n').append(table).append('\n');
+
+        String nt = text.substring(0, ins) + block + text.substring(ins);
+        int caret = ins + prefixLen + 2;   // block 内表头行「| 」之后
+        return new Result(nt, caret, caret);
     }
 
     /**
