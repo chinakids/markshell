@@ -333,6 +333,22 @@
                         android:contentDescription="插入水平线（---）"
                         android:src="@drawable/ic_hr" />
 
+                    <ImageButton
+                        android:id="@+id/btn_format_indent"
+                        android:layout_width="40dp"
+                        android:layout_height="40dp"
+                        android:background="?attr/selectableItemBackgroundBorderless"
+                        android:contentDescription="缩进"
+                        android:src="@drawable/ic_format_indent" />
+
+                    <ImageButton
+                        android:id="@+id/btn_format_outdent"
+                        android:layout_width="40dp"
+                        android:layout_height="40dp"
+                        android:background="?attr/selectableItemBackgroundBorderless"
+                        android:contentDescription="反缩进"
+                        android:src="@drawable/ic_format_outdent" />
+
                     <TextView
                         android:id="@+id/btn_format_tools"
                         android:layout_width="40dp"

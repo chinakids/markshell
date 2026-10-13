@@ -601,6 +601,69 @@ public final class MarkdownFormatHelper {
         return new Result(nt, caret, caret);
     }
 
+    /** 缩进/反缩进步长（空格数）。项目 Markdown 缩进约定为 4（子列表等），无独立设置。 */
+    private static final int INDENT_SIZE = 4;
+    private static final String INDENT = "    ";
+
+    /**
+     * 缩进/反缩进（markor {@code ActionButtonBase#runIndentLines} 同款语义）：作用于选区覆盖的所有行
+     * （空选区=光标所在行）。<code>deIndent=false</code>=在每行行首插入 {@link #INDENT_SIZE} 个空格；
+     * <code>deIndent=true</code>=去除每行行首至多 {@link #INDENT_SIZE} 个前导空白（空格/制表），不足不删。
+     *
+     * <p>与 markor 的差异（如实标注）：① 行范围判定与 {@link #toggleLinePrefix} 一致（选区首行到末行，
+     * 而非 markor「选区换行数+1」的迭代）；② 缩进宽度固定 {@link #INDENT_SIZE}（markor 由
+     * getDocumentIndentSize 用户设置决定）；③ 前导空白识别用 {@code ' '}/{@code '\t'}（与 toggleLinePrefix
+     * 一致），不含 {@code '\r'}（markor 用 {@code \\s}）。</p>
+     *
+     * <p>行为：deindent 对无前导空白的行（含空白行）no-op；indent 对空白行也插入缩进（markor 同）。</p>
+     */
+    public static Result indentLines(String text, int start, int end, boolean deIndent) {
+        if (text == null) return new Result(null, start, end);
+        int n = text.length();
+        int s = clamp(start, 0, n);
+        int e = clamp(end, 0, n);
+        if (e < s) { int t = s; s = e; e = t; }
+
+        int firstLine = lineStartOf(text, s);
+        int lastLine = (e > s) ? lineStartOf(text, e - 1) : firstLine;
+
+        java.util.List<int[]> edits = new java.util.ArrayList<>();   // {from, oldLen}
+        java.util.List<String> reps = new java.util.ArrayList<>();
+        int line = firstLine;
+        while (line <= n && line <= lastLine) {
+            int lineEnd = text.indexOf('\n', line);
+            if (lineEnd < 0) lineEnd = n;
+            int wsStart = line;
+            while (wsStart < lineEnd && (text.charAt(wsStart) == ' ' || text.charAt(wsStart) == '\t')) wsStart++;
+            int wsCount = wsStart - line;
+            if (deIndent) {
+                int remove = Math.min(wsCount, INDENT_SIZE);
+                if (remove > 0) {
+                    edits.add(new int[]{line, remove});
+                    reps.add("");
+                }
+            } else {
+                edits.add(new int[]{line, 0});
+                reps.add(INDENT);
+            }
+            if (lineEnd == n) break;
+            line = lineEnd + 1;
+        }
+        if (edits.isEmpty()) return new Result(text, s, e);
+
+        StringBuilder sb = new StringBuilder(text);
+        int delta = 0;
+        for (int i = 0; i < edits.size(); i++) {
+            int[] ed = edits.get(i);
+            String rep = reps.get(i);
+            sb.replace(ed[0] + delta, ed[0] + delta + ed[1], rep);
+            delta += rep.length() - ed[1];
+        }
+        int ns = shiftPoint(s, edits, reps);
+        int ne = shiftPoint(e, edits, reps);
+        return new Result(sb.toString(), ns, ne);
+    }
+
     /**
      * 行级前缀切换核心：作用于选区覆盖的所有行（空选区=光标所在行）。
      * 每行独立判定（detectPrefix）：

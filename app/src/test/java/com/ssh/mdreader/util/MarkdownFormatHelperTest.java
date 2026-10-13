@@ -748,4 +748,74 @@ public class MarkdownFormatHelperTest {
         MarkdownFormatHelper.Result r = MarkdownFormatHelper.insertHorizontalRule(null, 0);
         assertEquals(null, r.text);
     }
+
+    // ── indentLines：缩进/反缩进（markor runIndentLines 对齐）──
+
+    @Test
+    public void indent_singleLine_prependsFourSpaces() {
+        MarkdownFormatHelper.Result r = MarkdownFormatHelper.indentLines("hello", 0, 0, false);
+        assertEquals("    hello", r.text);
+        // 光标随插入位移到行首内容之后
+        assertEquals(4, r.selStart);
+        assertEquals(4, r.selEnd);
+    }
+
+    @Test
+    public void indent_multiLines_selectedSpan_allIndented() {
+        MarkdownFormatHelper.Result r = MarkdownFormatHelper.indentLines("a\nb\nc", 0, 5, false);
+        assertEquals("    a\n    b\n    c", r.text);
+    }
+
+    @Test
+    public void indent_blankLine_alsoIndented() {
+        // markor 同：indent 对空白行也插入缩进
+        MarkdownFormatHelper.Result r = MarkdownFormatHelper.indentLines("a\n\nb", 0, 4, false);
+        assertEquals("    a\n    \n    b", r.text);
+    }
+
+    @Test
+    public void indent_preservesSelectionHighlight() {
+        // 选中「hello」的 el，缩进后选区仍覆盖同一内容（位移随插入前移）
+        MarkdownFormatHelper.Result r = MarkdownFormatHelper.indentLines("hello", 1, 3, false);
+        assertEquals("    hello", r.text);
+        assertEquals(5, r.selStart);
+        assertEquals(7, r.selEnd);
+    }
+
+    @Test
+    public void deindent_removesLeadingSpaces() {
+        MarkdownFormatHelper.Result r = MarkdownFormatHelper.indentLines("    hello", 0, 0, true);
+        assertEquals("hello", r.text);
+        assertEquals(0, r.selStart);
+    }
+
+    @Test
+    public void deindent_removesAtMostFour() {
+        MarkdownFormatHelper.Result r = MarkdownFormatHelper.indentLines("        x", 0, 0, true);
+        assertEquals("    x", r.text);
+    }
+
+    @Test
+    public void deindent_blankLine_noop() {
+        MarkdownFormatHelper.Result r = MarkdownFormatHelper.indentLines("a\n\nb", 0, 4, true);
+        assertEquals("a\n\nb", r.text);
+    }
+
+    @Test
+    public void deindent_tabCountsAsWhitespace() {
+        MarkdownFormatHelper.Result r = MarkdownFormatHelper.indentLines("\thello", 0, 0, true);
+        assertEquals("hello", r.text);
+    }
+
+    @Test
+    public void indent_nullText_returnsNull() {
+        MarkdownFormatHelper.Result r = MarkdownFormatHelper.indentLines(null, 0, 0, false);
+        assertEquals(null, r.text);
+    }
+
+    @Test
+    public void indent_deindent_selectsMultiLines() {
+        MarkdownFormatHelper.Result r = MarkdownFormatHelper.indentLines("aa\nbb\ncc", 0, 5, true);
+        assertEquals("aa\nbb\ncc", r.text);   // 无前导空白=no-op
+    }
 }

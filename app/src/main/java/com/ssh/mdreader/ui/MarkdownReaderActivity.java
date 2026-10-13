@@ -556,6 +556,8 @@ public class MarkdownReaderActivity extends BaseActivity implements AnnotationOv
         findViewById(R.id.btn_format_image).setOnClickListener(v -> applyInsertLink(true));
         findViewById(R.id.btn_format_table).setOnClickListener(v -> applyInsertTable());
         findViewById(R.id.btn_format_hr).setOnClickListener(v -> insertHorizontalRule());
+        findViewById(R.id.btn_format_indent).setOnClickListener(v -> applyFormat(9, 0));
+        findViewById(R.id.btn_format_outdent).setOnClickListener(v -> applyFormat(10, 0));
         findViewById(R.id.btn_format_tools).setOnClickListener(v -> showTextToolsDialog());
 
         scaleDetector = new ScaleGestureDetector(this,
@@ -1129,6 +1131,8 @@ public class MarkdownReaderActivity extends BaseActivity implements AnnotationOv
             case 6:  r = MarkdownFormatHelper.toggleQuote(text, s, e); break;
             case 7:  r = MarkdownFormatHelper.wrapSelection(text, s, e, "~~", "~~"); break;
             case 8:  r = MarkdownFormatHelper.wrapSelection(text, s, e, "`", "`"); break;
+            case 9:  r = MarkdownFormatHelper.indentLines(text, s, e, false); break;
+            case 10: r = MarkdownFormatHelper.indentLines(text, s, e, true); break;
             default: return;
         }
         etEditor.setText(r.text);
