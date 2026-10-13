@@ -709,4 +709,43 @@ public class MarkdownFormatHelperTest {
         MarkdownFormatHelper.Result r = MarkdownFormatHelper.insertTable(null, 0, 3);
         assertEquals(null, r.text);
     }
+
+    // ── insertHorizontalRule：水平线插入（markor abid_markdown_horizontal_line 对齐）──
+
+    private static final String HR = "----\n";
+
+    @Test
+    public void hr_emptyText_insertsAtStart() {
+        MarkdownFormatHelper.Result r = MarkdownFormatHelper.insertHorizontalRule("", 0);
+        assertEquals(HR, r.text);
+        assertEquals(HR.length(), r.selStart);   // 光标落水平线后新行行首
+        assertEquals(HR.length(), r.selEnd);
+    }
+
+    @Test
+    public void hr_cursorInNonBlankLine_appendsAfterLine() {
+        // 光标在非空行：水平线另起于行尾之后，块前有空行（CommonMark 渲染前提）
+        MarkdownFormatHelper.Result r = MarkdownFormatHelper.insertHorizontalRule("hello", 1);
+        assertEquals("hello\n\n" + HR, r.text);
+        assertEquals("hello\n\n" .length() + HR.length(), r.selStart);
+    }
+
+    @Test
+    public void hr_followedByContent_notMerged() {
+        // 水平线后紧跟非空行：块以换行结尾，下一行不并入水平线行
+        MarkdownFormatHelper.Result r = MarkdownFormatHelper.insertHorizontalRule("aa\nbb", 1);
+        assertEquals("aa\n\n" + HR + "bb", r.text);
+    }
+
+    @Test
+    public void hr_cursorClamped() {
+        assertEquals(MarkdownFormatHelper.insertHorizontalRule("hi", 2).text,
+                MarkdownFormatHelper.insertHorizontalRule("hi", 999).text);
+    }
+
+    @Test
+    public void hr_nullText_returnsNull() {
+        MarkdownFormatHelper.Result r = MarkdownFormatHelper.insertHorizontalRule(null, 0);
+        assertEquals(null, r.text);
+    }
 }

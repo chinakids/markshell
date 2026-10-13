@@ -555,6 +555,7 @@ public class MarkdownReaderActivity extends BaseActivity implements AnnotationOv
         findViewById(R.id.btn_format_link).setOnClickListener(v -> applyInsertLink(false));
         findViewById(R.id.btn_format_image).setOnClickListener(v -> applyInsertLink(true));
         findViewById(R.id.btn_format_table).setOnClickListener(v -> applyInsertTable());
+        findViewById(R.id.btn_format_hr).setOnClickListener(v -> insertHorizontalRule());
         findViewById(R.id.btn_format_tools).setOnClickListener(v -> showTextToolsDialog());
 
         scaleDetector = new ScaleGestureDetector(this,
@@ -1242,6 +1243,18 @@ public class MarkdownReaderActivity extends BaseActivity implements AnnotationOv
             etEditor.setText(r.text);
             etEditor.setSelection(r.selStart, r.selEnd);
         });
+    }
+
+    /** 插入水平线（markor abid_markdown_horizontal_line 对齐，纯函数层 {@link MarkdownFormatHelper#insertHorizontalRule}）。 */
+    private void insertHorizontalRule() {
+        if (!editMode || etEditor == null) return;
+        int s = etEditor.getSelectionStart();
+        if (s < 0) s = etEditor.length();
+        String text = etEditor.getText().toString();
+        MarkdownFormatHelper.Result r = MarkdownFormatHelper.insertHorizontalRule(text, s);
+        if (r.text == null || r.text.equals(text)) return;
+        etEditor.setText(r.text);
+        etEditor.setSelection(r.selStart, r.selEnd);
     }
 
     /** 查找扫描源：编辑态=编辑器文本（源 Markdown），阅读态=渲染后文本（所见即所搜）。 */

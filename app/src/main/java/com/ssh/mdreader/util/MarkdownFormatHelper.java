@@ -547,6 +547,60 @@ public final class MarkdownFormatHelper {
         return new Result(nt, caret, caret);
     }
 
+    /** 水平线插入的分隔线（markor abid_markdown_horizontal_line 语义对位）。 */
+    private static final String HR = "----";
+
+    /**
+     * 插入水平线（markor abid_markdown_horizontal_line 对齐；差异见类注释）。
+     *
+     * <p>语义：在当前光标行之后插入独立成块的 {@code ----}+换行。markor 版仅光标处直插
+     * {@code "----\n"}（insertOrReplaceTextOnCursor），本实现与其略糙处对齐：</p>
+     * <ul>
+     *   <li>水平线<b>独立成块</b>：光标行非空=另起一行；光标行空=占用该空行（同 {@link #insertTable}）；</li>
+     *   <li>块前保证<b>至少一个空行</b>：CommonMark 中 {@code ----} 紧贴上一非空行会被解析为
+     *       setext 标题下划线而非水平线，故必须空行分隔（markor 直插会出此错，如实落档差异）；</li>
+     *   <li>块尾以换行结尾：后续输入不并入水平线行；</li>
+     *   <li>光标落水平线后的新行行首（可直接继续书写）。</li>
+     * </ul>
+     */
+    public static Result insertHorizontalRule(String text, int cursor) {
+        if (text == null) return new Result(null, cursor, cursor);
+        int n = text.length();
+        int s = clamp(cursor, 0, n);
+
+        int lineStart = lineStartOf(text, s);
+        int lineEnd = text.indexOf('\n', lineStart);
+        if (lineEnd < 0) lineEnd = n;
+
+        // 光标行是否有非空白内容（空行=可被水平线占用；非空行=水平线另起一行）
+        boolean lineBlank = true;
+        for (int i = lineStart; i < lineEnd && lineBlank; i++) {
+            lineBlank = Character.isWhitespace(text.charAt(i));
+        }
+
+        int ins;
+        if (lineBlank) {
+            ins = lineStart;
+        } else {
+            ins = (lineEnd < n) ? lineEnd + 1 : lineEnd;
+        }
+
+        StringBuilder block = new StringBuilder();
+        if (ins > 0) {
+            // 块前保证至少一个空行（CommonMark 水平线渲染前提；文档开头除外）
+            if (text.charAt(ins - 1) == '\n') {
+                block.append('\n');
+            } else {
+                block.append("\n\n");
+            }
+        }
+        block.append(HR).append('\n');
+
+        String nt = text.substring(0, ins) + block + text.substring(ins);
+        int caret = ins + block.length();   // 光标落在水平线后新行行首
+        return new Result(nt, caret, caret);
+    }
+
     /**
      * 行级前缀切换核心：作用于选区覆盖的所有行（空选区=光标所在行）。
      * 每行独立判定（detectPrefix）：
