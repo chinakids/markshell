@@ -53,6 +53,17 @@ public final class CsvFindHelper {
      */
     public static List<CellMatch> matchCells(List<List<String>> rows, String query,
                                              boolean ignoreCase) {
+        return matchCells(rows, query, ignoreCase, false);
+    }
+
+    /**
+     * 全量扫描 + 可选<b>整词过滤</b>（语义与 {@link FindHelper#scanAll} 的整词判定完全
+     * 一致——委托同一实现，单一语义源；每格仍只报一条命中）。
+     *
+     * @param wholeWord true=仅保留整词命中（词字符=ASCII 字母/数字/下划线，两端边界）
+     */
+    public static List<CellMatch> matchCells(List<List<String>> rows, String query,
+                                             boolean ignoreCase, boolean wholeWord) {
         if (rows == null || query == null || query.isEmpty()) {
             return Collections.emptyList();
         }
@@ -63,7 +74,7 @@ public final class CsvFindHelper {
             for (int c = 0; c < row.size(); c++) {
                 String cell = row.get(c);
                 if (cell == null || cell.isEmpty()) continue;
-                if (!FindHelper.scanAll(cell, query, ignoreCase).isEmpty()) {
+                if (!FindHelper.scanAll(cell, query, ignoreCase, wholeWord).isEmpty()) {
                     result.add(new CellMatch(r, c));
                 }
             }

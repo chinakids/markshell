@@ -54,6 +54,14 @@ public final class ViewerFindBar {
     private final View findBar;
     private final EditText etQuery;
     private final TextView tvStatus;
+    @Nullable
+    private final TextView btnFindCase;
+    @Nullable
+    private final TextView btnFindWord;
+
+    private PreferenceManager preferenceManager;
+    private boolean findCaseSensitive;
+    private boolean findWholeWord;
 
     private List<FindHelper.Match> matches = Collections.emptyList();
     private int currentIndex = -1;
@@ -69,7 +77,49 @@ public final class ViewerFindBar {
         this.findBar = findBar;
         this.etQuery = etQuery;
         this.tvStatus = tvStatus;
+        this.btnFindCase = findBar.findViewById(R.id.viewer_btn_find_case);
+        this.btnFindWord = findBar.findViewById(R.id.viewer_btn_find_word);
+        this.preferenceManager = new PreferenceManager(activity);
+        initFindOptions();
         initListeners();
+    }
+
+    /**
+     * 查找选项（区分大小写/整词）：与阅读器查找栏一致（迭代114），状态经
+     * {@link PreferenceManager} 持久化（读/查看器共用同一组键，切换全局生效）。
+     * 开启=强调色高亮，关闭=灰（与阅读器 updateFindOptionButtons 同色）。
+     */
+    private void initFindOptions() {
+        findCaseSensitive = preferenceManager.getFindCaseSensitive();
+        findWholeWord = preferenceManager.getFindWholeWord();
+        if (btnFindCase != null) {
+            btnFindCase.setOnClickListener(v -> {
+                findCaseSensitive = !findCaseSensitive;
+                preferenceManager.saveFindCaseSensitive(findCaseSensitive);
+                updateFindOptionButtons();
+                rebuild(false);
+            });
+        }
+        if (btnFindWord != null) {
+            btnFindWord.setOnClickListener(v -> {
+                findWholeWord = !findWholeWord;
+                preferenceManager.saveFindWholeWord(findWholeWord);
+                updateFindOptionButtons();
+                rebuild(false);
+            });
+        }
+        updateFindOptionButtons();
+    }
+
+    private void updateFindOptionButtons() {
+        int onColor = 0xFFBB86FC;
+        int offColor = 0xFF888888;
+        if (btnFindCase != null) {
+            btnFindCase.setTextColor(findCaseSensitive ? onColor : offColor);
+        }
+        if (btnFindWord != null) {
+            btnFindWord.setTextColor(findWholeWord ? onColor : offColor);
+        }
     }
 
     private void initListeners() {
@@ -145,7 +195,7 @@ public final class ViewerFindBar {
         if (findBar.getVisibility() != View.VISIBLE) return;
         String query = etQuery.getText().toString();
         int prev = currentIndex;
-        matches = FindHelper.scanAll(textView.getText(), query, true);
+        matches = FindHelper.scanAll(textView.getText(), query, !findCaseSensitive, findWholeWord);
         if (matches.isEmpty()) {
             currentIndex = -1;
             tvStatus.setText(query.isEmpty() ? "" : "未找到");

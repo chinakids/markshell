@@ -178,4 +178,34 @@ public class CsvFindHelperTest {
     public void match_emptyRowsTable_returnsEmpty() {
         assertTrue(CsvFindHelper.matchCells(table(), "x", true).isEmpty());
     }
+
+    // ── matchCells: 整词（wholeWord）──────────────────────────────────────────
+
+    @Test
+    public void matchCells_wholeWord_honorsBoundaries() {
+        List<List<String>> rows = table(
+                new Object[]{"cat"},
+                new Object[]{"catalog"},
+                new Object[]{"cat_dog"},
+                new Object[]{"cat-dog"},
+                new Object[]{"a cat here"});
+        // 整词过滤（与 FindHelper 同语义）：catalog/cat_dog 不命中；
+        // cat-dog（- 为词边界）与独立 cat 命中。
+        List<CellMatch> ms = CsvFindHelper.matchCells(rows, "cat", true, true);
+        assertEquals(3, ms.size());
+        assertEquals(0, ms.get(0).row);
+        assertEquals(3, ms.get(1).row);
+        assertEquals(4, ms.get(2).row);
+    }
+
+    @Test
+    public void matchCells_wholeWord_ignoreCaseOff_sensitive() {
+        assertEquals(0, CsvFindHelper.matchCells(table(new Object[]{"cat"}),
+                "CAT", false, true).size());
+        assertEquals(1, CsvFindHelper.matchCells(table(new Object[]{"CaT"}),
+                "CaT", false, true).size());
+        // 3 参重载等价 wholeWord=false：catalog 仍命中（字面子串）
+        assertEquals(1, CsvFindHelper.matchCells(table(new Object[]{"catalog"}),
+                "cat", true).size());
+    }
 }

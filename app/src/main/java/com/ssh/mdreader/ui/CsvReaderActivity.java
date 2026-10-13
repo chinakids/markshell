@@ -87,6 +87,10 @@ public class CsvReaderActivity extends BaseActivity {
     private TextView tvFindStatus;
     private List<CsvFindHelper.CellMatch> findMatches = Collections.emptyList();
     private int findCurrentIndex = -1;
+    private TextView btnFindCase;
+    private TextView btnFindWord;
+    private boolean findCaseSensitive;
+    private boolean findWholeWord;
     /** 当前高亮单元格与原始背景（跳转前恢复）。 */
     @Nullable
     private TextView highlightCell;
@@ -109,9 +113,8 @@ public class CsvReaderActivity extends BaseActivity {
             restoredScrollY = savedInstanceState.getInt(KEY_SCROLL_Y, 0);
             hasInstanceState = true;
         }
-        initFindBar();
-
         prefManager = new PreferenceManager(this);
+        initFindBar();
         // 走查 #52：CSV 查看器补齐同组缩放（Text/Code 查看器迭代71 #38 已实现，
         // CSV 无=同组能力不一致）——读取上次保存的查看器字号，无记录回退默认 13sp
         // （历史行为一致）；与 Text/Code 共用 KEY_VIEWER_TEXT_SIZE 全局一键
@@ -260,6 +263,29 @@ public class CsvReaderActivity extends BaseActivity {
         findBar = findViewById(R.id.viewer_find_bar);
         etFindQuery = findViewById(R.id.viewer_find_query);
         tvFindStatus = findViewById(R.id.viewer_find_status);
+        // 查找选项（A a/词）：与阅读器查找栏一致（迭代114），状态经 prefManager 持久化
+        // （与阅读器/文本/代码查看器共用同一组键，切换全局生效）。
+        btnFindCase = findViewById(R.id.viewer_btn_find_case);
+        btnFindWord = findViewById(R.id.viewer_btn_find_word);
+        findCaseSensitive = prefManager.getFindCaseSensitive();
+        findWholeWord = prefManager.getFindWholeWord();
+        if (btnFindCase != null) {
+            btnFindCase.setOnClickListener(v -> {
+                findCaseSensitive = !findCaseSensitive;
+                prefManager.saveFindCaseSensitive(findCaseSensitive);
+                updateFindOptionButtons();
+                rebuildFind(false);
+            });
+        }
+        if (btnFindWord != null) {
+            btnFindWord.setOnClickListener(v -> {
+                findWholeWord = !findWholeWord;
+                prefManager.saveFindWholeWord(findWholeWord);
+                updateFindOptionButtons();
+                rebuildFind(false);
+            });
+        }
+        updateFindOptionButtons();
         etFindQuery.addTextChangedListener(new TextWatcher() {
             @Override
             public void beforeTextChanged(CharSequence s, int st, int c, int a) { }
@@ -282,6 +308,18 @@ public class CsvReaderActivity extends BaseActivity {
             }
             return false;
         });
+    }
+
+    /** 查找选项按钮视觉：开启=强调色高亮（#BB86FC），关闭=灰（与阅读器同色）。 */
+    private void updateFindOptionButtons() {
+        int onColor = 0xFFBB86FC;
+        int offColor = 0xFF888888;
+        if (btnFindCase != null) {
+            btnFindCase.setTextColor(findCaseSensitive ? onColor : offColor);
+        }
+        if (btnFindWord != null) {
+            btnFindWord.setTextColor(findWholeWord ? onColor : offColor);
+        }
     }
 
     private void showFindBar() {
@@ -318,7 +356,7 @@ public class CsvReaderActivity extends BaseActivity {
         if (findBar.getVisibility() != View.VISIBLE) return;
         String query = etFindQuery.getText().toString();
         int prev = findCurrentIndex;
-        findMatches = CsvFindHelper.matchCells(rows, query, true);
+        findMatches = CsvFindHelper.matchCells(rows, query, !findCaseSensitive, findWholeWord);
         if (findMatches.isEmpty()) {
             findCurrentIndex = -1;
             tvFindStatus.setText(query.isEmpty() ? "" : "未找到");
