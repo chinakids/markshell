@@ -76,11 +76,15 @@ public class SshManager {
         return t;
     });
 
-    private Session session;
-    private ChannelSftp sftpChannel;
-    private SshConfig config;
-    private String homeDirectory = "/";
-    private ConnectionListener listener;
+    // 以下连接状态字段跨线程访问：worker(sftpExecutor) 线程写（openChannelSync/cleanupSync/
+    // disconnect/connect），主线程直读（isConnected/isConnectionAlive/getHomeDirectory 等）。
+    // 必须 volatile，否则 JMM 下主线程可能读到过期的 session/sftpChannel/config/homeDirectory/listener
+    // 引用（连接已断仍判 connected、home 已切换仍读旧值等隐身时序缺陷）。
+    private volatile Session session;
+    private volatile ChannelSftp sftpChannel;
+    private volatile SshConfig config;
+    private volatile String homeDirectory = "/";
+    private volatile ConnectionListener listener;
     /** Set when the user explicitly disconnects; suppresses auto-reconnect (cleared by connect()). */
     private volatile boolean userDisconnected;
     /** 心跳间隔（毫秒），由 UI 层从偏好注入；对已建立连接不生效，下次 connect/自动重连生效。 */
