@@ -113,6 +113,27 @@ public class ImageTargetHelperTest {
         assertNull(ImageTargetHelper.stripSftpScheme(null));
     }
 
+    // ── resolveSftpPath（点击查看大图还原路径）──────────────────────────────
+
+    @Test
+    public void resolveSftpPath_decodesRemotePath() {
+        assertEquals("/docs/img.png",
+                ImageTargetHelper.resolveSftpPath("markdown-sftp:/docs/img.png"));
+        // 百分号编码（空格/中文 UTF-8）解码还原真实路径
+        assertEquals("/data/screen shot.png",
+                ImageTargetHelper.resolveSftpPath("markdown-sftp:/data/screen%20shot.png"));
+        assertEquals("/data/图片.png",
+                ImageTargetHelper.resolveSftpPath("markdown-sftp:/data/%E5%9B%BE%E7%89%87.png"));
+    }
+
+    @Test
+    public void resolveSftpPath_nonSftpReturnsNull() {
+        assertNull(ImageTargetHelper.resolveSftpPath("http://x/a.png"));
+        assertNull(ImageTargetHelper.resolveSftpPath("data:image/png;base64,xx"));
+        assertNull(ImageTargetHelper.resolveSftpPath(null));
+        assertNull(ImageTargetHelper.resolveSftpPath(""));
+    }
+
     // ── hasScheme 边界 ───────────────────────────────────────────────────────
 
     @Test

@@ -64,6 +64,19 @@ public final class ImageTargetHelper {
         return destination;
     }
 
+    /**
+     * 从 {@code markdown-sftp:} destination 还原出解码后的真实远端绝对路径；
+     * 非该 scheme（http/data/空等）返回 {@code null}。
+     *
+     * <p>与 {@link SftpImageSchemeHandler#handle} 同源：strip 前缀 + 百分号解码
+     * （{@link LinkTargetHelper#percentDecode}，UTF-8 {@code %XX}）。供「点击内嵌
+     * 图片查看大图」等消费方还原路径时复用，保证单一解码语义源。</p>
+     */
+    public static String resolveSftpPath(String destination) {
+        if (destination == null || !destination.startsWith(SCHEME_PREFIX)) return null;
+        return LinkTargetHelper.percentDecode(destination.substring(SCHEME_PREFIX.length()));
+    }
+
     /** 是否已含 scheme（RFC URI scheme 语法：字母开头，随后字母/数字/+-.，直到 ':'）。 */
     static boolean hasScheme(String s) {
         int i = 0;

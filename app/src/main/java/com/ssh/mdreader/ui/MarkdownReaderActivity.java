@@ -43,6 +43,7 @@ import com.ssh.mdreader.util.TextToolsHelper;
 import com.ssh.mdreader.util.EditHistoryHelper;
 import com.ssh.mdreader.util.FindHelper;
 import com.ssh.mdreader.util.GfmAutolinkPlugin;
+import com.ssh.mdreader.util.ImageTargetHelper;
 import com.ssh.mdreader.util.LinkTargetHelper;
 import com.ssh.mdreader.util.MarkdownAutoIndentFilter;
 import com.ssh.mdreader.util.MarkdownFormatHelper;
@@ -232,6 +233,7 @@ public class MarkdownReaderActivity extends BaseActivity implements AnnotationOv
         annotationOverlay.init();
         annotationOverlay.setTaskTapListener(this::toggleTaskAt);
         annotationOverlay.setLinkTapListener(this::onLinkTap);
+        annotationOverlay.setImageTapListener(this::onImageTap);
 
         initTocUi();
 
@@ -926,6 +928,28 @@ public class MarkdownReaderActivity extends BaseActivity implements AnnotationOv
             default:
                 return false;
         }
+    }
+
+    /**
+     * 阅读态单击命中内嵌图片回调（批注优先、图片次之、链接再次、任务行最后，顺序见
+     * {@link AnnotationOverlayHelper.ImageTapListener}；图片 span 与链接/任务不重叠）。
+     * 按 destination 分类处理：{@code markdown-sftp:} 远端图 → 打开全尺寸查看器
+     * （复用 {@link #openRemoteLinkedFile} 单点分发）；http(s) 外链图 → 浏览器打开；
+     * data:/其它 → 不消费（保持既有无动作语义）。返回 true=已消费点击。
+     */
+    private boolean onImageTap(int charOffset, String destination) {
+        if (editMode || markdownContent == null || currentFilePath == null) return false;
+        if (destination == null) return false;
+        String path = ImageTargetHelper.resolveSftpPath(destination);
+        if (path != null) {
+            openRemoteLinkedFile(path);
+            return true;
+        }
+        if (destination.startsWith("http://") || destination.startsWith("https://")) {
+            openExternalUrl(destination);
+            return true;
+        }
+        return false;
     }
 
     /** 外部链接 → 系统浏览器/邮件客户端；无处理应用 toast（与 Markwon 默认 resolver 的

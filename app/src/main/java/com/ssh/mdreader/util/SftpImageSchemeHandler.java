@@ -83,8 +83,9 @@ public final class SftpImageSchemeHandler extends SchemeHandler {
 
     @Override
     public ImageItem handle(String destination, Uri uri) {
-        String encodedPath = ImageTargetHelper.stripSftpScheme(destination);
-        String remotePath = LinkTargetHelper.percentDecode(encodedPath);
+        // 单一解码语义源：strip 前缀 + percentDecode（与「点击查看大图」消费方共用
+        // ImageTargetHelper.resolveSftpPath；supportedSchemes 保证含本 scheme，非空）。
+        String remotePath = ImageTargetHelper.resolveSftpPath(destination);
         byte[] bytes = cache.get(remotePath);
         if (bytes == null) {
             try {

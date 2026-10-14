@@ -9,6 +9,7 @@ import android.text.SpannableStringBuilder;
 import android.text.Spanned;
 import android.text.style.BackgroundColorSpan;
 import android.text.style.URLSpan;
+import io.noties.markwon.image.AsyncDrawableSpan;
 import android.util.DisplayMetrics;
 import android.util.Log;
 import android.view.ActionMode;
@@ -94,6 +95,16 @@ public class AnnotationOverlayHelper {
         boolean onLinkTap(int charOffset);
     }
 
+    /**
+     * 内嵌图片点击回调（未命中批注时触发；路线图观察项「图片点击查看大图」）。
+     * 处理 Markwon 渲染的 {@code AsyncDrawableSpan}（=ReplacementSpan 子类，
+     * javap 实证）：远端/外链图片 span 是独立元素，不与链接/任务行重叠。
+     * 返回 true 表示已消费本次点击（与 {@link LinkTapListener} 同语义）。
+     */
+    public interface ImageTapListener {
+        boolean onImageTap(int charOffset, String destination);
+    }
+
     /** 与拆分前一致的 logcat tag（原 MarkdownReaderActivity）。 */
     private static final String TAG = "MarkdownReaderActivity";
     private static final int MENU_ANNOTATE_ID = 0xA1010;
@@ -124,6 +135,7 @@ public class AnnotationOverlayHelper {
      * 下划线文本，无 LinkMovementMethod（与自绘触摸拦截互斥），必须在此检测。
      */
     private LinkTapListener linkTapListener;
+    private ImageTapListener imageTapListener;
 
     /** 注册任务行点击回调（checkbox 翻转）；null 可注销。 */
     public void setTaskTapListener(TaskTapListener listener) {
@@ -133,6 +145,11 @@ public class AnnotationOverlayHelper {
     /** 注册链接点击回调；null 可注销。 */
     public void setLinkTapListener(LinkTapListener listener) {
         this.linkTapListener = listener;
+    }
+
+    /** 注册图片点击回调；null 可注销。 */
+    public void setImageTapListener(ImageTapListener listener) {
+        this.imageTapListener = listener;
     }
 
     // ── 连续导航状态（上一处/下一处）────────────────────────────────────────
@@ -506,6 +523,19 @@ public class AnnotationOverlayHelper {
         if (spans.length > 0) {
             spans[0].onClick(tvContent);
             return;
+        }
+        // 内嵌图片点击（路线图观察项「图片点击查看大图」）：渲染的远端/外链图片为
+        // AsyncDrawableSpan（ReplacementSpan 子类），是独立元素、不与链接/任务行重叠，
+        // 故在链接之前检查即可安全命中。destination 交由宿主分类处理。
+        if (imageTapListener != null) {
+            AsyncDrawableSpan[] imgs = spanned.getSpans(
+                    charOffset, charOffset, AsyncDrawableSpan.class);
+            if (imgs.length > 0 && imgs[0].getDrawable() != null) {
+                String dest = imgs[0].getDrawable().getDestination();
+                if (dest != null && imageTapListener.onImageTap(charOffset, dest)) {
+                    return;
+                }
+            }
         }
         // 链接优先于任务行：链接文本（下划线/着色）是明确可点击元素；任务行内点
         // 非链接区域仍可翻转 checkbox。Markwon LinkSpan=URLSpan 子类（javap 实证）。
