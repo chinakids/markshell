@@ -818,4 +818,46 @@ public class MarkdownFormatHelperTest {
         MarkdownFormatHelper.Result r = MarkdownFormatHelper.indentLines("aa\nbb\ncc", 0, 5, true);
         assertEquals("aa\nbb\ncc", r.text);   // 无前导空白=no-op
     }
+
+    // ── insertFencedCodeBlock：围栏代码块插入（markor surroundBlock("```") 对齐）─────────────────
+    @org.junit.Test
+    public void fenced_emptyDocument_insertsFencesAtCursor() {
+        MarkdownFormatHelper.Result r = MarkdownFormatHelper.insertFencedCodeBlock("", 0, 0);
+        assertEquals("```\n\n```", r.text);
+        assertEquals(4, r.selStart);
+        assertEquals(4, r.selEnd);
+    }
+
+    @org.junit.Test
+    public void fenced_cursorInsideLine_wrapsOnlyThatLine() {
+        MarkdownFormatHelper.Result r = MarkdownFormatHelper.insertFencedCodeBlock("hello\nworld", 2, 2);
+        assertEquals("```\nhello\n```\nworld", r.text);
+        assertEquals(9, r.selStart);   // "hello" 之后、关闭围栏前的行首
+    }
+
+    @org.junit.Test
+    public void fenced_selection_wrapsSelectedLines() {
+        MarkdownFormatHelper.Result r = MarkdownFormatHelper.insertFencedCodeBlock("aa\nbb\ncc", 3, 5);
+        assertEquals("aa\n```\nbb\n```\ncc", r.text);
+        assertEquals(9, r.selStart);
+    }
+
+    @org.junit.Test
+    public void fenced_selectAll_wrapsWholeDocument() {
+        MarkdownFormatHelper.Result r = MarkdownFormatHelper.insertFencedCodeBlock("aa\nbb\ncc", 0, 8);
+        assertEquals("```\naa\nbb\ncc\n```", r.text);
+        assertEquals(12, r.selStart);
+    }
+
+    @org.junit.Test
+    public void fenced_selectionEndsAtLineBoundary_keepsContentNoExtraBlank() {
+        MarkdownFormatHelper.Result r = MarkdownFormatHelper.insertFencedCodeBlock("aa\nbb\ncd", 0, 3);
+        assertEquals("```\naa\n```\nbb\ncd", r.text);
+    }
+
+    @org.junit.Test
+    public void fenced_nullText_returnsNull() {
+        MarkdownFormatHelper.Result r = MarkdownFormatHelper.insertFencedCodeBlock(null, 2, 2);
+        assertEquals(null, r.text);
+    }
 }

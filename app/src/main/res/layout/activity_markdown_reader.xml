@@ -350,6 +350,18 @@
                         android:src="@drawable/ic_format_outdent" />
 
                     <TextView
+                        android:id="@+id/btn_format_codeblock"
+                        android:layout_width="40dp"
+                        android:layout_height="40dp"
+                        android:background="?attr/selectableItemBackgroundBorderless"
+                        android:contentDescription="插入围栏代码块（`包裹整行`）"
+                        android:gravity="center"
+                        android:text="&lt;/&gt;"
+                        android:textColor="#BB86FC"
+                        android:textSize="13sp"
+                        android:textStyle="bold" />
+
+                    <TextView
                         android:id="@+id/btn_format_tools"
                         android:layout_width="40dp"
                         android:layout_height="40dp"

@@ -601,6 +601,50 @@ public final class MarkdownFormatHelper {
         return new Result(nt, caret, caret);
     }
 
+    /** 围栏代码块开启/关闭定界符（markor {@code abid_markdown_code_inline} 长按 = {@code surroundBlock("```")} 对齐）。 */
+    public static final String FENCE = "```";
+
+    /**
+     * 插入围栏代码块（markor {@code ActionButtonBase#surroundBlock} 同款<b>整行</b>包裹语义，定界符为 {@code ```}）：
+     * 将选区覆盖的全部行（空选区=光标所在行）包裹成
+     * <pre>```{@code \n}<行>...{@code \n}```</pre>
+     * 的围栏代码块，光标本实现落在被包裹内容之后、关闭围栏之前的行首。
+     *
+     * <p>与 {@link #wrapSelection} 的差异（如实标注）：markor surroundBlock 作用于整行（getLineSelection），
+     * 定界符各占独立一行（{@code ``` + \n + 行 + \n + ```}）而非包裹单个片段；本实现沿用「整行包裹」语义，但作
+     * 两处修正：① 被包裹内容为选区首行到末行的连续文本，末行若以 {@code \n} 结尾（选区到行边界）则剥离该行尾
+     * 换行，使关闭围栏独占一行而不带多余空行；② 光标落在内容之后（markor 不设光标）。</p>
+     *
+     * <p>行为：空选区=仅包裹光标所在行；首行前不加多余空行（markor surroundBlock 同，围栏与相邻内容紧贴，
+     * CommonMark 围栏前后空行无强制要求）；围栏开/关均独占一行。</p>
+     */
+    public static Result insertFencedCodeBlock(String text, int selStart, int selEnd) {
+        if (text == null) return new Result(null, selStart, selEnd);
+        int n = text.length();
+        int s = clamp(selStart, 0, n);
+        int e = clamp(selEnd, 0, n);
+        if (e < s) { int t = s; s = e; e = t; }
+
+        int firstLine = lineStartOf(text, s);
+        int lastLine = (e > s) ? lineStartOf(text, e - 1) : firstLine;
+        int lastEnd = text.indexOf('\n', lastLine);
+        if (lastEnd < 0) lastEnd = n;
+
+        // 被包裹内容（剥离末行行尾换行，保证关闭围栏独占一行）
+        String covered = text.substring(firstLine, lastEnd);
+        if (covered.endsWith("\n")) covered = covered.substring(0, covered.length() - 1);
+
+        StringBuilder nb = new StringBuilder();
+        nb.append(FENCE).append('\n');
+        int contentStart = nb.length();
+        nb.append(covered);
+        nb.append('\n').append(FENCE);
+
+        String nt = text.substring(0, firstLine) + nb + text.substring(lastEnd);
+        int caret = firstLine + contentStart + covered.length();   // 光标落在被包裹内容之后、关闭围栏前
+        return new Result(nt, caret, caret);
+    }
+
     /** 缩进/反缩进步长（空格数）。项目 Markdown 缩进约定为 4（子列表等），无独立设置。 */
     private static final int INDENT_SIZE = 4;
     private static final String INDENT = "    ";
