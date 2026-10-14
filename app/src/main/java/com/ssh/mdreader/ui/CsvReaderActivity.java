@@ -164,19 +164,19 @@ public class CsvReaderActivity extends BaseActivity {
     @Override
     public boolean onCreateOptionsMenu(Menu menu) {
         if (currentFilePath == null) return super.onCreateOptionsMenu(menu);
-        menu.add(Menu.NONE, MENU_FIND_ID, Menu.NONE, "查找")
+        menu.add(Menu.NONE, MENU_FIND_ID, Menu.NONE, getString(R.string.menu_find))
                 .setIcon(R.drawable.ic_search)
                 .setShowAsAction(MenuItem.SHOW_AS_ACTION_IF_ROOM);
-        menu.add(Menu.NONE, MENU_COPY_PATH_ID, Menu.NONE, "复制路径")
+        menu.add(Menu.NONE, MENU_COPY_PATH_ID, Menu.NONE, getString(R.string.menu_copy_path))
                 .setIcon(R.drawable.ic_content_copy)
                 .setShowAsAction(MenuItem.SHOW_AS_ACTION_IF_ROOM);
-        menu.add(Menu.NONE, MENU_SHARE_ID, Menu.NONE, "分享")
+        menu.add(Menu.NONE, MENU_SHARE_ID, Menu.NONE, getString(R.string.menu_share))
                 .setIcon(R.drawable.ic_share)
                 .setShowAsAction(MenuItem.SHOW_AS_ACTION_IF_ROOM);
-        menu.add(Menu.NONE, MENU_GOTO_LINE_ID, Menu.NONE, "转到行号…")
+        menu.add(Menu.NONE, MENU_GOTO_LINE_ID, Menu.NONE, getString(R.string.menu_goto_line))
                 .setShowAsAction(MenuItem.SHOW_AS_ACTION_NEVER);
         // 走查 #56：服务器端文件更新（日志追加/配置改动）后重读；与 FileBrowser 下拉刷新同语义
-        menu.add(Menu.NONE, MENU_RELOAD_ID, Menu.NONE, "重新加载")
+        menu.add(Menu.NONE, MENU_RELOAD_ID, Menu.NONE, getString(R.string.menu_reload))
                 .setShowAsAction(MenuItem.SHOW_AS_ACTION_NEVER);
         return true;
     }
@@ -213,16 +213,16 @@ public class CsvReaderActivity extends BaseActivity {
     private void showGoToLineDialog() {
         int total = rowViews.size();
         if (total == 0) {
-            UiUtils.showToast(this, "文件没有数据行");
+            UiUtils.showToast(this, getString(R.string.toast_csv_no_data_row));
             return;
         }
-        DialogHelper.showInputDialog(this, "转到行号",
-                "输入行号（1-" + total + "）", "跳转", "取消",
+        DialogHelper.showInputDialog(this, getString(R.string.goto_line_dialog_title),
+                getString(R.string.goto_line_range, total), getString(R.string.btn_go), getString(R.string.btn_cancel),
                 InputType.TYPE_CLASS_NUMBER, null,
                 input -> {
                     int line = GoToLineHelper.parseLineNumber(input);
                     if (line < 0) {
-                        UiUtils.showToast(this, "请输入有效行号");
+                        UiUtils.showToast(this, getString(R.string.toast_invalid_line));
                         return;
                     }
                     jumpToLine(line);
@@ -359,7 +359,7 @@ public class CsvReaderActivity extends BaseActivity {
         findMatches = CsvFindHelper.matchCells(rows, query, !findCaseSensitive, findWholeWord);
         if (findMatches.isEmpty()) {
             findCurrentIndex = -1;
-            tvFindStatus.setText(query.isEmpty() ? "" : "未找到");
+            tvFindStatus.setText(query.isEmpty() ? "" : getString(R.string.msg_not_found));
             clearTemporaryHighlight();
             return;
         }
@@ -375,7 +375,7 @@ public class CsvReaderActivity extends BaseActivity {
     private void findStep(int direction) {
         if (findMatches.isEmpty()) rebuildFind(false);
         if (findMatches.isEmpty()) {
-            tvFindStatus.setText("未找到");
+            tvFindStatus.setText(getString(R.string.msg_not_found));
             return;
         }
         findCurrentIndex = CsvFindHelper.advance(findMatches, findCurrentIndex, direction);
@@ -446,7 +446,7 @@ public class CsvReaderActivity extends BaseActivity {
                     if (loadingOverlay != null) {
                         loadingOverlay.setVisibility(View.GONE);
                     }
-                    UiUtils.showSnackbar(tableLayout, "加载失败: " + message);
+                    UiUtils.showSnackbar(tableLayout, getString(R.string.msg_load_failed, message));
                 });
             }
         });
@@ -482,7 +482,7 @@ public class CsvReaderActivity extends BaseActivity {
                         loadingOverlay.setVisibility(View.GONE);
                     }
                     reloadRestoreY = -1;
-                    UiUtils.showSnackbar(tableLayout, "重新加载失败: " + message);
+                    UiUtils.showSnackbar(tableLayout, getString(R.string.msg_reload_failed, message));
                 });
             }
         });

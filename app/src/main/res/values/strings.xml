@@ -54,4 +54,24 @@
 
     <!-- 编辑模式格式栏（能力发现第七十轮：文本工具入口） -->
     <string name="btn_format_tools_label">Aa</string>
+
+    <!-- 查看器通用菜单 → 中文硬编码资源化首批（方案1 全面迁移，2026-10-14） -->
+    <string name="menu_find">查找</string>
+    <string name="menu_copy_path">复制路径</string>
+    <string name="menu_share">分享</string>
+    <string name="menu_goto_line">转到行号…</string>
+    <string name="menu_reload">重新加载</string>
+    <string name="menu_wrap">自动换行</string>
+    <string name="title_code_viewer">代码查看器</string>
+    <string name="toast_content_not_loaded">内容尚未加载完成</string>
+    <string name="goto_line_dialog_title">转到行号</string>
+    <string name="goto_line_range">输入行号（1-%1$d）</string>
+    <string name="btn_go">跳转</string>
+    <string name="btn_cancel">取消</string>
+    <string name="toast_invalid_line">请输入有效行号</string>
+    <string name="msg_load_failed">加载失败: %1$s</string>
+    <string name="msg_reload_failed">重新加载失败: %1$s</string>
+    <string name="msg_not_found">未找到</string>
+    <string name="toast_csv_no_data_row">文件没有数据行</string>
+    <string name="log_highlighter_failed">代码高亮失败（回退纯文本）: %1$s</string>
 </resources>

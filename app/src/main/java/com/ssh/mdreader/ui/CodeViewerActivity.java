@@ -84,7 +84,7 @@ public class CodeViewerActivity extends BaseActivity {
         setSupportActionBar(toolbar);
         if (getSupportActionBar() != null) {
             getSupportActionBar().setDisplayHomeAsUpEnabled(true);
-            getSupportActionBar().setTitle("代码查看器");
+            getSupportActionBar().setTitle(getString(R.string.title_code_viewer));
         }
         toolbar.setNavigationOnClickListener(v -> finish());
 
@@ -175,24 +175,24 @@ public class CodeViewerActivity extends BaseActivity {
     @Override
     public boolean onCreateOptionsMenu(Menu menu) {
         if (currentFilePath == null) return super.onCreateOptionsMenu(menu);
-        menu.add(Menu.NONE, MENU_FIND_ID, Menu.NONE, "查找")
+        menu.add(Menu.NONE, MENU_FIND_ID, Menu.NONE, getString(R.string.menu_find))
                 .setIcon(R.drawable.ic_search)
                 .setShowAsAction(MenuItem.SHOW_AS_ACTION_IF_ROOM);
-        menu.add(Menu.NONE, MENU_COPY_PATH_ID, Menu.NONE, "复制路径")
+        menu.add(Menu.NONE, MENU_COPY_PATH_ID, Menu.NONE, getString(R.string.menu_copy_path))
                 .setIcon(R.drawable.ic_content_copy)
                 .setShowAsAction(MenuItem.SHOW_AS_ACTION_IF_ROOM);
-        menu.add(Menu.NONE, MENU_SHARE_ID, Menu.NONE, "分享")
+        menu.add(Menu.NONE, MENU_SHARE_ID, Menu.NONE, getString(R.string.menu_share))
                 .setIcon(R.drawable.ic_share)
                 .setShowAsAction(MenuItem.SHOW_AS_ACTION_IF_ROOM);
-        menu.add(Menu.NONE, MENU_GOTO_LINE_ID, Menu.NONE, "转到行号…")
+        menu.add(Menu.NONE, MENU_GOTO_LINE_ID, Menu.NONE, getString(R.string.menu_goto_line))
                 .setShowAsAction(MenuItem.SHOW_AS_ACTION_NEVER);
         // 自动换行（wrap_words）：勾选项，全局记忆；切换=重建 Activity 换布局（保持纵向阅读位置）
-        menu.add(Menu.NONE, MENU_WRAP_ID, Menu.NONE, "自动换行")
+        menu.add(Menu.NONE, MENU_WRAP_ID, Menu.NONE, getString(R.string.menu_wrap))
                 .setCheckable(true)
                 .setChecked(wrapMode)
                 .setShowAsAction(MenuItem.SHOW_AS_ACTION_NEVER);
         // 走查 #56：服务器端文件更新（日志追加/配置改动）后重读；与 FileBrowser 下拉刷新同语义
-        menu.add(Menu.NONE, MENU_RELOAD_ID, Menu.NONE, "重新加载")
+        menu.add(Menu.NONE, MENU_RELOAD_ID, Menu.NONE, getString(R.string.menu_reload))
                 .setShowAsAction(MenuItem.SHOW_AS_ACTION_NEVER);
         return true;
     }
@@ -234,17 +234,17 @@ public class CodeViewerActivity extends BaseActivity {
     private void showGoToLineDialog() {
         CharSequence text = textCodeContent.getText();
         if (text == null || text.length() == 0) {
-            UiUtils.showToast(this, "内容尚未加载完成");
+            UiUtils.showToast(this, getString(R.string.toast_content_not_loaded));
             return;
         }
         int total = LineNumberHelper.countLines(text);
-        DialogHelper.showInputDialog(this, "转到行号",
-                "输入行号（1-" + total + "）", "跳转", "取消",
+        DialogHelper.showInputDialog(this, getString(R.string.goto_line_dialog_title),
+                getString(R.string.goto_line_range, total), getString(R.string.btn_go), getString(R.string.btn_cancel),
                 InputType.TYPE_CLASS_NUMBER, null,
                 input -> {
                     int line = GoToLineHelper.parseLineNumber(input);
                     if (line < 0) {
-                        UiUtils.showToast(this, "请输入有效行号");
+                        UiUtils.showToast(this, getString(R.string.toast_invalid_line));
                         return;
                     }
                     jumpToLine(line);
@@ -287,7 +287,7 @@ public class CodeViewerActivity extends BaseActivity {
                     if (loadingOverlay != null) {
                         loadingOverlay.setVisibility(View.GONE);
                     }
-                    textCodeContent.setText("加载失败: " + error);
+                    textCodeContent.setText(getString(R.string.msg_load_failed, error));
                     if (lineNumberGutter != null) {
                         lineNumberGutter.refresh();
                     }
@@ -326,7 +326,7 @@ public class CodeViewerActivity extends BaseActivity {
                         loadingOverlay.setVisibility(View.GONE);
                     }
                     reloadRestoreY = -1;
-                    UiUtils.showToast(CodeViewerActivity.this, "重新加载失败: " + error);
+                    UiUtils.showToast(CodeViewerActivity.this, getString(R.string.msg_reload_failed, error));
                 });
             }
         });
@@ -339,7 +339,7 @@ public class CodeViewerActivity extends BaseActivity {
                 result = CodeHighlighter.highlight(
                         code, fileName != null ? fileName : "");
             } catch (Throwable t) {
-                Log.w(TAG, "代码高亮失败（回退纯文本）: " + fileName, t);
+                Log.w(TAG, getString(R.string.log_highlighter_failed, fileName), t);
                 result = new SpannableStringBuilder(code);
             }
             final SpannableStringBuilder highlighted = result;
