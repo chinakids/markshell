@@ -128,7 +128,7 @@ public class MainActivity extends BaseActivity {
         boolean filtering = searchActive && ConnectionSearchHelper.active(query);
         if (filtering) {
             List<SshConfig> filtered = ConnectionSearchHelper.filter(savedList, query);
-            adapter.setData(filtered, filtered.size() + " / " + savedList.size() + " 个匹配");
+            adapter.setData(filtered, getString(R.string.msg_match_count, filtered.size(), savedList.size()));
             tvConnNoMatch.setVisibility(filtered.isEmpty() ? View.VISIBLE : View.GONE);
             layoutEmpty.setVisibility(View.GONE);
             recycler.setVisibility(View.VISIBLE);
@@ -210,7 +210,7 @@ public class MainActivity extends BaseActivity {
                     if (report != null) {
                         UiUtils.showToast(MainActivity.this, report);
                     }
-                    UiUtils.showToast(MainActivity.this, "已连接");
+                    UiUtils.showToast(MainActivity.this, getString(R.string.msg_connected));
                     Intent intent = new Intent(MainActivity.this, FileBrowserActivity.class);
                     // 仅显式主目录（remotePath）才指定起始位置；未配置则交由文件浏览器
                     // 恢复上次浏览目录（「继续上次位置」）。
@@ -229,8 +229,8 @@ public class MainActivity extends BaseActivity {
                     adapter.clearConnecting();
                     adapter.setClickable(true);
                     DialogHelper.showConfirmDialog(MainActivity.this,
-                            "连接失败", message,
-                            "重新连接", "取消", "编辑配置",
+                            getString(R.string.dialog_connect_failed), message,
+                            getString(R.string.btn_reconnect), getString(R.string.btn_cancel), getString(R.string.btn_edit_config),
                             (d) -> quickConnect(config, position),
                             (d) -> {},
                             (d) -> editConnection(config, position));
@@ -302,8 +302,8 @@ public class MainActivity extends BaseActivity {
         SshConfig config = savedList.get(position);
         String name = config.getDisplayName();
         DialogHelper.showDangerConfirmDialog(this,
-                "删除连接", "确定删除 \"" + name + "\" ？",
-                "删除", "取消",
+                getString(R.string.dialog_delete_conn), getString(R.string.msg_delete_conn, name),
+                getString(R.string.btn_delete), getString(R.string.btn_cancel),
                 (d) -> {
                     prefManager.deleteConnection(position);
                     loadData();
@@ -325,8 +325,8 @@ public class MainActivity extends BaseActivity {
     private void showAppSettings() {
         if (isFinishing() || isDestroyed()) return;
         DialogHelper.showListDialog(this,
-                "设置",
-                new String[]{"外观 · 主题", "连接保活 · 心跳间隔", "查看器 · 打开后跳到底部", "关于 · 应用信息"},
+                getString(R.string.action_settings),
+                getResources().getStringArray(R.array.settings_items),
                 null,
                 (dialog, which) -> {
                     if (which == 0) showThemeSettings();
@@ -356,9 +356,9 @@ public class MainActivity extends BaseActivity {
         }
         String message = getString(R.string.app_name) + "\n"
                 + "Version " + AboutHelper.versionLine(versionName, versionCode) + "\n\n"
-                + "包名：" + getPackageName();
+                + getString(R.string.about_package_prefix, getPackageName());
         DialogHelper.showMessageDialog(this, getString(R.string.action_about),
-                message, "确定", (dialog) -> {
+                message, getString(R.string.btn_ok), (dialog) -> {
                 });
     }
 
@@ -376,9 +376,8 @@ public class MainActivity extends BaseActivity {
         String current = ThemeHelper.normalize(prefManager.getThemeMode());
         String label = themeLabelFor(current);
         DialogHelper.showListDialog(this,
-                "外观 · 当前" + label,
-                new String[]{"跟随系统", "自动（22:00–06:00 深色）", "自动（09:00–17:00 浅色）",
-                        "浅色", "深色", "深色 · 纯黑"},
+                getString(R.string.theme_title, label),
+                getResources().getStringArray(R.array.theme_items),
                 null,
                 (dialog, which) -> {
                     String mode = which == 1 ? ThemeHelper.THEME_AUTO
@@ -394,13 +393,13 @@ public class MainActivity extends BaseActivity {
                 });
     }
 
-    private static String themeLabelFor(String mode) {
-        if (ThemeHelper.THEME_LIGHT.equals(mode)) return "浅色";
-        if (ThemeHelper.THEME_DARK.equals(mode)) return "深色";
-        if (ThemeHelper.THEME_DARK_BLACK.equals(mode)) return "深色 · 纯黑";
-        if (ThemeHelper.THEME_AUTO.equals(mode)) return "自动（22:00–06:00 深色）";
-        if (ThemeHelper.THEME_AUTOCOMPAT.equals(mode)) return "自动（09:00–17:00 浅色）";
-        return "跟随系统";
+    private String themeLabelFor(String mode) {
+        if (ThemeHelper.THEME_LIGHT.equals(mode)) return getString(R.string.theme_light);
+        if (ThemeHelper.THEME_DARK.equals(mode)) return getString(R.string.theme_dark);
+        if (ThemeHelper.THEME_DARK_BLACK.equals(mode)) return getString(R.string.theme_dark_black);
+        if (ThemeHelper.THEME_AUTO.equals(mode)) return getString(R.string.theme_auto_dark);
+        if (ThemeHelper.THEME_AUTOCOMPAT.equals(mode)) return getString(R.string.theme_auto_light);
+        return getString(R.string.theme_follow_system);
     }
 
     /**
@@ -411,15 +410,14 @@ public class MainActivity extends BaseActivity {
         if (isFinishing() || isDestroyed()) return;
         int current = prefManager.getHeartbeatIntervalMs();
         DialogHelper.showListDialog(this,
-                "连接保活 · 当前心跳 " + (current / 1000) + " 秒",
-                new String[]{"心跳间隔：5 秒（默认）", "心跳间隔：10 秒",
-                        "心跳间隔：30 秒", "心跳间隔：60 秒"},
+                getString(R.string.heartbeat_title, current / 1000),
+                getResources().getStringArray(R.array.heartbeat_items),
                 null,
                 (dialog, which) -> {
                     int ms = HEARTBEAT_OPTIONS_MS[which];
                     prefManager.saveHeartbeatIntervalMs(ms);
                     SshManager.getInstance().setHeartbeatIntervalMs(ms);
-                    UiUtils.showToast(this, "已保存，下次连接生效");
+                    UiUtils.showToast(this, getString(R.string.toast_heartbeat_saved));
                 });
     }
 
@@ -434,14 +432,13 @@ public class MainActivity extends BaseActivity {
         if (isFinishing() || isDestroyed()) return;
         boolean enabled = prefManager.getStartOnBottom();
         DialogHelper.showListDialog(this,
-                "查看器 · 打开后跳到底部（当前" + (enabled ? "开" : "关") + "）",
-                new String[]{"开启：打开文件后跳到末尾（适合日志）",
-                        "关闭：按阅读进度恢复（默认）"},
+                getString(R.string.viewer_tail_title, enabled ? getString(R.string.viewer_tail_on) : getString(R.string.viewer_tail_off)),
+                getResources().getStringArray(R.array.viewer_tail_items),
                 null,
                 (dialog, which) -> {
                     boolean on = (which == 0);
                     prefManager.saveStartOnBottom(on);
-                    UiUtils.showToast(this, on ? "已开启，下次打开文件生效" : "已关闭，恢复按进度续读");
+                    UiUtils.showToast(this, on ? getString(R.string.toast_viewer_tail_enabled) : getString(R.string.toast_viewer_tail_disabled));
                 });
     }
 
@@ -488,7 +485,7 @@ public class MainActivity extends BaseActivity {
             if (config == null) return;
             prefManager.saveConnection(config);
             dialog.dismiss();
-            UiUtils.showToast(this, "已保存");
+            UiUtils.showToast(this, getString(R.string.toast_saved_plain));
             loadData();
         });
 
@@ -549,8 +546,8 @@ public class MainActivity extends BaseActivity {
                     btnConnect.setEnabled(true);
                     btnConnect.setText(R.string.btn_connect);
                     DialogHelper.showConfirmDialog(MainActivity.this,
-                            "连接失败", message,
-                            "重试", "取消",
+                            getString(R.string.dialog_connect_failed), message,
+                            getString(R.string.btn_retry), getString(R.string.btn_cancel),
                             d -> connectFromDialog(dialog, config, progressBar, btnConnect),
                             d -> {});
                 });
@@ -738,7 +735,7 @@ public class MainActivity extends BaseActivity {
                 HeaderVH h = (HeaderVH) holder;
                 h.tvCount.setText(headerText != null
                         ? headerText
-                        : data.size() + " 个已保存连接");
+                        : holder.itemView.getContext().getString(R.string.header_saved_count, data.size()));
                 h.btnSettings.setOnClickListener(v -> {
                     if (settingsListener != null) settingsListener.onSettings();
                 });
@@ -779,7 +776,7 @@ public class MainActivity extends BaseActivity {
                 h.itemView.setOnLongClickListener(v -> {
                     String name = config.getDisplayName();
                     DialogHelper.showListDialog(v.getContext(), name,
-                            new String[]{"编辑", "端口转发…", "复制", "删除"},
+                            v.getContext().getResources().getStringArray(R.array.conn_menu_items),
                             new int[]{R.drawable.ic_edit, R.drawable.ic_tunnel,
                                     R.drawable.ic_content_copy, R.drawable.ic_delete},
                             (dialog, which) -> {

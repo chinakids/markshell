@@ -257,41 +257,41 @@ public class MarkdownReaderActivity extends BaseActivity implements AnnotationOv
     @Override
     public boolean onCreateOptionsMenu(Menu menu) {
         if (editMode) {
-            menu.add(Menu.NONE, MENU_SAVE_ID, Menu.NONE, "保存")
+            menu.add(Menu.NONE, MENU_SAVE_ID, Menu.NONE, getString(R.string.menu_save))
                     .setIcon(R.drawable.ic_save)
                     .setShowAsAction(MenuItem.SHOW_AS_ACTION_ALWAYS);
-            menu.add(Menu.NONE, MENU_ABORT_ID, Menu.NONE, "放弃")
+            menu.add(Menu.NONE, MENU_ABORT_ID, Menu.NONE, getString(R.string.menu_abort))
                     .setIcon(R.drawable.ic_close)
                     .setShowAsAction(MenuItem.SHOW_AS_ACTION_ALWAYS);
-            menu.add(Menu.NONE, MENU_FIND_ID, Menu.NONE, "查找/替换")
+            menu.add(Menu.NONE, MENU_FIND_ID, Menu.NONE, getString(R.string.menu_find_replace))
                     .setIcon(R.drawable.ic_search)
                     .setShowAsAction(MenuItem.SHOW_AS_ACTION_IF_ROOM);
-            menu.add(Menu.NONE, MENU_SHARE_ID, Menu.NONE, "分享")
+            menu.add(Menu.NONE, MENU_SHARE_ID, Menu.NONE, getString(R.string.menu_share))
                     .setIcon(R.drawable.ic_share)
                     .setShowAsAction(MenuItem.SHOW_AS_ACTION_IF_ROOM);
             return true;
         }
-        menu.add(Menu.NONE, MENU_ANNOTATION_PREV_ID, Menu.NONE, "上一处")
+        menu.add(Menu.NONE, MENU_ANNOTATION_PREV_ID, Menu.NONE, getString(R.string.menu_annotation_prev))
                 .setIcon(R.drawable.ic_annotation_prev)
                 .setShowAsAction(MenuItem.SHOW_AS_ACTION_IF_ROOM);
-        menu.add(Menu.NONE, MENU_ANNOTATION_NEXT_ID, Menu.NONE, "下一处")
+        menu.add(Menu.NONE, MENU_ANNOTATION_NEXT_ID, Menu.NONE, getString(R.string.menu_annotation_next))
                 .setIcon(R.drawable.ic_annotation_next)
                 .setShowAsAction(MenuItem.SHOW_AS_ACTION_IF_ROOM);
-        menu.add(Menu.NONE, MENU_FIND_ID, Menu.NONE, "查找")
+        menu.add(Menu.NONE, MENU_FIND_ID, Menu.NONE, getString(R.string.menu_find))
                 .setIcon(R.drawable.ic_search)
                 .setShowAsAction(MenuItem.SHOW_AS_ACTION_IF_ROOM);
-        menu.add(Menu.NONE, MENU_DRAWER_ID, Menu.NONE, "批注列表")
+        menu.add(Menu.NONE, MENU_DRAWER_ID, Menu.NONE, getString(R.string.menu_annotation_list))
                 .setIcon(R.drawable.ic_annotation_drawer)
                 .setShowAsAction(MenuItem.SHOW_AS_ACTION_IF_ROOM);
-        menu.add(Menu.NONE, MENU_EDIT_ID, Menu.NONE, "编辑")
+        menu.add(Menu.NONE, MENU_EDIT_ID, Menu.NONE, getString(R.string.menu_edit))
                 .setIcon(R.drawable.ic_edit)
                 .setShowAsAction(MenuItem.SHOW_AS_ACTION_IF_ROOM);
-        menu.add(Menu.NONE, MENU_COPY_PATH_ID, Menu.NONE, "复制路径")
+        menu.add(Menu.NONE, MENU_COPY_PATH_ID, Menu.NONE, getString(R.string.menu_copy_path))
                 .setShowAsAction(MenuItem.SHOW_AS_ACTION_NEVER);
-        menu.add(Menu.NONE, MENU_SHARE_ID, Menu.NONE, "分享")
+        menu.add(Menu.NONE, MENU_SHARE_ID, Menu.NONE, getString(R.string.menu_share))
                 .setIcon(R.drawable.ic_share)
                 .setShowAsAction(MenuItem.SHOW_AS_ACTION_NEVER);
-        menu.add(Menu.NONE, MENU_RELOAD_ID, Menu.NONE, "重新加载")
+        menu.add(Menu.NONE, MENU_RELOAD_ID, Menu.NONE, getString(R.string.menu_reload))
                 .setShowAsAction(MenuItem.SHOW_AS_ACTION_NEVER);
         return true;
     }
@@ -334,7 +334,7 @@ public class MarkdownReaderActivity extends BaseActivity implements AnnotationOv
                     UiUtils.shareText(this, markdownContent,
                             ShareHelper.fileNameFromPath(currentFilePath));
                 } else {
-                    UiUtils.showToast(this, "暂无可分享内容");
+                    UiUtils.showToast(this, getString(R.string.toast_no_share_content));
                 }
                 return true;
             case MENU_RELOAD_ID:
@@ -377,7 +377,7 @@ public class MarkdownReaderActivity extends BaseActivity implements AnnotationOv
         etEditor.setTextSize(TypedValue.COMPLEX_UNIT_SP, currentFontSize);
         scrollView.setVisibility(View.GONE);
         etEditor.setVisibility(View.VISIBLE);
-        setTitle(pageTitle + "（编辑中）");
+        setTitle(getString(R.string.title_editing_format, pageTitle));
         invalidateOptionsMenu();
         updateFormatBarVisibility();
 
@@ -396,7 +396,7 @@ public class MarkdownReaderActivity extends BaseActivity implements AnnotationOv
         if (text.equals(originalContent)) {
             // 无实际变更：直接退出编辑模式，不发起网络写
             exitEditMode(false);
-            UiUtils.showToast(this, "内容未修改");
+            UiUtils.showToast(this, getString(R.string.toast_content_not_modified));
             return;
         }
         saving = true;
@@ -406,7 +406,7 @@ public class MarkdownReaderActivity extends BaseActivity implements AnnotationOv
                     public void onSuccess() {
                         runOnUiThread(() -> {
                             saving = false;
-                            UiUtils.showToast(MarkdownReaderActivity.this, "已保存");
+                            UiUtils.showToast(MarkdownReaderActivity.this, getString(R.string.toast_saved_plain));
                             pendingFailureNotice = true;   // 保存成功：重定位后提示失效批注
                             exitEditMode(true);
                         });
@@ -417,7 +417,7 @@ public class MarkdownReaderActivity extends BaseActivity implements AnnotationOv
                         runOnUiThread(() -> {
                             saving = false;
                             UiUtils.showToast(MarkdownReaderActivity.this,
-                                    "保存失败: " + message);
+                                    getString(R.string.msg_save_failed, message));
                         });
                     }
                 });
@@ -426,9 +426,9 @@ public class MarkdownReaderActivity extends BaseActivity implements AnnotationOv
     private void confirmDiscardEdits() {
         if (!editMode) return;
         hideKeyboard();
-        DialogHelper.showConfirmDialog(this, "放弃修改",
-                "编辑内容尚未保存，放弃后将丢失所有更改。",
-                "放弃", "取消",
+        DialogHelper.showConfirmDialog(this, getString(R.string.dialog_discard_edits),
+                getString(R.string.msg_discard_edits),
+                getString(R.string.btn_discard), getString(R.string.btn_cancel),
                 (d) -> exitEditMode(false),
                 (d) -> {});
     }
@@ -640,12 +640,12 @@ public class MarkdownReaderActivity extends BaseActivity implements AnnotationOv
      */
     private void onTocItemClick(int position) {
         if (editMode) {
-            UiUtils.showToast(this, "编辑模式下大纲不可用");
+            UiUtils.showToast(this, getString(R.string.toast_outline_unavailable));
             return;
         }
         int[] range = headingRenderRanges.get(position);
         if (range == null) {
-            UiUtils.showToast(this, "无法定位该标题");
+            UiUtils.showToast(this, getString(R.string.toast_title_unlocatable));
             return;
         }
         annotationOverlay.jumpToCharOffset(range[0], range[1]);
@@ -764,7 +764,7 @@ public class MarkdownReaderActivity extends BaseActivity implements AnnotationOv
             public void onError(String message) {
                 runOnUiThread(() -> {
                     progressBar.setVisibility(View.GONE);
-                    UiUtils.showToast(MarkdownReaderActivity.this, "重新加载失败: " + message);
+                    UiUtils.showToast(MarkdownReaderActivity.this, getString(R.string.msg_reload_failed, message));
                 });
             }
         });
@@ -835,7 +835,7 @@ public class MarkdownReaderActivity extends BaseActivity implements AnnotationOv
         pendingFailureNotice = false;
         int n = failedIds.size();
         if (n > 0) {
-            UiUtils.showToast(this, n + " 条批注因编辑未找到原文，已从渲染中移除");
+            UiUtils.showToast(this, getString(R.string.msg_annotations_removed, n));
         }
     }
 
@@ -885,7 +885,7 @@ public class MarkdownReaderActivity extends BaseActivity implements AnnotationOv
                     public void onError(String message) {
                         runOnUiThread(() -> {
                             UiUtils.showToast(MarkdownReaderActivity.this,
-                                    "保存失败: " + message);
+                                    getString(R.string.msg_save_failed, message));
                             loadContent(currentFilePath);
                         });
                     }
@@ -958,7 +958,7 @@ public class MarkdownReaderActivity extends BaseActivity implements AnnotationOv
         try {
             startActivity(new Intent(Intent.ACTION_VIEW, Uri.parse(url)));
         } catch (android.content.ActivityNotFoundException e) {
-            UiUtils.showToast(this, "未找到可打开该链接的应用");
+            UiUtils.showToast(this, getString(R.string.toast_no_link_handler));
         }
     }
 
@@ -970,13 +970,13 @@ public class MarkdownReaderActivity extends BaseActivity implements AnnotationOv
                 runOnUiThread(() -> {
                     if (isFinishing() || isDestroyed()) return;
                     if (!exists) {
-                        UiUtils.showToast(MarkdownReaderActivity.this, "链接目标不存在");
+                        UiUtils.showToast(MarkdownReaderActivity.this, getString(R.string.msg_link_target_missing));
                         return;
                     }
                     Intent intent = OpenFileHelper.buildViewerIntent(
                             MarkdownReaderActivity.this, remotePath);
                     if (intent == null) {
-                        UiUtils.showToast(MarkdownReaderActivity.this, "暂不支持此文件类型");
+                        UiUtils.showToast(MarkdownReaderActivity.this, getString(R.string.msg_unsupported));
                         return;
                     }
                     recordRecentOpen(remotePath);
@@ -989,7 +989,7 @@ public class MarkdownReaderActivity extends BaseActivity implements AnnotationOv
                 runOnUiThread(() -> {
                     if (isFinishing() || isDestroyed()) return;
                     UiUtils.showToast(MarkdownReaderActivity.this,
-                            "无法打开链接目标: " + message);
+                            getString(R.string.msg_cannot_open_target, message));
                 });
             }
         });
@@ -1007,12 +1007,12 @@ public class MarkdownReaderActivity extends BaseActivity implements AnnotationOv
     private void jumpToAnchor(String anchor) {
         int idx = LinkTargetHelper.findAnchorHeading(currentHeadings, anchor);
         if (idx < 0) {
-            UiUtils.showToast(this, "未找到锚点对应的标题");
+            UiUtils.showToast(this, getString(R.string.toast_anchor_not_found));
             return;
         }
         int[] range = headingRenderRanges.get(idx);
         if (range == null) {
-            UiUtils.showToast(this, "无法定位该标题");
+            UiUtils.showToast(this, getString(R.string.toast_title_unlocatable));
             return;
         }
         annotationOverlay.jumpToCharOffset(range[0], range[1]);
@@ -1172,9 +1172,8 @@ public class MarkdownReaderActivity extends BaseActivity implements AnnotationOv
      * （markor moveLine→runRenumberOrderedListIfRequired 同）。
      */
     private void showTextToolsDialog() {
-        DialogHelper.showListDialog(this, "文本工具",
-                new String[]{"全大写", "全小写", "逐词首字母大写", "逐句首字母大写", "大小写互换",
-                        "复制行", "删除行", "上移一行", "下移一行"},
+        DialogHelper.showListDialog(this, getString(R.string.dialog_text_tools),
+                getResources().getStringArray(R.array.text_tools_items),
                 null, (dialog, which) -> applyTextTool(which));
     }
 
@@ -1240,11 +1239,11 @@ public class MarkdownReaderActivity extends BaseActivity implements AnnotationOv
                 initialUrl = li.url;
             }
         }
-        String dialogTitle = isImage ? "插入图片" : "插入链接";
+        String dialogTitle = isImage ? getString(R.string.dialog_insert_image) : getString(R.string.dialog_insert_link);
         final int fs = s;
         final int fe = e;
         DialogHelper.showInsertLinkDialog(this, dialogTitle,
-                "插入", "取消", initialTitle, initialUrl, (title, url) -> {
+                getString(R.string.btn_insert), getString(R.string.btn_cancel), initialTitle, initialUrl, (title, url) -> {
                     if (!editMode || etEditor == null) return;
                     MarkdownLinkHelper.Result r = MarkdownLinkHelper.insertLink(text, fs, fe, title, url, isImage);
                     if (r.text == null || r.text.equals(etEditor.getText().toString())) return;
@@ -1260,8 +1259,8 @@ public class MarkdownReaderActivity extends BaseActivity implements AnnotationOv
      */
     private void applyInsertTable() {
         if (!editMode || etEditor == null) return;
-        String[] items = {"2 列", "3 列", "4 列", "5 列"};
-        DialogHelper.showListDialog(this, "表格列数", items, null, (dialog, which) -> {
+        String[] items = getResources().getStringArray(R.array.table_cols_items);
+        DialogHelper.showListDialog(this, getString(R.string.dialog_table_cols), items, null, (dialog, which) -> {
             if (!editMode || etEditor == null) return;
             int cols = which + MarkdownFormatHelper.TABLE_COLS_MIN;
             prefManager.saveTableCols(cols);
@@ -1304,7 +1303,7 @@ public class MarkdownReaderActivity extends BaseActivity implements AnnotationOv
         findMatches = FindHelper.scanAll(findSource(), query, !findCaseSensitive, findWholeWord);
         if (findMatches.isEmpty()) {
             findCurrentIndex = -1;
-            tvFindStatus.setText(query.isEmpty() ? "" : "未找到");
+            tvFindStatus.setText(query.isEmpty() ? "" : getString(R.string.msg_not_found));
             // 新查询无匹配：清除上一处查询残留的高亮（防“状态显示未找到、画面仍高亮旧词”）
             annotationOverlay.clearActiveHighlight();
             return;
@@ -1322,7 +1321,7 @@ public class MarkdownReaderActivity extends BaseActivity implements AnnotationOv
     private void findStep(int direction) {
         if (findMatches.isEmpty()) rebuildFind(false);
         if (findMatches.isEmpty()) {
-            tvFindStatus.setText("未找到");
+            tvFindStatus.setText(getString(R.string.msg_not_found));
             return;
         }
         findCurrentIndex = FindHelper.advance(findMatches, findCurrentIndex, direction);
@@ -1352,7 +1351,7 @@ public class MarkdownReaderActivity extends BaseActivity implements AnnotationOv
         if (!editMode) return;
         if (findMatches.isEmpty()) rebuildFind(false);
         if (findMatches.isEmpty()) {
-            tvFindStatus.setText("未找到");
+            tvFindStatus.setText(getString(R.string.msg_not_found));
             return;
         }
         int idx = findCurrentIndex < 0 ? 0 : Math.min(findCurrentIndex, findMatches.size() - 1);
@@ -1367,7 +1366,7 @@ public class MarkdownReaderActivity extends BaseActivity implements AnnotationOv
                     !findCaseSensitive, findWholeWord);
             if (findMatches.isEmpty()) {
                 findCurrentIndex = -1;
-                tvFindStatus.setText("未找到");
+                tvFindStatus.setText(getString(R.string.msg_not_found));
                 return;
             }
             findCurrentIndex = Math.min(idx, findMatches.size() - 1);
@@ -1383,13 +1382,13 @@ public class MarkdownReaderActivity extends BaseActivity implements AnnotationOv
         if (!editMode) return;
         String query = etFindQuery.getText().toString();
         if (query.isEmpty()) {
-            tvFindStatus.setText("未找到");
+            tvFindStatus.setText(getString(R.string.msg_not_found));
             return;
         }
         String text = etEditor.getText().toString();
         List<FindHelper.Match> all = FindHelper.scanAll(text, query, !findCaseSensitive, findWholeWord);
         if (all.isEmpty()) {
-            tvFindStatus.setText("未找到");
+            tvFindStatus.setText(getString(R.string.msg_not_found));
             return;
         }
         int total = all.size();
@@ -1397,13 +1396,13 @@ public class MarkdownReaderActivity extends BaseActivity implements AnnotationOv
                 etReplaceQuery.getText().toString(), !findCaseSensitive, findWholeWord);
         if (!updated.equals(text)) {
             etEditor.setText(updated);
-            UiUtils.showToast(this, "已替换 " + total + " 处");
+            UiUtils.showToast(this, getString(R.string.toast_replace_count, total));
         }
         findMatches = FindHelper.scanAll(etEditor.getText(), query,
                 !findCaseSensitive, findWholeWord);
         if (findMatches.isEmpty()) {
             findCurrentIndex = -1;
-            tvFindStatus.setText(query.isEmpty() ? "" : "未找到");
+            tvFindStatus.setText(query.isEmpty() ? "" : getString(R.string.msg_not_found));
             return;
         }
         findCurrentIndex = 0;

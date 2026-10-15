@@ -185,4 +185,107 @@
     <string name="toast_bookmarked">已收藏 %1$s</string>
     <string name="msg_dir_download_unsupported">不支持下载目录</string>
     <string name="msg_home_unavailable">主目录不可用</string>
+
+    <!-- MarkdownReaderActivity / MainActivity → 中文硬编码资源化专项第三子步（2026-10-15） -->
+    <string name="menu_save">保存</string>
+    <string name="menu_abort">放弃</string>
+    <string name="menu_find_replace">查找/替换</string>
+    <string name="menu_annotation_prev">上一处</string>
+    <string name="menu_annotation_next">下一处</string>
+    <string name="menu_annotation_list">批注列表</string>
+    <string name="menu_edit">编辑</string>
+    <string name="toast_no_share_content">暂无可分享内容</string>
+    <string name="title_editing_format">%1$s（编辑中）</string>
+    <string name="toast_content_not_modified">内容未修改</string>
+    <string name="toast_saved_plain">已保存</string>
+    <string name="msg_save_failed">保存失败: %1$s</string>
+    <string name="dialog_discard_edits">放弃修改</string>
+    <string name="msg_discard_edits">编辑内容尚未保存，放弃后将丢失所有更改。</string>
+    <string name="btn_discard">放弃</string>
+    <string name="toast_outline_unavailable">编辑模式下大纲不可用</string>
+    <string name="toast_title_unlocatable">无法定位该标题</string>
+    <string name="msg_annotations_removed">%1$d 条批注因编辑未找到原文，已从渲染中移除</string>
+    <string name="toast_no_link_handler">未找到可打开该链接的应用</string>
+    <string name="msg_link_target_missing">链接目标不存在</string>
+    <string name="msg_cannot_open_target">无法打开链接目标: %1$s</string>
+    <string name="toast_anchor_not_found">未找到锚点对应的标题</string>
+    <string name="dialog_text_tools">文本工具</string>
+    <string name="dialog_insert_link">插入链接</string>
+    <string name="dialog_insert_image">插入图片</string>
+    <string name="btn_insert">插入</string>
+    <string name="dialog_table_cols">表格列数</string>
+    <string name="toast_replace_count">已替换 %1$d 处</string>
+    <string name="msg_match_count">%1$d / %2$d 个匹配</string>
+    <string name="dialog_connect_failed">连接失败</string>
+    <string name="btn_reconnect">重新连接</string>
+    <string name="btn_retry">重试</string>
+    <string name="btn_edit_config">编辑配置</string>
+    <string name="dialog_delete_conn">删除连接</string>
+    <string name="msg_delete_conn">确定删除 "%1$s" ？</string>
+    <string name="btn_delete">删除</string>
+    <string name="about_package_prefix">包名：%1$s</string>
+    <string name="btn_ok">确定</string>
+    <string name="theme_title">外观 · 当前%1$s</string>
+    <string name="theme_light">浅色</string>
+    <string name="theme_dark">深色</string>
+    <string name="theme_dark_black">深色 · 纯黑</string>
+    <string name="theme_auto_dark">自动（22:00–06:00 深色）</string>
+    <string name="theme_auto_light">自动（09:00–17:00 浅色）</string>
+    <string name="theme_follow_system">跟随系统</string>
+    <string name="heartbeat_title">连接保活 · 当前心跳 %1$d 秒</string>
+    <string name="toast_heartbeat_saved">已保存，下次连接生效</string>
+    <string name="viewer_tail_title">查看器 · 打开后跳到底部（当前%1$s）</string>
+    <string name="viewer_tail_on">开</string>
+    <string name="viewer_tail_off">关</string>
+    <string name="toast_viewer_tail_enabled">已开启，下次打开文件生效</string>
+    <string name="toast_viewer_tail_disabled">已关闭，恢复按进度续读</string>
+    <string name="header_saved_count">%1$d 个已保存连接</string>
+
+    <string-array name="text_tools_items">
+        <item>全大写</item>
+        <item>全小写</item>
+        <item>逐词首字母大写</item>
+        <item>逐句首字母大写</item>
+        <item>大小写互换</item>
+        <item>复制行</item>
+        <item>删除行</item>
+        <item>上移一行</item>
+        <item>下移一行</item>
+    </string-array>
+    <string-array name="table_cols_items">
+        <item>2 列</item>
+        <item>3 列</item>
+        <item>4 列</item>
+        <item>5 列</item>
+    </string-array>
+    <string-array name="settings_items">
+        <item>外观 · 主题</item>
+        <item>连接保活 · 心跳间隔</item>
+        <item>查看器 · 打开后跳到底部</item>
+        <item>关于 · 应用信息</item>
+    </string-array>
+    <string-array name="theme_items">
+        <item>跟随系统</item>
+        <item>自动（22:00–06:00 深色）</item>
+        <item>自动（09:00–17:00 浅色）</item>
+        <item>浅色</item>
+        <item>深色</item>
+        <item>深色 · 纯黑</item>
+    </string-array>
+    <string-array name="heartbeat_items">
+        <item>心跳间隔：5 秒（默认）</item>
+        <item>心跳间隔：10 秒</item>
+        <item>心跳间隔：30 秒</item>
+        <item>心跳间隔：60 秒</item>
+    </string-array>
+    <string-array name="viewer_tail_items">
+        <item>开启：打开文件后跳到末尾（适合日志）</item>
+        <item>关闭：按阅读进度恢复（默认）</item>
+    </string-array>
+    <string-array name="conn_menu_items">
+        <item>编辑</item>
+        <item>端口转发…</item>
+        <item>复制</item>
+        <item>删除</item>
+    </string-array>
 </resources>
