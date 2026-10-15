@@ -164,7 +164,7 @@ public class FileBrowserActivity extends BaseActivity
                         currentPath = homePath;
                         updateToolbarSubtitle();
                         UiUtils.showToast(FileBrowserActivity.this,
-                                "上次目录已不存在，已回到主目录");
+                                getString(R.string.toast_last_dir_gone));
                     } else {
                         currentPath = lastPath;
                         updateToolbarSubtitle();
@@ -205,7 +205,7 @@ public class FileBrowserActivity extends BaseActivity
         adapter.setShowHidden(showHidden);
         MenuItem toggleItem = menu.findItem(R.id.action_toggle_hidden);
         toggleItem.setIcon(showHidden ? R.drawable.ic_visibility_on : R.drawable.ic_visibility_off);
-        toggleItem.setTitle(showHidden ? "隐藏隐藏文件" : "显示隐藏文件");
+        toggleItem.setTitle(showHidden ? getString(R.string.menu_hide_hidden_files) : getString(R.string.menu_show_hidden_files));
         return true;
     }
 
@@ -225,7 +225,7 @@ public class FileBrowserActivity extends BaseActivity
             adapter.setShowHidden(showHidden);
             prefManager.saveShowHidden(showHidden);
             item.setIcon(showHidden ? R.drawable.ic_visibility_on : R.drawable.ic_visibility_off);
-            item.setTitle(showHidden ? "隐藏隐藏文件" : "显示隐藏文件");
+            item.setTitle(showHidden ? getString(R.string.menu_hide_hidden_files) : getString(R.string.menu_show_hidden_files));
             return true;
         }
         if (id == R.id.action_sort) {
@@ -273,8 +273,8 @@ public class FileBrowserActivity extends BaseActivity
     private void showCreateDialog() {
         if (isFinishing() || isDestroyed()) return;
         DialogHelper.showListDialog(this,
-                "新建（" + currentPath + "）",
-                new String[]{"新建文件", "新建文件夹"},
+                getString(R.string.dialog_create_title, currentPath),
+                new String[]{getString(R.string.menu_new_file), getString(R.string.menu_new_folder)},
                 new int[]{R.drawable.ic_file, R.drawable.ic_folder},
                 (dialog, which) -> {
                     if (which == 0) {
@@ -289,7 +289,7 @@ public class FileBrowserActivity extends BaseActivity
     private void createNewFile() {
         if (isFinishing() || isDestroyed()) return;
         DialogHelper.showInputDialog(this,
-                "新建文件", "文件名（如：笔记.md）", "创建", "取消",
+                getString(R.string.menu_new_file), getString(R.string.hint_new_file_name), getString(R.string.btn_create), getString(R.string.btn_cancel),
                 name -> {
                     String error = NewFileHelper.validateName(name);
                     if (error != null) {
@@ -301,7 +301,7 @@ public class FileBrowserActivity extends BaseActivity
                         @Override
                         public void onSuccess() {
                             runOnUiThread(() -> {
-                                UiUtils.showToast(FileBrowserActivity.this, "已创建: " + path);
+                                UiUtils.showToast(FileBrowserActivity.this, getString(R.string.toast_created, path));
                                 loadFiles();
                             });
                         }
@@ -309,7 +309,7 @@ public class FileBrowserActivity extends BaseActivity
                         @Override
                         public void onError(String message) {
                             runOnUiThread(() ->
-                                    UiUtils.showToast(FileBrowserActivity.this, "创建失败: " + message));
+                                    UiUtils.showToast(FileBrowserActivity.this, getString(R.string.toast_create_failed, message)));
                         }
                     });
                 });
@@ -319,7 +319,7 @@ public class FileBrowserActivity extends BaseActivity
     private void createNewDirectory() {
         if (isFinishing() || isDestroyed()) return;
         DialogHelper.showInputDialog(this,
-                "新建文件夹", "文件夹名称（如：notes）", "创建", "取消",
+                getString(R.string.menu_new_folder), getString(R.string.hint_new_folder_name), getString(R.string.btn_create), getString(R.string.btn_cancel),
                 name -> {
                     String error = NewFileHelper.validateName(name);
                     if (error != null) {
@@ -331,7 +331,7 @@ public class FileBrowserActivity extends BaseActivity
                         @Override
                         public void onSuccess() {
                             runOnUiThread(() -> {
-                                UiUtils.showToast(FileBrowserActivity.this, "已创建: " + path);
+                                UiUtils.showToast(FileBrowserActivity.this, getString(R.string.toast_created, path));
                                 loadFiles();
                             });
                         }
@@ -339,7 +339,7 @@ public class FileBrowserActivity extends BaseActivity
                         @Override
                         public void onError(String message) {
                             runOnUiThread(() ->
-                                    UiUtils.showToast(FileBrowserActivity.this, "创建失败: " + message));
+                                    UiUtils.showToast(FileBrowserActivity.this, getString(R.string.toast_create_failed, message)));
                         }
                     });
                 });
@@ -354,7 +354,7 @@ public class FileBrowserActivity extends BaseActivity
         List<String> bookmarks = prefManager.getBookmarkedPaths(
                 config.getHost(), config.getPort(), config.getUsername());
         if (bookmarks.isEmpty()) {
-            UiUtils.showToast(this, "还没有书签，长按目录即可收藏");
+            UiUtils.showToast(this, getString(R.string.toast_no_bookmarks));
             return;
         }
         String[] items = new String[bookmarks.size()];
@@ -364,14 +364,14 @@ public class FileBrowserActivity extends BaseActivity
             icons[i] = R.drawable.ic_bookmark;
         }
         DialogHelper.showListDialog(this,
-                "书签目录（" + bookmarks.size() + "）",
+                getString(R.string.dialog_bookmarks_title, bookmarks.size()),
                 items, icons,
                 (dialog, which) -> jumpToBookmark(bookmarks.get(which)),
                 (dialog, which) -> {
                     dialog.dismiss();
                     confirmRemoveBookmark(config, bookmarks.get(which));
                 },
-                "清空全部",
+                getString(R.string.btn_clear_all),
                 (dialog) -> {
                     dialog.dismiss();
                     confirmClearBookmarks(config);
@@ -381,13 +381,13 @@ public class FileBrowserActivity extends BaseActivity
     /** 取消收藏确认：移除单条书签后重开对话框（列表已变）。 */
     private void confirmRemoveBookmark(SshConfig config, String path) {
         DialogHelper.showDangerConfirmDialog(this,
-                "取消收藏",
-                "从书签中移除 " + path + "？",
-                "取消收藏", "返回",
+                getString(R.string.menu_remove_bookmark),
+                getString(R.string.msg_remove_bookmark, path),
+                getString(R.string.menu_remove_bookmark), getString(R.string.btn_back),
                 (d) -> {
                     prefManager.removeBookmark(config.getHost(), config.getPort(),
                             config.getUsername(), path);
-                    UiUtils.showToast(this, "已取消收藏 " + path);
+                    UiUtils.showToast(this, getString(R.string.toast_bookmark_removed, path));
                     showBookmarksDialog();
                 },
                 (d) -> {});
@@ -396,13 +396,13 @@ public class FileBrowserActivity extends BaseActivity
     /** 清空书签确认：移除当前服务器全部书签。 */
     private void confirmClearBookmarks(SshConfig config) {
         DialogHelper.showDangerConfirmDialog(this,
-                "清空书签",
-                "清空当前服务器全部书签？此操作不可撤销。",
-                "清空", "返回",
+                getString(R.string.menu_clear_bookmarks),
+                getString(R.string.msg_clear_bookmarks),
+                getString(R.string.btn_clear), getString(R.string.btn_back),
                 (d) -> {
                     prefManager.clearBookmarks(config.getHost(), config.getPort(),
                             config.getUsername());
-                    UiUtils.showToast(this, "已清空书签");
+                    UiUtils.showToast(this, getString(R.string.toast_bookmarks_cleared));
                 },
                 (d) -> {});
     }
@@ -413,7 +413,7 @@ public class FileBrowserActivity extends BaseActivity
         currentPath = path;
         updateToolbarSubtitle();
         loadFiles();
-        UiUtils.showToast(this, "已跳转到 " + path);
+        UiUtils.showToast(this, getString(R.string.toast_jumped_to, path));
     }
 
     // ── 最近打开（阅读历史，第五轮能力发现 #13）─────────────────────────────
@@ -425,7 +425,7 @@ public class FileBrowserActivity extends BaseActivity
         List<RecentFileEntry> recent = prefManager.getRecentFiles(
                 config.getHost(), config.getPort(), config.getUsername());
         if (recent.isEmpty()) {
-            UiUtils.showToast(this, "还没有打开记录");
+            UiUtils.showToast(this, getString(R.string.toast_no_recent));
             return;
         }
         String[] items = new String[recent.size()];
@@ -435,14 +435,14 @@ public class FileBrowserActivity extends BaseActivity
             icons[i] = R.drawable.ic_history;
         }
         DialogHelper.showListDialog(this,
-                "最近打开（" + recent.size() + "）",
+                getString(R.string.dialog_recent_title, recent.size()),
                 items, icons,
                 (dialog, which) -> openRecentFile(recent.get(which).getPath()),
                 (dialog, which) -> {
                     dialog.dismiss();
                     confirmRemoveRecent(config, recent.get(which).getPath());
                 },
-                "清空全部",
+                getString(R.string.btn_clear_all),
                 (dialog) -> {
                     dialog.dismiss();
                     confirmClearRecent(config);
@@ -452,13 +452,13 @@ public class FileBrowserActivity extends BaseActivity
     /** 移除单条历史确认：删除后重开对话框（列表已变）。 */
     private void confirmRemoveRecent(SshConfig config, String path) {
         DialogHelper.showDangerConfirmDialog(this,
-                "从历史移除",
-                "从最近打开中移除 " + path + "？",
-                "移除", "返回",
+                getString(R.string.menu_remove_recent),
+                getString(R.string.msg_remove_recent, path),
+                getString(R.string.btn_remove), getString(R.string.btn_back),
                 (d) -> {
                     prefManager.removeRecentFile(config.getHost(), config.getPort(),
                             config.getUsername(), path);
-                    UiUtils.showToast(this, "已从历史移除");
+                    UiUtils.showToast(this, getString(R.string.toast_recent_removed));
                     showHistoryDialog();
                 },
                 (d) -> {});
@@ -467,13 +467,13 @@ public class FileBrowserActivity extends BaseActivity
     /** 清空历史确认：移除当前服务器全部历史。 */
     private void confirmClearRecent(SshConfig config) {
         DialogHelper.showDangerConfirmDialog(this,
-                "清空历史",
-                "清空当前服务器全部最近打开？此操作不可撤销。",
-                "清空", "返回",
+                getString(R.string.menu_clear_recent),
+                getString(R.string.msg_clear_recent),
+                getString(R.string.btn_clear), getString(R.string.btn_back),
                 (d) -> {
                     prefManager.clearRecentFiles(config.getHost(), config.getPort(),
                             config.getUsername());
-                    UiUtils.showToast(this, "已清空历史");
+                    UiUtils.showToast(this, getString(R.string.toast_recent_cleared));
                 },
                 (d) -> {});
     }
@@ -513,7 +513,7 @@ public class FileBrowserActivity extends BaseActivity
                     prefManager.removeRecentFile(config.getHost(), config.getPort(),
                             config.getUsername(), path);
                     UiUtils.showToast(FileBrowserActivity.this,
-                            "文件已不存在，已从历史移除");
+                            getString(R.string.toast_recent_file_gone));
                 });
             }
 
@@ -522,7 +522,7 @@ public class FileBrowserActivity extends BaseActivity
                 runOnUiThread(() -> {
                     if (isFinishing() || isDestroyed()) return;
                     UiUtils.showToast(FileBrowserActivity.this,
-                            "无法打开历史文件: " + message);
+                            getString(R.string.toast_recent_open_failed, message));
                 });
             }
         });
@@ -530,15 +530,15 @@ public class FileBrowserActivity extends BaseActivity
 
     private void showSortDialog() {
         final int current = prefManager.getFileSortMode();
-        final String[] names = {"按名称", "按修改时间", "按大小"};
+        final String[] names = {getString(R.string.sort_by_name), getString(R.string.sort_by_mtime), getString(R.string.sort_by_size)};
         DialogHelper.showListDialog(this,
-                "排序方式",
+                getString(R.string.sort_dialog_title),
                 names,
                 null,
                 (dialog, which) -> {
                     if (which == current) return;
                     prefManager.saveFileSortMode(which);
-                    UiUtils.showToast(this, "已切换为" + names[which]);
+                    UiUtils.showToast(this, getString(R.string.toast_sort_changed, names[which]));
                     loadFiles();
                 });
     }
@@ -579,7 +579,7 @@ public class FileBrowserActivity extends BaseActivity
             tvEmpty.setVisibility(View.GONE);
             return;
         }
-        tvEmpty.setText(adapter.isFilterActive() && !lastListEmpty ? "没有匹配的文件" : "空目录");
+        tvEmpty.setText(adapter.isFilterActive() && !lastListEmpty ? getString(R.string.empty_no_match) : getString(R.string.empty_directory));
         tvEmpty.setVisibility(View.VISIBLE);
     }
 
@@ -589,14 +589,14 @@ public class FileBrowserActivity extends BaseActivity
     private void showGlobalSearchDialog() {
         if (isFinishing() || isDestroyed()) return;
         if (currentPath == null || currentPath.isEmpty()) {
-            UiUtils.showToast(this, "当前目录未知，无法搜索");
+            UiUtils.showToast(this, getString(R.string.toast_current_path_unknown_search));
             return;
         }
-        DialogHelper.showInputDialog(this, "全局搜索",
-                "在 " + currentPath + " 下按名称查找（忽略 .git/node_modules 等）",
-                "搜索", "取消", query -> {
+        DialogHelper.showInputDialog(this, getString(R.string.search_dialog_title),
+                getString(R.string.search_hint, currentPath),
+                getString(R.string.btn_search), getString(R.string.btn_cancel), query -> {
                     if (query == null || query.isEmpty()) {
-                        UiUtils.showToast(this, "请输入搜索内容");
+                        UiUtils.showToast(this, getString(R.string.toast_search_query_empty));
                         return;
                     }
                     showSearchDepthDialog(query);
@@ -605,16 +605,16 @@ public class FileBrowserActivity extends BaseActivity
 
     /** 搜索深度选择（markor max_search_depth 同型选项；0=无限制）。 */
     private void showSearchDepthDialog(String query) {
-        String[] labels = {"3 层（默认）", "5 层", "10 层", "无限制"};
+        String[] labels = {getString(R.string.search_depth_3_default), getString(R.string.search_depth_5), getString(R.string.search_depth_10), getString(R.string.search_depth_unlimited)};
         int[] depths = {3, 5, 10, 0};
-        DialogHelper.showListDialog(this, "搜索深度（最大子目录层数）", labels, null,
+        DialogHelper.showListDialog(this, getString(R.string.search_depth_dialog_title), labels, null,
                 (dialog, which) -> doRecursiveSearch(query, depths[which]));
     }
 
     /** 执行搜索：SshManager 工作线程遍历，回调回主线程更新 UI（既有回调纪律）。 */
     private void doRecursiveSearch(String query, int depthOption) {
         if (isSearching) {
-            UiUtils.showToast(this, "搜索正在进行中，请稍候");
+            UiUtils.showToast(this, getString(R.string.toast_search_in_progress));
             return;
         }
         isSearching = true;
@@ -623,8 +623,8 @@ public class FileBrowserActivity extends BaseActivity
         // markor bindSnackBar 同型：搜索中常驻 Snackbar + 「取消」动作（非模态可中止）
         searchSnackbar = UiUtils.showSnackbarIndefiniteWithAction(
                 findViewById(android.R.id.content),
-                "正在搜索「" + query + "」…",
-                "取消",
+                getString(R.string.msg_searching, query),
+                getString(R.string.btn_cancel),
                 () -> {
                     AtomicBoolean token = searchCancelToken;
                     if (token != null) {
@@ -644,7 +644,7 @@ public class FileBrowserActivity extends BaseActivity
                             dismissSearchUi();
                             if (results.isEmpty()) {
                                 UiUtils.showToast(FileBrowserActivity.this,
-                                        "未找到匹配「" + query + "」的文件或目录");
+                                        getString(R.string.toast_search_no_match, query));
                             } else {
                                 showSearchResults(query, results);
                             }
@@ -659,8 +659,8 @@ public class FileBrowserActivity extends BaseActivity
                             dismissSearchUi();
                             UiUtils.showToast(FileBrowserActivity.this,
                                     partialCount > 0
-                                            ? "已取消搜索（已找到 " + partialCount + " 个匹配未展示）"
-                                            : "已取消搜索");
+                                            ? getString(R.string.toast_search_cancelled_partial, partialCount)
+                                            : getString(R.string.toast_search_cancelled));
                         });
                     }
 
@@ -670,7 +670,7 @@ public class FileBrowserActivity extends BaseActivity
                             isSearching = false;
                             if (isFinishing() || isDestroyed()) return;
                             dismissSearchUi();
-                            UiUtils.showToast(FileBrowserActivity.this, "搜索失败：" + message);
+                            UiUtils.showToast(FileBrowserActivity.this, getString(R.string.toast_search_failed, message));
                         });
                     }
                 });
@@ -691,11 +691,11 @@ public class FileBrowserActivity extends BaseActivity
         for (int i = 0; i < results.size(); i++) {
             SearchResult r = results.get(i);
             labels[i] = r.getRelativePath()
-                    + (r.isDirectory() ? "  （目录）"
-                    : "  · " + DownloadHelper.formatBytes(r.getSize()));
+                    + (r.isDirectory() ? getString(R.string.search_result_dir_suffix)
+                    : getString(R.string.search_result_file_sep) + DownloadHelper.formatBytes(r.getSize()));
         }
         DialogHelper.showListDialog(this,
-                "找到 " + results.size() + " 个「" + query + "」结果", labels, null,
+                getString(R.string.dialog_search_results_title, results.size(), query), labels, null,
                 (dialog, which) -> openSearchResult(results.get(which)));
     }
 
@@ -706,7 +706,7 @@ public class FileBrowserActivity extends BaseActivity
             currentPath = result.getPath();
             updateToolbarSubtitle();
             loadFiles();
-            UiUtils.showToast(this, "已跳转到 " + result.getPath());
+            UiUtils.showToast(this, getString(R.string.toast_jumped_to, result.getPath()));
         } else {
             onFileClick(new RemoteFile(result.getName(), result.getPath(), false,
                     result.getSize(), 0, 0));
@@ -719,15 +719,15 @@ public class FileBrowserActivity extends BaseActivity
     private void showGotoPathDialog() {
         if (isFinishing() || isDestroyed()) return;
         if (currentPath == null || currentPath.isEmpty()) {
-            UiUtils.showToast(this, "当前目录未知，无法前往");
+            UiUtils.showToast(this, getString(R.string.toast_current_path_unknown_goto));
             return;
         }
-        DialogHelper.showInputDialog(this, "前往路径",
-                "输入远端路径（绝对路径如 /var/log；相对路径基于当前目录）",
-                "前往", "取消", input -> {
+        DialogHelper.showInputDialog(this, getString(R.string.goto_path_dialog_title),
+                getString(R.string.goto_path_hint),
+                getString(R.string.btn_goto), getString(R.string.btn_cancel), input -> {
                     String target = GoToPathHelper.resolve(currentPath, input);
                     if (target == null) {
-                        UiUtils.showToast(this, "请输入路径");
+                        UiUtils.showToast(this, getString(R.string.toast_path_empty));
                         return;
                     }
                     gotoPath(target);
@@ -746,7 +746,7 @@ public class FileBrowserActivity extends BaseActivity
                         currentPath = target;
                         updateToolbarSubtitle();
                         loadFiles();
-                        UiUtils.showToast(FileBrowserActivity.this, "已跳转到 " + target);
+                        UiUtils.showToast(FileBrowserActivity.this, getString(R.string.toast_jumped_to, target));
                     } else {
                         onFileClick(new RemoteFile(
                                 GoToPathHelper.fileName(target), target, false, size, 0, 0));
@@ -758,7 +758,7 @@ public class FileBrowserActivity extends BaseActivity
             public void onNotFound() {
                 runOnUiThread(() -> {
                     if (isFinishing() || isDestroyed()) return;
-                    UiUtils.showToast(FileBrowserActivity.this, "路径不存在: " + target);
+                    UiUtils.showToast(FileBrowserActivity.this, getString(R.string.toast_path_not_found, target));
                 });
             }
 
@@ -766,7 +766,7 @@ public class FileBrowserActivity extends BaseActivity
             public void onError(String message) {
                 runOnUiThread(() -> {
                     if (isFinishing() || isDestroyed()) return;
-                    UiUtils.showToast(FileBrowserActivity.this, "无法前往: " + message);
+                    UiUtils.showToast(FileBrowserActivity.this, getString(R.string.toast_goto_failed, message));
                 });
             }
         });
@@ -840,7 +840,7 @@ public class FileBrowserActivity extends BaseActivity
                     if (config != null) {
                         reconnectAndReload(config);
                     } else {
-                        showErrorPage("无法获取连接配置，请返回重新连接");
+                        showErrorPage(getString(R.string.msg_no_config));
                     }
                 }
             }));
@@ -925,7 +925,7 @@ public class FileBrowserActivity extends BaseActivity
         recyclerFiles.setVisibility(View.GONE);
         tvEmpty.setVisibility(View.GONE);
         layoutError.setVisibility(View.VISIBLE);
-        tvErrorMsg.setText("加载失败：" + message);
+        tvErrorMsg.setText(getString(R.string.msg_load_failed, message));
     }
 
     private void reconnectAndReload(SshConfig config) {
@@ -954,7 +954,7 @@ public class FileBrowserActivity extends BaseActivity
                 runOnUiThread(() -> {
                     if (isFinishing() || isDestroyed()) return;
                     progressBar.setVisibility(View.GONE);
-                    showErrorPage("连接失败：" + message);
+                    showErrorPage(getString(R.string.msg_connect_failed, message));
                 });
             }
 
@@ -1009,10 +1009,10 @@ public class FileBrowserActivity extends BaseActivity
         }
         if (isFinishing() || isDestroyed()) return;
         DialogHelper.showConfirmDialog(this,
-                "大文件",
+                getString(R.string.large_file_dialog_title),
                 LargeFileHelper.buildConfirmMessage(file.getSize()),
-                "打开",
-                "取消",
+                getString(R.string.btn_open),
+                getString(R.string.btn_cancel),
                 d -> onOpen.run(),
                 d -> { });
     }
@@ -1026,14 +1026,14 @@ public class FileBrowserActivity extends BaseActivity
         if (isFinishing() || isDestroyed()) return;
         if (file.isDirectory()) {
             // 目录不应走到「暂不支持」分支（历史/前往路径 stat 后未分流目录时兜底）
-            UiUtils.showToast(this, "暂不支持此文件类型");
+            UiUtils.showToast(this, getString(R.string.msg_unsupported));
             return;
         }
         DialogHelper.showConfirmDialog(this,
-                "暂不支持此文件类型",
-                "「" + file.getName() + "」无法在应用内直接查看。\n是否下载到本地？（可另存后使用其他应用打开）",
-                "下载到本地",
-                "取消",
+                getString(R.string.msg_unsupported),
+                getString(R.string.msg_unsupported_download, file.getName()),
+                getString(R.string.btn_download_local),
+                getString(R.string.btn_cancel),
                 (d) -> startDownloadToLocal(file),
                 (d) -> { });
     }
@@ -1082,21 +1082,21 @@ public class FileBrowserActivity extends BaseActivity
      * 修改时间复用 FileMetaHelper（未知「—」）。
      */
     private void showFileProperties(RemoteFile file) {
-        String type = file.isDirectory() ? "目录" : "文件";
+        String type = file.isDirectory() ? getString(R.string.type_directory) : getString(R.string.type_file);
         String size = file.isDirectory() ? "—" : file.getFormattedSize();
-        String message = "类型：" + type + "\n"
-                + "路径：" + file.getPath() + "\n"
-                + "大小：" + size + "\n"
-                + "修改时间：" + FileMetaHelper.formatMtime(file.getMtime()) + "\n"
-                + "权限：" + FilePropsHelper.formatModeWithOctal(file.getPermissions());
-        DialogHelper.showMessageDialog(this, file.getName(), message, "关闭", d -> { });
+        String message = getString(R.string.prop_type, type) + "\n"
+                + getString(R.string.prop_path, file.getPath()) + "\n"
+                + getString(R.string.prop_size, size) + "\n"
+                + getString(R.string.prop_mtime, FileMetaHelper.formatMtime(file.getMtime())) + "\n"
+                + getString(R.string.prop_permissions, FilePropsHelper.formatModeWithOctal(file.getPermissions()));
+        DialogHelper.showMessageDialog(this, file.getName(), message, getString(R.string.btn_close), d -> { });
     }
 
     @Override
     public void onFileLongClick(RemoteFile file) {
         DialogHelper.showListDialog(this,
                 file.getName(),
-                new String[]{"多选", "移动", "复制", "复制路径", "下载到本地", "属性", "重命名", "权限", "删除"},
+                new String[]{getString(R.string.menu_select_mode), getString(R.string.menu_move), getString(R.string.menu_copy), getString(R.string.menu_copy_path), getString(R.string.btn_download_local), getString(R.string.menu_properties), getString(R.string.menu_rename), getString(R.string.menu_permissions), getString(R.string.menu_delete)},
                 new int[]{0, R.drawable.ic_move, R.drawable.ic_copy, R.drawable.ic_content_copy,
                         R.drawable.ic_download, R.drawable.ic_info_outline, R.drawable.ic_edit,
                         R.drawable.ic_lock, R.drawable.ic_delete},
@@ -1136,7 +1136,7 @@ public class FileBrowserActivity extends BaseActivity
             downloadLauncher.launch(suggested);
         } catch (RuntimeException e) {
             pendingDownloadFile = null;
-            UiUtils.showToast(this, "无法打开保存对话框: " + UiUtils.errorMessage(e));
+            UiUtils.showToast(this, getString(R.string.toast_save_dialog_open_failed, UiUtils.errorMessage(e)));
         }
     }
 
@@ -1145,16 +1145,16 @@ public class FileBrowserActivity extends BaseActivity
         RemoteFile file = pendingDownloadFile;
         pendingDownloadFile = null;
         if (file == null || file.isDirectory()) return;
-        UiUtils.showToast(this, "正在下载 " + file.getName() + "…");
+        UiUtils.showToast(this, getString(R.string.msg_downloading, file.getName()));
         java.io.OutputStream out;
         try {
             out = getContentResolver().openOutputStream(uri);
         } catch (Exception e) {
-            UiUtils.showToast(this, "下载失败: " + UiUtils.errorMessage(e));
+            UiUtils.showToast(this, getString(R.string.toast_download_failed, UiUtils.errorMessage(e)));
             return;
         }
         if (out == null) {
-            UiUtils.showToast(this, "无法写入所选位置");
+            UiUtils.showToast(this, getString(R.string.toast_write_failed));
             return;
         }
         sshManager.downloadFile(file.getPath(), out, new SshManager.DownloadFileCallback() {
@@ -1163,7 +1163,7 @@ public class FileBrowserActivity extends BaseActivity
                 runOnUiThread(() -> {
                     if (!isFinishing() && !isDestroyed()) {
                         UiUtils.showToast(FileBrowserActivity.this,
-                                "已保存 " + file.getName() + "（" + DownloadHelper.formatBytes(bytes) + "）");
+                                getString(R.string.toast_saved, file.getName(), DownloadHelper.formatBytes(bytes)));
                     }
                 });
             }
@@ -1172,7 +1172,7 @@ public class FileBrowserActivity extends BaseActivity
             public void onError(String message) {
                 runOnUiThread(() -> {
                     if (!isFinishing() && !isDestroyed()) {
-                        UiUtils.showToast(FileBrowserActivity.this, "下载失败: " + message);
+                        UiUtils.showToast(FileBrowserActivity.this, getString(R.string.toast_download_failed, message));
                     }
                 });
             }
@@ -1186,7 +1186,7 @@ public class FileBrowserActivity extends BaseActivity
         try {
             uploadLauncher.launch(new String[]{"*/*"});
         } catch (RuntimeException e) {
-            UiUtils.showToast(this, "无法打开文件选择器: " + UiUtils.errorMessage(e));
+            UiUtils.showToast(this, getString(R.string.toast_picker_failed, UiUtils.errorMessage(e)));
         }
     }
 
@@ -1222,9 +1222,9 @@ public class FileBrowserActivity extends BaseActivity
                     if (isFinishing() || isDestroyed()) return;
                     if (exists) {
                         DialogHelper.showConfirmDialog(FileBrowserActivity.this,
-                                "已存在同名文件",
-                                "目标 " + targetPath + " 已存在，覆盖它吗？",
-                                "覆盖", "取消",
+                                getString(R.string.msg_same_name_exists),
+                                getString(R.string.msg_overwrite_confirm, targetPath),
+                                getString(R.string.btn_overwrite), getString(R.string.btn_cancel),
                                 d -> doUpload(uri, targetPath),
                                 d -> { });
                     } else {
@@ -1237,7 +1237,7 @@ public class FileBrowserActivity extends BaseActivity
             public void onError(String message) {
                 runOnUiThread(() -> {
                     if (!isFinishing() && !isDestroyed()) {
-                        UiUtils.showToast(FileBrowserActivity.this, "上传失败: " + message);
+                        UiUtils.showToast(FileBrowserActivity.this, getString(R.string.toast_upload_failed, message));
                     }
                 });
             }
@@ -1250,11 +1250,11 @@ public class FileBrowserActivity extends BaseActivity
         try {
             in = getContentResolver().openInputStream(uri);
         } catch (Exception e) {
-            UiUtils.showToast(this, "无法读取所选文件: " + UiUtils.errorMessage(e));
+            UiUtils.showToast(this, getString(R.string.msg_cannot_read_file_reason, UiUtils.errorMessage(e)));
             return;
         }
         if (in == null) {
-            UiUtils.showToast(this, "无法读取所选文件");
+            UiUtils.showToast(this, getString(R.string.msg_cannot_read_file));
             return;
         }
         sshManager.uploadFile(targetPath, in, new SshManager.UploadFileCallback() {
@@ -1263,7 +1263,7 @@ public class FileBrowserActivity extends BaseActivity
                 runOnUiThread(() -> {
                     if (!isFinishing() && !isDestroyed()) {
                         UiUtils.showToast(FileBrowserActivity.this,
-                                "已上传 " + DownloadHelper.suggestFileName(targetPath));
+                                getString(R.string.toast_uploaded, DownloadHelper.suggestFileName(targetPath)));
                         loadFiles();
                     }
                 });
@@ -1273,7 +1273,7 @@ public class FileBrowserActivity extends BaseActivity
             public void onError(String message) {
                 runOnUiThread(() -> {
                     if (!isFinishing() && !isDestroyed()) {
-                        UiUtils.showToast(FileBrowserActivity.this, "上传失败: " + message);
+                        UiUtils.showToast(FileBrowserActivity.this, getString(R.string.toast_upload_failed, message));
                     }
                 });
             }
@@ -1295,7 +1295,7 @@ public class FileBrowserActivity extends BaseActivity
                 on ? (int) (72 * getResources().getDisplayMetrics().density)
                    : (int) (8 * getResources().getDisplayMetrics().density));
         if (toolbar != null) {
-            toolbar.setTitle(on ? ("已选 " + adapter.getSelectedCount() + " 项")
+            toolbar.setTitle(on ? (getString(R.string.title_selected, adapter.getSelectedCount()))
                     : getString(R.string.title_files));
         }
         invalidateOptionsMenu();
@@ -1321,9 +1321,9 @@ public class FileBrowserActivity extends BaseActivity
                 config.getUsername(), dir.getPath());
         DialogHelper.showListDialog(this,
                 dir.getName(),
-                new String[]{"多选", "移动", "复制", "复制路径", "属性", "重命名", "权限", "删除",
-                        "设为主目录",
-                        bookmarked ? "取消收藏" : "收藏"},
+                new String[]{getString(R.string.menu_select_mode), getString(R.string.menu_move), getString(R.string.menu_copy), getString(R.string.menu_copy_path), getString(R.string.menu_properties), getString(R.string.menu_rename), getString(R.string.menu_permissions), getString(R.string.menu_delete),
+                        getString(R.string.menu_set_home),
+                        bookmarked ? getString(R.string.menu_remove_bookmark) : getString(R.string.menu_add_bookmark)},
                 new int[]{0, R.drawable.ic_move, R.drawable.ic_copy, R.drawable.ic_content_copy,
                         R.drawable.ic_info_outline, R.drawable.ic_edit, R.drawable.ic_lock,
                         R.drawable.ic_delete,
@@ -1350,7 +1350,7 @@ public class FileBrowserActivity extends BaseActivity
                         prefManager.updateRemotePath(
                                 config.getHost(), config.getPort(),
                                 config.getUsername(), dir.getPath());
-                        UiUtils.showToast(this, "已设为主目录");
+                        UiUtils.showToast(this, getString(R.string.toast_home_set));
                     } else if (which == 9) {
                         toggleBookmark(config, dir);
                     }
@@ -1365,11 +1365,11 @@ public class FileBrowserActivity extends BaseActivity
         if (bookmarked) {
             prefManager.removeBookmark(config.getHost(), config.getPort(),
                     config.getUsername(), dir.getPath());
-            UiUtils.showToast(this, "已取消收藏");
+            UiUtils.showToast(this, getString(R.string.toast_bookmark_removed_plain));
         } else {
             prefManager.addBookmark(config.getHost(), config.getPort(),
                     config.getUsername(), dir.getPath());
-            UiUtils.showToast(this, "已收藏 " + dir.getName());
+            UiUtils.showToast(this, getString(R.string.toast_bookmarked, dir.getName()));
         }
     }
 
@@ -1413,7 +1413,7 @@ public class FileBrowserActivity extends BaseActivity
         if (isFinishing() || isDestroyed()) return;
         Intent intent = OpenFileHelper.buildViewerIntent(this, file.getPath());
         if (intent == null) {
-            UiUtils.showToast(this, "暂不支持此文件类型");
+            UiUtils.showToast(this, getString(R.string.msg_unsupported));
             return;
         }
         recordRecentOpen(file.getPath());
@@ -1425,7 +1425,7 @@ public class FileBrowserActivity extends BaseActivity
     public void onPreviewDownloadRequested(RemoteFile file) {
         if (isFinishing() || isDestroyed()) return;
         if (file.isDirectory()) {
-            UiUtils.showToast(this, "不支持下载目录");
+            UiUtils.showToast(this, getString(R.string.msg_dir_download_unsupported));
             return;
         }
         startDownloadToLocal(file);
@@ -1475,7 +1475,7 @@ public class FileBrowserActivity extends BaseActivity
             target = homePath == null ? "" : homePath;
         }
         if (target.isEmpty()) {
-            UiUtils.showToast(this, "主目录不可用");
+            UiUtils.showToast(this, getString(R.string.msg_home_unavailable));
             return;
         }
         currentPath = target;
