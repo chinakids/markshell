@@ -288,4 +288,38 @@
         <item>复制</item>
         <item>删除</item>
     </string-array>
+
+    <!-- SavedConnectionsActivity / ImageViewerActivity / ConnectionActivity → 中文硬编码资源化专项第四子步（2026-10-15） -->
+    <string name="title_edit_connection">编辑连接</string>
+    <string name="title_new_connection">新建连接</string>
+    <string name="btn_save_and_connect">保存并连接</string>
+    <string name="title_image_viewer">图片查看器</string>
+    <string name="menu_save_image">保存图片</string>
+    <string name="menu_share_image">分享图片</string>
+    <string name="toast_path_unavailable">路径不可用</string>
+    <string name="toast_image_not_loaded">图片尚未加载完成</string>
+    <string name="msg_save_to_gallery">将图片保存到相册？</string>
+    <string name="btn_save">保存</string>
+    <string name="toast_saved_to_gallery">已保存到相册</string>
+    <string name="msg_image_undecodable">无法解码图片</string>
+    <string name="msg_image_decode_failed">图片解码失败</string>
+    <string name="title_recent_connections">最近连接</string>
+    <string name="msg_no_matching_conn">没有匹配的连接</string>
+    <string name="msg_no_saved_conn">暂无保存的连接</string>
+    <string name="menu_new_group">＋ 新建分组</string>
+    <string name="dialog_manage_groups">管理分组</string>
+    <string name="dialog_new_group">新建分组</string>
+    <string name="hint_group_name_example">分组名称（如：生产环境）</string>
+    <string name="toast_group_name_empty">分组名称不能为空</string>
+    <string name="toast_group_created">分组已创建</string>
+    <string name="toast_group_exists">分组已存在</string>
+    <string name="dialog_rename_group">重命名分组</string>
+    <string name="label_group_name">分组名称</string>
+    <string name="toast_group_renamed">分组已重命名</string>
+    <string name="toast_group_name_unchanged">新名称与旧名称相同</string>
+    <string name="dialog_delete_group">删除分组</string>
+    <string name="msg_delete_group">确定删除分组 \"%1$s\" ？</string>
+    <string name="msg_delete_group_ungrouped">组内 %1$d 条连接将退回「未分组」。</string>
+    <string name="toast_group_deleted">分组已删除</string>
+    <string name="label_ungrouped">未分组</string>
 </resources>

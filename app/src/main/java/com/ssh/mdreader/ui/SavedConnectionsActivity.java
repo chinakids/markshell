@@ -54,7 +54,7 @@ public class SavedConnectionsActivity extends BaseActivity {
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_saved_connections);
-        setupToolbar("最近连接", true);
+        setupToolbar(getString(R.string.title_recent_connections), true);
 
         prefManager = new PreferenceManager(this);
         recycler = findViewById(R.id.recycler_saved);
@@ -145,7 +145,7 @@ public class SavedConnectionsActivity extends BaseActivity {
         }
         adapter.setData(groupNames, buckets, filtering);
         tvEmpty.setVisibility(shown.isEmpty() ? View.VISIBLE : View.GONE);
-        tvEmpty.setText(filtering ? "没有匹配的连接" : "暂无保存的连接");
+        tvEmpty.setText(filtering ? getString(R.string.msg_no_matching_conn) : getString(R.string.msg_no_saved_conn));
     }
 
     private void showSearchBar() {
@@ -203,7 +203,7 @@ public class SavedConnectionsActivity extends BaseActivity {
                     if (report != null) {
                         UiUtils.showToast(SavedConnectionsActivity.this, report);
                     }
-                    UiUtils.showToast(SavedConnectionsActivity.this, "已连接");
+                    UiUtils.showToast(SavedConnectionsActivity.this, getString(R.string.msg_connected));
 
                     Intent intent = new Intent(SavedConnectionsActivity.this, FileBrowserActivity.class);
                     // 仅显式主目录（remotePath）才指定起始位置；未配置则交由文件浏览器
@@ -222,8 +222,9 @@ public class SavedConnectionsActivity extends BaseActivity {
                     if (isFinishing() || isDestroyed()) return;
                     setLoading(false);
                     DialogHelper.showConfirmDialog(SavedConnectionsActivity.this,
-                            "连接失败", message,
-                            "重新连接", "取消", "编辑配置",
+                            getString(R.string.dialog_connect_failed), message,
+                            getString(R.string.btn_reconnect), getString(R.string.btn_cancel),
+                            getString(R.string.btn_edit_config),
                             (d) -> quickConnect(config),
                             (d) -> {},
                             (d) -> editConnection(config));
@@ -295,8 +296,8 @@ public class SavedConnectionsActivity extends BaseActivity {
         if (index < 0) return;
         String name = config.getDisplayName();
         DialogHelper.showDangerConfirmDialog(this,
-                "删除连接", "确定删除 \"" + name + "\" ？",
-                "删除", "取消",
+                getString(R.string.dialog_delete_conn), getString(R.string.msg_delete_conn, name),
+                getString(R.string.btn_delete), getString(R.string.btn_cancel),
                 (d) -> {
                     prefManager.deleteConnection(index);
                     loadData();
@@ -309,11 +310,11 @@ public class SavedConnectionsActivity extends BaseActivity {
     private void showGroupManagerDialog() {
         List<String> groups = prefManager.getConnectionGroups();
         String[] items = new String[groups.size() + 1];
-        items[0] = "＋ 新建分组";
+        items[0] = getString(R.string.menu_new_group);
         for (int i = 0; i < groups.size(); i++) {
             items[i + 1] = groups.get(i);
         }
-        DialogHelper.showListDialog(this, "管理分组", items,
+        DialogHelper.showListDialog(this, getString(R.string.dialog_manage_groups), items,
                 new int[]{R.drawable.ic_add, 0, 0},
                 (d, which) -> {
                     if (which == 0) {
@@ -326,18 +327,19 @@ public class SavedConnectionsActivity extends BaseActivity {
 
     private void showNewGroupDialog() {
         DialogHelper.showInputDialog(this,
-                "新建分组", "分组名称（如：生产环境）", "创建", "取消",
+                getString(R.string.dialog_new_group), getString(R.string.hint_group_name_example),
+                getString(R.string.btn_create), getString(R.string.btn_cancel),
                 InputType.TYPE_CLASS_TEXT, null,
                 input -> {
                     if (input.isEmpty()) {
-                        UiUtils.showToast(this, "分组名称不能为空");
+                        UiUtils.showToast(this, getString(R.string.toast_group_name_empty));
                         return;
                     }
                     if (prefManager.addConnectionGroup(input)) {
-                        UiUtils.showToast(this, "分组已创建");
+                        UiUtils.showToast(this, getString(R.string.toast_group_created));
                         loadData();
                     } else {
-                        UiUtils.showToast(this, "分组已存在");
+                        UiUtils.showToast(this, getString(R.string.toast_group_exists));
                     }
                 });
     }
@@ -345,7 +347,7 @@ public class SavedConnectionsActivity extends BaseActivity {
     /** 组头长按 / 管理分组列表点选组名：弹出重命名/删除。 */
     private void showGroupActionsDialog(String group) {
         DialogHelper.showListDialog(this, group,
-                new String[]{"重命名", "删除"},
+                new String[]{getString(R.string.menu_rename), getString(R.string.menu_delete)},
                 new int[]{R.drawable.ic_edit, R.drawable.ic_delete},
                 (d, which) -> {
                     if (which == 0) {
@@ -358,18 +360,19 @@ public class SavedConnectionsActivity extends BaseActivity {
 
     private void showRenameGroupDialog(String group) {
         DialogHelper.showInputDialog(this,
-                "重命名分组", "分组名称", "确定", "取消",
+                getString(R.string.dialog_rename_group), getString(R.string.label_group_name),
+                getString(R.string.btn_ok), getString(R.string.btn_cancel),
                 InputType.TYPE_CLASS_TEXT, group,
                 input -> {
                     if (input.isEmpty()) {
-                        UiUtils.showToast(this, "分组名称不能为空");
+                        UiUtils.showToast(this, getString(R.string.toast_group_name_empty));
                         return;
                     }
                     if (prefManager.renameConnectionGroup(group, input)) {
-                        UiUtils.showToast(this, "分组已重命名");
+                        UiUtils.showToast(this, getString(R.string.toast_group_renamed));
                         loadData();
                     } else {
-                        UiUtils.showToast(this, "新名称与旧名称相同");
+                        UiUtils.showToast(this, getString(R.string.toast_group_name_unchanged));
                     }
                 });
     }
@@ -379,13 +382,14 @@ public class SavedConnectionsActivity extends BaseActivity {
         for (SshConfig c : savedList) {
             if (group.equals(ConnectionGroupHelper.groupOf(c))) count++;
         }
-        String message = "确定删除分组 \"" + group + "\" ？"
-                + (count > 0 ? "\n组内 " + count + " 条连接将退回「未分组」。" : "");
+        String message = getString(R.string.msg_delete_group, group)
+                + (count > 0 ? "\n" + getString(R.string.msg_delete_group_ungrouped, count) : "");
         DialogHelper.showDangerConfirmDialog(this,
-                "删除分组", message, "删除", "取消",
+                getString(R.string.dialog_delete_group), message,
+                getString(R.string.btn_delete), getString(R.string.btn_cancel),
                 (d) -> {
                     prefManager.deleteConnectionGroup(group);
-                    UiUtils.showToast(this, "分组已删除");
+                    UiUtils.showToast(this, getString(R.string.toast_group_deleted));
                     loadData();
                 },
                 (d) -> {});
@@ -535,7 +539,9 @@ public class SavedConnectionsActivity extends BaseActivity {
                 List<SshConfig> members = buckets.get(row.groupName);
                 if (members != null) count = members.size();
             }
-            holder.tvGroupName.setText(ungrouped ? "未分组" : row.groupName);
+            holder.tvGroupName.setText(ungrouped
+                    ? holder.itemView.getContext().getString(R.string.label_ungrouped)
+                    : row.groupName);
             holder.tvGroupCount.setText("(" + count + ")");
             // 未分组区固定展示（无折叠箭头、点击不折叠）
             holder.imgGroupArrow.setVisibility(ungrouped ? View.GONE : View.VISIBLE);
@@ -581,7 +587,7 @@ public class SavedConnectionsActivity extends BaseActivity {
             holder.itemView.setOnLongClickListener(v -> {
                 String name = config.getDisplayName();
                 DialogHelper.showListDialog(v.getContext(), name,
-                        new String[]{"编辑", "端口转发…", "复制", "删除"},
+                        v.getContext().getResources().getStringArray(R.array.conn_menu_items),
                         new int[]{R.drawable.ic_edit, R.drawable.ic_tunnel,
                                 R.drawable.ic_content_copy, R.drawable.ic_delete},
                         (dialog, which) -> {

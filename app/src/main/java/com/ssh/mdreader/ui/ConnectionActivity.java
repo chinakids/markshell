@@ -38,7 +38,7 @@ public class ConnectionActivity extends BaseActivity {
 
         boolean isEdit = getIntent().getBooleanExtra("is_edit", false);
         editIndex = getIntent().getIntExtra("edit_index", -1);
-        setupToolbar(isEdit ? "编辑连接" : "新建连接", true);
+        setupToolbar(isEdit ? getString(R.string.title_edit_connection) : getString(R.string.title_new_connection), true);
 
         prefManager = new PreferenceManager(this);
         initViews();
@@ -97,7 +97,7 @@ public class ConnectionActivity extends BaseActivity {
             if (isChecked) updateAuthFieldsVisibility();
         });
 
-        btnConnect.setText("保存并连接");
+        btnConnect.setText(R.string.btn_save_and_connect);
         btnConnect.setOnClickListener(v -> attemptConnect());
         findViewById(R.id.btn_save_only).setOnClickListener(v -> saveOnly());
     }
@@ -129,7 +129,7 @@ public class ConnectionActivity extends BaseActivity {
             prefManager.saveConnection(config);
         }
         registerGroupIfNeeded(config);
-        UiUtils.showToast(this, "已保存");
+        UiUtils.showToast(this, getString(R.string.toast_saved_plain));
         finish();
     }
 
@@ -180,8 +180,8 @@ public class ConnectionActivity extends BaseActivity {
                     if (isFinishing() || isDestroyed()) return;
                     setLoading(false);
                     DialogHelper.showConfirmDialog(ConnectionActivity.this,
-                            "连接失败", message,
-                            "重新连接", "取消",
+                            getString(R.string.dialog_connect_failed), message,
+                            getString(R.string.btn_reconnect), getString(R.string.btn_cancel),
                             (d) -> attemptConnect(),
                             (d) -> {});
                 });

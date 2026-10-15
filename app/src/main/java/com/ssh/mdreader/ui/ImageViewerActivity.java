@@ -68,7 +68,7 @@ public class ImageViewerActivity extends BaseActivity {
         setContentView(R.layout.activity_image_viewer);
 
         fileName = getIntent().getStringExtra("file_name");
-        setupToolbar(fileName != null ? fileName : "图片查看器", true);
+        setupToolbar(fileName != null ? fileName : getString(R.string.title_image_viewer), true);
 
         ivImage = findViewById(R.id.iv_image);
         loadingOverlay = findViewById(R.id.loading_overlay);
@@ -107,17 +107,17 @@ public class ImageViewerActivity extends BaseActivity {
     @Override
     public boolean onCreateOptionsMenu(Menu menu) {
         // 与 Text/Code/CSV 查看器组能力一致（走查 #31：图片查看器复制路径入口缺失）。
-        menu.add(Menu.NONE, MENU_COPY_PATH_ID, Menu.NONE, "复制路径")
+        menu.add(Menu.NONE, MENU_COPY_PATH_ID, Menu.NONE, getString(R.string.menu_copy_path))
                 .setShowAsAction(MenuItem.SHOW_AS_ACTION_NEVER);
         // 保存入口发现性（第十五轮观察：长按无可见按钮）：溢出菜单常驻入口，与长按同一语义。
-        menu.add(Menu.NONE, MENU_SAVE_IMAGE_ID, Menu.NONE, "保存图片")
+        menu.add(Menu.NONE, MENU_SAVE_IMAGE_ID, Menu.NONE, getString(R.string.menu_save_image))
                 .setShowAsAction(MenuItem.SHOW_AS_ACTION_NEVER);
         // #51 分享图片：原字节直发（零重编码，与「保存图片」同一数据通道）。
-        menu.add(Menu.NONE, MENU_SHARE_ID, Menu.NONE, "分享图片")
+        menu.add(Menu.NONE, MENU_SHARE_ID, Menu.NONE, getString(R.string.menu_share_image))
                 .setIcon(R.drawable.ic_share)
                 .setShowAsAction(MenuItem.SHOW_AS_ACTION_NEVER);
         // 走查 #56：服务器端文件更新后重读；与 FileBrowser 下拉刷新同语义
-        menu.add(Menu.NONE, MENU_RELOAD_ID, Menu.NONE, "重新加载")
+        menu.add(Menu.NONE, MENU_RELOAD_ID, Menu.NONE, getString(R.string.menu_reload))
                 .setShowAsAction(MenuItem.SHOW_AS_ACTION_NEVER);
         return true;
     }
@@ -127,7 +127,7 @@ public class ImageViewerActivity extends BaseActivity {
         if (item.getItemId() == MENU_COPY_PATH_ID) {
             String path = getIntent() != null ? getIntent().getStringExtra("file_path") : null;
             if (path == null || path.isEmpty()) {
-                UiUtils.showToast(this, "路径不可用");
+                UiUtils.showToast(this, getString(R.string.toast_path_unavailable));
             } else {
                 UiUtils.copyRemotePath(this, path);
             }
@@ -135,7 +135,7 @@ public class ImageViewerActivity extends BaseActivity {
         }
         if (item.getItemId() == MENU_SAVE_IMAGE_ID) {
             if (currentBitmap == null) {
-                UiUtils.showToast(this, "图片尚未加载完成");
+                UiUtils.showToast(this, getString(R.string.toast_image_not_loaded));
             } else {
                 showSaveDialog();
             }
@@ -143,13 +143,13 @@ public class ImageViewerActivity extends BaseActivity {
         }
         if (item.getItemId() == MENU_SHARE_ID) {
             if (originalBytes == null || originalBytes.length == 0) {
-                UiUtils.showToast(this, "图片尚未加载完成");
+                UiUtils.showToast(this, getString(R.string.toast_image_not_loaded));
                 return true;
             }
             String mime = ShareHelper.mimeForImage(originalBytes);
             String displayName = ShareHelper.suggestImageFileName(
                     fileName != null ? fileName : "image", mime);
-            UiUtils.shareBytes(this, originalBytes, displayName, mime, "分享图片");
+            UiUtils.shareBytes(this, originalBytes, displayName, mime, getString(R.string.menu_share_image));
             return true;
         }
         if (item.getItemId() == MENU_RELOAD_ID) {
@@ -161,9 +161,9 @@ public class ImageViewerActivity extends BaseActivity {
 
     private void showSaveDialog() {
         DialogHelper.showConfirmDialog(this,
-                "保存图片",
-                "将图片保存到相册？",
-                "保存", "取消",
+                getString(R.string.menu_save_image),
+                getString(R.string.msg_save_to_gallery),
+                getString(R.string.btn_save), getString(R.string.btn_cancel),
                 d -> saveImageToGallery(),
                 d -> {});
     }
@@ -197,7 +197,7 @@ public class ImageViewerActivity extends BaseActivity {
                         } else {
                             currentBitmap.compress(Bitmap.CompressFormat.PNG, 100, os);
                         }
-                        UiUtils.showToast(this, "已保存到相册");
+                        UiUtils.showToast(this, getString(R.string.toast_saved_to_gallery));
                     }
                 }
             } else {
@@ -210,7 +210,7 @@ public class ImageViewerActivity extends BaseActivity {
                     } else {
                         currentBitmap.compress(Bitmap.CompressFormat.PNG, 100, fos);
                     }
-                    UiUtils.showToast(this, "已保存到相册");
+                    UiUtils.showToast(this, getString(R.string.toast_saved_to_gallery));
                 }
 
                 // Notify media scanner
@@ -219,7 +219,7 @@ public class ImageViewerActivity extends BaseActivity {
                 getContentResolver().insert(MediaStore.Images.Media.EXTERNAL_CONTENT_URI, values);
             }
         } catch (Exception e) {
-            UiUtils.showToast(this, "保存失败: " + UiUtils.errorMessage(e));
+            UiUtils.showToast(this, getString(R.string.msg_save_failed, UiUtils.errorMessage(e)));
         }
     }
 
@@ -359,7 +359,7 @@ public class ImageViewerActivity extends BaseActivity {
                                 loadingOverlay.setVisibility(View.GONE);
                             }
                             tvError.setVisibility(View.VISIBLE);
-                            tvError.setText("加载失败: " + message);
+                            tvError.setText(getString(R.string.msg_load_failed, message));
                         });
                     }
                 });
@@ -391,7 +391,7 @@ public class ImageViewerActivity extends BaseActivity {
                             if (loadingOverlay != null) {
                                 loadingOverlay.setVisibility(View.GONE);
                             }
-                            UiUtils.showToast(ImageViewerActivity.this, "重新加载失败: " + message);
+                            UiUtils.showToast(ImageViewerActivity.this, getString(R.string.msg_reload_failed, message));
                         });
                     }
                 });
@@ -409,7 +409,7 @@ public class ImageViewerActivity extends BaseActivity {
                 loadingOverlay.setVisibility(View.GONE);
             }
             tvError.setVisibility(View.VISIBLE);
-            tvError.setText("无法解码图片");
+            tvError.setText(getString(R.string.msg_image_undecodable));
             return;
         }
 
@@ -428,7 +428,7 @@ public class ImageViewerActivity extends BaseActivity {
                 loadingOverlay.setVisibility(View.GONE);
             }
             tvError.setVisibility(View.VISIBLE);
-            tvError.setText("图片解码失败");
+            tvError.setText(getString(R.string.msg_image_decode_failed));
             return;
         }
 
