@@ -5,6 +5,7 @@ import android.os.Handler;
 import android.os.Looper;
 import android.text.InputType;
 
+import com.ssh.mdreader.R;
 import com.ssh.mdreader.model.RemoteFile;
 import com.ssh.mdreader.ssh.SshManager;
 
@@ -79,7 +80,7 @@ public class FileOpsHelper {
                                 MAIN.post(() -> {
                                     if (!host.isAlive()) return;
                                     UiUtils.showToast(context,
-                                            "已移动到 " + targetDir);
+                                            context.getString(R.string.toast_moved, targetDir));
                                     host.onFileRemoved(file.getPath());
                                 });
                             }
@@ -88,7 +89,7 @@ public class FileOpsHelper {
                             public void onError(String message) {
                                 MAIN.post(() ->
                                         UiUtils.showToast(context,
-                                                "移动失败: " + message));
+                                                context.getString(R.string.toast_move_failed, message)));
                             }
                         }));
     }
@@ -117,7 +118,7 @@ public class FileOpsHelper {
                             MAIN.post(() -> {
                                 if (!host.isAlive()) return;
                                 UiUtils.showToast(context,
-                                        "检查目标失败: " + message);
+                                        context.getString(R.string.toast_check_target_failed, message));
                             });
                         }
                     });
@@ -126,11 +127,12 @@ public class FileOpsHelper {
 
     private void confirmCopyOverwrite(RemoteFile file, String dst) {
         DialogHelper.showConfirmDialog(context,
-                "目标已存在",
-                "目标位置已存在「" + file.getName() + "」，是否覆盖？",
-                "覆盖", "跳过",
+                context.getString(R.string.dialog_target_exists),
+                context.getString(R.string.msg_target_exists_overwrite, file.getName()),
+                context.getString(R.string.btn_overwrite),
+                context.getString(R.string.btn_skip),
                 d -> performCopy(file, dst),
-                d -> UiUtils.showToast(context, "已跳过复制"));
+                d -> UiUtils.showToast(context, context.getString(R.string.toast_copy_skipped)));
     }
 
     private void performCopy(RemoteFile file, String dst) {
@@ -139,7 +141,7 @@ public class FileOpsHelper {
             public void onSuccess() {
                 MAIN.post(() -> {
                     if (!host.isAlive()) return;
-                    UiUtils.showToast(context, "已复制到 " + dst);
+                    UiUtils.showToast(context, context.getString(R.string.toast_copied_to, dst));
                     host.onFilesChanged();
                 });
             }
@@ -148,7 +150,7 @@ public class FileOpsHelper {
             public void onError(String message) {
                 MAIN.post(() -> {
                     if (!host.isAlive()) return;
-                    UiUtils.showToast(context, "复制失败: " + message);
+                    UiUtils.showToast(context, context.getString(R.string.toast_copy_failed, message));
                 });
             }
         });
@@ -178,7 +180,7 @@ public class FileOpsHelper {
                             MAIN.post(() -> {
                                 if (!host.isAlive()) return;
                                 UiUtils.showToast(context,
-                                        "检查目标失败: " + message);
+                                        context.getString(R.string.toast_check_target_failed, message));
                             });
                         }
                     });
@@ -188,11 +190,12 @@ public class FileOpsHelper {
     /** 目录级「覆盖」= 合并：目标目录已存在时确认继续合并（同名文件逐项覆盖），文案与文件版区分。 */
     private void confirmCopyDirectoryOverwrite(RemoteFile dir, String dst) {
         DialogHelper.showConfirmDialog(context,
-                "目标目录已存在",
-                "目标位置已存在目录「" + dir.getName() + "」，继续将合并两目录内容，同名文件将被覆盖。是否继续？",
-                "继续合并", "取消",
+                context.getString(R.string.dialog_target_dir_exists),
+                context.getString(R.string.msg_target_dir_exists_merge, dir.getName()),
+                context.getString(R.string.btn_merge),
+                context.getString(R.string.btn_cancel),
                 d -> performCopyDirectory(dir, dst),
-                d -> UiUtils.showToast(context, "已取消复制"));
+                d -> UiUtils.showToast(context, context.getString(R.string.toast_copy_cancelled)));
     }
 
     private void performCopyDirectory(RemoteFile dir, String dst) {
@@ -201,7 +204,7 @@ public class FileOpsHelper {
             public void onSuccess() {
                 MAIN.post(() -> {
                     if (!host.isAlive()) return;
-                    UiUtils.showToast(context, "已复制到 " + dst);
+                    UiUtils.showToast(context, context.getString(R.string.toast_copied_to, dst));
                     host.onFilesChanged();
                 });
             }
@@ -210,7 +213,7 @@ public class FileOpsHelper {
             public void onError(String message) {
                 MAIN.post(() -> {
                     if (!host.isAlive()) return;
-                    UiUtils.showToast(context, "复制失败: " + message);
+                    UiUtils.showToast(context, context.getString(R.string.toast_copy_failed, message));
                 });
             }
         });
@@ -219,20 +222,21 @@ public class FileOpsHelper {
     /** 重命名：输入框校验（非空/未改变/不含 /）后 JSch rename，成功由列表侧更新名称。 */
     public void renameFile(RemoteFile file) {
         DialogHelper.showInputDialog(context,
-                "重命名 " + file.getName(),
-                "输入新名称（不含 /）",
-                "重命名", "取消",
+                context.getString(R.string.dialog_rename_title, file.getName()),
+                context.getString(R.string.hint_rename_name),
+                context.getString(R.string.btn_rename),
+                context.getString(R.string.btn_cancel),
                 input -> {
                     if (input.isEmpty()) {
-                        UiUtils.showToast(context, "名称不能为空");
+                        UiUtils.showToast(context, context.getString(R.string.toast_name_empty));
                         return;
                     }
                     if (input.equals(file.getName())) {
-                        UiUtils.showToast(context, "名称未改变");
+                        UiUtils.showToast(context, context.getString(R.string.toast_name_unchanged));
                         return;
                     }
                     if (input.contains("/")) {
-                        UiUtils.showToast(context, "名称不能包含 /");
+                        UiUtils.showToast(context, context.getString(R.string.toast_name_contains_slash));
                         return;
                     }
                     String newPath = SshManager.buildRenamePath(file.getPath(), input);
@@ -240,7 +244,7 @@ public class FileOpsHelper {
                         @Override
                         public void onSuccess() {
                             MAIN.post(() -> {
-                                UiUtils.showToast(context, "已重命名为 " + input);
+                                UiUtils.showToast(context, context.getString(R.string.toast_renamed_to, input));
                                 host.onFileRenamed(file.getPath(), input);
                             });
                         }
@@ -248,7 +252,8 @@ public class FileOpsHelper {
                         @Override
                         public void onError(String message) {
                             MAIN.post(() ->
-                                    UiUtils.showToast(context, "重命名失败: " + message));
+                                    UiUtils.showToast(context,
+                                            context.getString(R.string.toast_rename_failed, message)));
                         }
                     });
                 });
@@ -257,9 +262,10 @@ public class FileOpsHelper {
     /** 删除文件的危险确认。 */
     public void confirmDeleteFile(RemoteFile file) {
         DialogHelper.showDangerConfirmDialog(context,
-                "删除文件",
-                "确定要删除 \"" + file.getName() + "\" 吗？此操作不可恢复。",
-                "删除", "取消",
+                context.getString(R.string.dialog_delete_file),
+                context.getString(R.string.msg_delete_file_confirm, file.getName()),
+                context.getString(R.string.btn_delete),
+                context.getString(R.string.btn_cancel),
                 d -> deleteRemoteFile(file),
                 d -> {
                 });
@@ -270,7 +276,7 @@ public class FileOpsHelper {
             @Override
             public void onSuccess() {
                 MAIN.post(() -> {
-                    UiUtils.showToast(context, "已删除 " + file.getName());
+                    UiUtils.showToast(context, context.getString(R.string.toast_deleted_name, file.getName()));
                     host.onFileRemoved(file.getPath());
                 });
             }
@@ -278,7 +284,8 @@ public class FileOpsHelper {
             @Override
             public void onError(String message) {
                 MAIN.post(() ->
-                        UiUtils.showToast(context, "删除失败: " + message));
+                        UiUtils.showToast(context,
+                                context.getString(R.string.toast_delete_failed, message)));
             }
         });
     }
@@ -290,22 +297,23 @@ public class FileOpsHelper {
     public void showChmodDialog(RemoteFile file) {
         String current = Integer.toOctalString(file.getPermissions() & 0777);
         DialogHelper.showInputDialog(context,
-                "权限 " + file.getName(),
-                "当前 " + current + "，输入 3~4 位八进制（如 644、755、1777）",
-                "确定", "取消",
+                context.getString(R.string.dialog_permissions_title, file.getName()),
+                context.getString(R.string.msg_chmod_current, current),
+                context.getString(R.string.btn_ok),
+                context.getString(R.string.btn_cancel),
                 InputType.TYPE_CLASS_NUMBER,
                 current,
                 input -> {
                     int mode = SshManager.parseOctalMode(input);
                     if (mode < 0) {
-                        UiUtils.showToast(context, "权限格式：3 或 4 位八进制（如 755）");
+                        UiUtils.showToast(context, context.getString(R.string.toast_chmod_format));
                         return;
                     }
                     ssh.chmodFile(file.getPath(), mode, new SshManager.ChmodCallback() {
                         @Override
                         public void onSuccess() {
                             MAIN.post(() -> {
-                                UiUtils.showToast(context, "已设置权限 " + input);
+                                UiUtils.showToast(context, context.getString(R.string.toast_chmod_set, input));
                                 host.onFilesChanged();
                             });
                         }
@@ -313,7 +321,8 @@ public class FileOpsHelper {
                         @Override
                         public void onError(String message) {
                             MAIN.post(() ->
-                                    UiUtils.showToast(context, "设置权限失败: " + message));
+                                    UiUtils.showToast(context,
+                                            context.getString(R.string.toast_chmod_failed, message)));
                         }
                     });
                 });
@@ -324,19 +333,20 @@ public class FileOpsHelper {
         if (files.isEmpty()) return;
         List<String> paths = pathsOf(files);
         DialogHelper.showDangerConfirmDialog(context,
-                "删除所选 " + files.size() + " 项",
-                "确定要删除选中的 " + files.size() + " 项（目录含全部内容）吗？此操作不可恢复。",
-                "删除", "取消",
+                context.getString(R.string.dialog_delete_selected_title, files.size()),
+                context.getString(R.string.msg_delete_selected_confirm, files.size()),
+                context.getString(R.string.btn_delete),
+                context.getString(R.string.btn_cancel),
                 d -> ssh.batchDelete(paths, (ok, fail, first) -> MAIN.post(() -> {
                     if (!host.isAlive()) return;
                     if (fail == 0) {
-                        UiUtils.showToast(context, "已删除 " + ok + " 项");
+                        UiUtils.showToast(context, context.getString(R.string.toast_deleted_count, ok));
                         host.onFilesRemoved(paths);
                         host.onSelectionExited();
                     } else {
                         UiUtils.showToast(context,
-                                ok > 0 ? ("部分失败：成功 " + ok + " 项，失败 " + fail + " 项：" + first)
-                                       : ("删除失败：" + first));
+                                ok > 0 ? context.getString(R.string.toast_partial_failure, ok, fail, first)
+                                       : context.getString(R.string.toast_delete_failed_prefix, first));
                         host.onSelectionExited();
                         host.onFilesChanged();
                     }
@@ -350,26 +360,27 @@ public class FileOpsHelper {
         if (files.isEmpty()) return;
         List<String> paths = pathsOf(files);
         DialogHelper.showInputDialog(context,
-                "批量设置权限（" + files.size() + " 项）",
-                "输入 3~4 位八进制（如 755）",
-                "确定", "取消",
+                context.getString(R.string.dialog_chmod_batch_title, files.size()),
+                context.getString(R.string.msg_chmod_input),
+                context.getString(R.string.btn_ok),
+                context.getString(R.string.btn_cancel),
                 InputType.TYPE_CLASS_NUMBER,
                 null,
                 input -> {
                     int mode = SshManager.parseOctalMode(input);
                     if (mode < 0) {
-                        UiUtils.showToast(context, "权限格式：3 或 4 位八进制（如 755）");
+                        UiUtils.showToast(context, context.getString(R.string.toast_chmod_format));
                         return;
                     }
                     ssh.batchChmod(paths, mode, (ok, fail, first) -> MAIN.post(() -> {
                         if (!host.isAlive()) return;
                         if (fail == 0) {
                             UiUtils.showToast(context,
-                                    "已设置 " + ok + " 项权限为 " + input);
+                                    context.getString(R.string.toast_chmod_batch_set, ok, input));
                         } else {
                             UiUtils.showToast(context,
-                                    ok > 0 ? ("部分失败：成功 " + ok + " 项，失败 " + fail + " 项：" + first)
-                                           : ("设置权限失败：" + first));
+                                    ok > 0 ? context.getString(R.string.toast_partial_failure, ok, fail, first)
+                                           : context.getString(R.string.toast_chmod_failed_prefix, first));
                         }
                         host.onSelectionExited();
                         host.onFilesChanged();
@@ -390,11 +401,11 @@ public class FileOpsHelper {
                     if (!host.isAlive()) return;
                     if (fail == 0) {
                         UiUtils.showToast(context,
-                                "已移动 " + ok + " 项到 " + targetDir);
+                                context.getString(R.string.toast_move_count_to, ok, targetDir));
                     } else {
                         UiUtils.showToast(context,
-                                ok > 0 ? ("部分失败：成功 " + ok + " 项，失败 " + fail + " 项：" + first)
-                                       : ("移动失败：" + first));
+                                ok > 0 ? context.getString(R.string.toast_partial_failure, ok, fail, first)
+                                       : context.getString(R.string.toast_move_failed_prefix, first));
                     }
                     host.onSelectionExited();
                     host.onFilesChanged();
@@ -426,7 +437,8 @@ public class FileOpsHelper {
                     public void onError(String message) {
                         MAIN.post(() -> {
                             if (!host.isAlive()) return;
-                            UiUtils.showToast(context, "检查目标失败: " + message);
+                            UiUtils.showToast(context,
+                                    context.getString(R.string.toast_check_target_failed, message));
                         });
                     }
                 }));
@@ -439,9 +451,10 @@ public class FileOpsHelper {
         int conflictCount = existingNames.size();
         int rest = paths.size() - conflictCount;
         DialogHelper.showListDialog(context,
-                "目标目录已存在 " + conflictCount + " 个同名项",
-                new String[]{"全部覆盖（" + conflictCount + " 项）",
-                        "跳过同名（复制其余 " + rest + " 项）", "取消"},
+                context.getString(R.string.dialog_copy_conflict_title, conflictCount),
+                new String[]{context.getString(R.string.item_copy_overwrite_all, conflictCount),
+                        context.getString(R.string.item_copy_skip_same, rest),
+                        context.getString(R.string.btn_cancel)},
                 null,
                 (dialog, which) -> {
                     if (which == 0) {
@@ -461,20 +474,20 @@ public class FileOpsHelper {
     private void runBatchCopy(List<String> toCopy, String targetDir, int skippedCount) {
         if (toCopy.isEmpty()) {
             if (host.isAlive()) {
-                UiUtils.showToast(context, "所选项目在目标目录均已存在，未复制");
+                UiUtils.showToast(context, context.getString(R.string.toast_copy_all_exists));
                 host.onSelectionExited();
             }
             return;
         }
         ssh.batchCopy(toCopy, targetDir, (ok, fail, first) -> MAIN.post(() -> {
             if (!host.isAlive()) return;
-            String suffix = skippedCount > 0 ? "（跳过 " + skippedCount + " 个同名项）" : "";
+            String suffix = skippedCount > 0 ? context.getString(R.string.toast_copy_skipped_suffix, skippedCount) : "";
             if (fail == 0) {
-                UiUtils.showToast(context, "已复制 " + ok + " 项到 " + targetDir + suffix);
+                UiUtils.showToast(context, context.getString(R.string.toast_copy_count_to, ok, targetDir) + suffix);
             } else {
                 UiUtils.showToast(context,
-                        ok > 0 ? ("部分失败：成功 " + ok + " 项，失败 " + fail + " 项：" + first)
-                               : ("复制失败：" + first));
+                        ok > 0 ? context.getString(R.string.toast_partial_failure, ok, fail, first)
+                               : context.getString(R.string.toast_copy_failed_prefix, first));
             }
             host.onSelectionExited();
         }));
@@ -483,9 +496,10 @@ public class FileOpsHelper {
     /** 删除目录的危险确认（含全部内容）。 */
     public void confirmDeleteDirectory(RemoteFile dir) {
         DialogHelper.showDangerConfirmDialog(context,
-                "删除目录",
-                "确定要删除目录 \"" + dir.getName() + "\"（含全部内容）吗？此操作不可恢复。",
-                "删除", "取消",
+                context.getString(R.string.dialog_delete_directory),
+                context.getString(R.string.msg_delete_directory_confirm, dir.getName()),
+                context.getString(R.string.btn_delete),
+                context.getString(R.string.btn_cancel),
                 d -> deleteRemoteDirectory(dir),
                 d -> {
                 });
@@ -496,7 +510,7 @@ public class FileOpsHelper {
             @Override
             public void onSuccess() {
                 MAIN.post(() -> {
-                    UiUtils.showToast(context, "已删除 " + dir.getName());
+                    UiUtils.showToast(context, context.getString(R.string.toast_deleted_name, dir.getName()));
                     host.onFileRemoved(dir.getPath());
                 });
             }
@@ -504,7 +518,8 @@ public class FileOpsHelper {
             @Override
             public void onError(String message) {
                 MAIN.post(() ->
-                        UiUtils.showToast(context, "删除失败: " + message));
+                        UiUtils.showToast(context,
+                                context.getString(R.string.toast_delete_failed, message)));
             }
         });
     }
