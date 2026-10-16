@@ -1,13 +1,16 @@
 package com.ssh.mdreader.util;
 
 import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertNull;
-import static org.junit.Assert.assertNotNull;
+
+import com.ssh.mdreader.R;
 
 import org.junit.Test;
 
 /**
  * NewFileHelper 纯函数单测：名称校验（空/./../斜杠/合法名）与路径拼接（根目录/尾斜杠/trim）。
+ *
+ * <p>按「返回资源 ID」方案：{@link NewFileHelper#validateName} 合法返回 0、非法返回对应
+ * {@code R.string.*} 资源 ID（本类保持无 Context 的 JVM 纯函数可测性，断言资源 ID 常量而非中文字面量）。
  */
 public class NewFileHelperTest {
 
@@ -15,68 +18,68 @@ public class NewFileHelperTest {
 
     @Test
     public void validateName_nullIsError() {
-        assertNotNull(NewFileHelper.validateName(null));
+        assertEquals(R.string.error_newfile_name_empty, NewFileHelper.validateName(null));
     }
 
     @Test
     public void validateName_emptyIsError() {
-        assertNotNull(NewFileHelper.validateName(""));
+        assertEquals(R.string.error_newfile_name_empty, NewFileHelper.validateName(""));
     }
 
     @Test
     public void validateName_blankIsError() {
-        assertNotNull(NewFileHelper.validateName("   "));
+        assertEquals(R.string.error_newfile_name_empty, NewFileHelper.validateName("   "));
     }
 
     @Test
     public void validateName_dotIsError() {
-        assertNotNull(NewFileHelper.validateName("."));
+        assertEquals(R.string.error_newfile_name_dotdot, NewFileHelper.validateName("."));
     }
 
     @Test
     public void validateName_dotDotIsError() {
-        assertNotNull(NewFileHelper.validateName(".."));
+        assertEquals(R.string.error_newfile_name_dotdot, NewFileHelper.validateName(".."));
     }
 
     @Test
     public void validateName_containsSlashIsError() {
-        assertNotNull(NewFileHelper.validateName("a/b.txt"));
+        assertEquals(R.string.error_newfile_name_slash, NewFileHelper.validateName("a/b.txt"));
     }
 
     @Test
     public void validateName_leadingSlashIsError() {
-        assertNotNull(NewFileHelper.validateName("/note.md"));
+        assertEquals(R.string.error_newfile_name_slash, NewFileHelper.validateName("/note.md"));
     }
 
     @Test
     public void validateName_trailingSlashIsError() {
-        assertNotNull(NewFileHelper.validateName("folder/"));
+        assertEquals(R.string.error_newfile_name_slash, NewFileHelper.validateName("folder/"));
     }
 
     @Test
     public void validateName_plainFileOk() {
-        assertNull(NewFileHelper.validateName("笔记.md"));
+        assertEquals(0, NewFileHelper.validateName("笔记.md"));
     }
 
     @Test
     public void validateName_spacesInsideOk() {
-        assertNull(NewFileHelper.validateName("my notes.md"));
+        assertEquals(0, NewFileHelper.validateName("my notes.md"));
     }
 
     @Test
     public void validateName_trimmedSurroundingWhitespaceOk() {
-        assertNull(NewFileHelper.validateName("  报告.md  "));
+        assertEquals(0, NewFileHelper.validateName("  报告.md  "));
     }
 
     @Test
     public void validateName_hiddenDotFileOk() {
         // 隐藏文件（点开头）允许创建——与「显示隐藏文件」语义一致
-        assertNull(NewFileHelper.validateName(".env"));
+        assertEquals(0, NewFileHelper.validateName(".env"));
     }
 
     @Test
     public void validateName_chineseOk() {
-        assertNull(NewFileHelper.validateName("周报 2026-10"));
+        assertEquals(0, NewFileHelper.validateName("周报 2026-10"));
     }
 
     // ── joinPath ──────────────────────────────────────────────────────────────

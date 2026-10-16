@@ -291,9 +291,9 @@ public class FileBrowserActivity extends BaseActivity
         DialogHelper.showInputDialog(this,
                 getString(R.string.menu_new_file), getString(R.string.hint_new_file_name), getString(R.string.btn_create), getString(R.string.btn_cancel),
                 name -> {
-                    String error = NewFileHelper.validateName(name);
-                    if (error != null) {
-                        UiUtils.showToast(this, error);
+                    int errorId = NewFileHelper.validateName(name);
+                    if (errorId != 0) {
+                        UiUtils.showToast(this, getString(errorId));
                         return;
                     }
                     final String path = NewFileHelper.joinPath(currentPath, name);
@@ -321,9 +321,9 @@ public class FileBrowserActivity extends BaseActivity
         DialogHelper.showInputDialog(this,
                 getString(R.string.menu_new_folder), getString(R.string.hint_new_folder_name), getString(R.string.btn_create), getString(R.string.btn_cancel),
                 name -> {
-                    String error = NewFileHelper.validateName(name);
-                    if (error != null) {
-                        UiUtils.showToast(this, error);
+                    int errorId = NewFileHelper.validateName(name);
+                    if (errorId != 0) {
+                        UiUtils.showToast(this, getString(errorId));
                         return;
                     }
                     final String path = NewFileHelper.joinPath(currentPath, name);

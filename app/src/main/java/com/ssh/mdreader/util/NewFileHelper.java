@@ -1,5 +1,7 @@
 package com.ssh.mdreader.util;
 
+import com.ssh.mdreader.R;
+
 /**
  * 新建文件/目录的名称校验与路径拼接纯函数层（JVM 可测，无 Android 依赖）。
  *
@@ -27,13 +29,17 @@ public final class NewFileHelper {
     private NewFileHelper() {
     }
 
-    /** 名称是否合法（游戏规则见类注释）。合法返回 null；否则返回给用户看的中文错误文案。 */
-    public static String validateName(String name) {
-        if (name == null || name.trim().isEmpty()) return "名称不能为空";
+    /**
+     * 名称是否合法（游戏规则见类注释）。合法返回 {@code 0}；否则返回错误文案的<b>资源 ID</b>
+     * （{@code R.string.*}，如 {@link #validateName} 类注释），由 UI 层 {@code getString(id)} 解析——
+     * 本类保持无 Context 的 JVM 纯函数可测性（返回资源 ID 而非中文字面量）。
+     */
+    public static int validateName(String name) {
+        if (name == null || name.trim().isEmpty()) return R.string.error_newfile_name_empty;
         String n = name.trim();
-        if (n.equals(".") || n.equals("..")) return "名称不能是 “.” 或 “..”";
-        if (n.contains("/")) return "名称不能包含 “/”";
-        return null;
+        if (n.equals(".") || n.equals("..")) return R.string.error_newfile_name_dotdot;
+        if (n.contains("/")) return R.string.error_newfile_name_slash;
+        return 0;
     }
 
     /** 拼接子路径：dir（去除尾部斜杠；根 "/" 与空串特殊处理）+ "/" + name.trim()。 */

@@ -87,6 +87,9 @@
     <string name="btn_create">创建</string>
     <string name="toast_created">已创建: %1$s</string>
     <string name="toast_create_failed">创建失败: %1$s</string>
+    <string name="error_newfile_name_empty">名称不能为空</string>
+    <string name="error_newfile_name_dotdot">名称不能是 “.” 或 “..”</string>
+    <string name="error_newfile_name_slash">名称不能包含 “/”</string>
     <string name="toast_no_bookmarks">还没有书签，长按目录即可收藏</string>
     <string name="dialog_bookmarks_title">书签目录（%1$d）</string>
     <string name="btn_clear_all">清空全部</string>
