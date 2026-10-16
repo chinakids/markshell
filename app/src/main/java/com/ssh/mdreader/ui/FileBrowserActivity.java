@@ -1010,7 +1010,8 @@ public class FileBrowserActivity extends BaseActivity
         if (isFinishing() || isDestroyed()) return;
         DialogHelper.showConfirmDialog(this,
                 getString(R.string.large_file_dialog_title),
-                LargeFileHelper.buildConfirmMessage(file.getSize()),
+                getString(LargeFileHelper.confirmMessageResId(),
+                        DownloadHelper.formatBytes(file.getSize())),
                 getString(R.string.btn_open),
                 getString(R.string.btn_cancel),
                 d -> onOpen.run(),

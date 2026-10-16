@@ -1,5 +1,7 @@
 package com.ssh.mdreader.util;
 
+import com.ssh.mdreader.R;
+
 /**
  * 大文件打开护栏的纯函数层（零 Android 依赖，JVM 可测）。
  *
@@ -18,8 +20,9 @@ package com.ssh.mdreader.util;
  *       （未知不提示，path-only 入口（历史/链接）行为零变化，护栏保守化）；</li>
  *   <li>阈值取舍：markor 128KB 是本地便签编辑器场景（本项目 1MB 配置文件也弹=过度打扰），
  *       4MB 为「有明显卡顿风险」的文本加载护栏阈值（本卡产品决策落档，非竞品键值）；</li>
- *   <li>{@link #buildConfirmMessage(long)}：确认对话框文案，可读大小委托
- *       {@link DownloadHelper#formatBytes(long)}（单一语义源，与列表/属性显示一致）。</li>
+ *   <li>{@link #confirmMessageResId()}：确认对话框文案资源 ID（格式串，%1$s=可读大小），
+ *       调用方以 {@code getString(id, DownloadHelper.formatBytes(size))} 格式化（大小语义
+ *       委托 {@link DownloadHelper#formatBytes(long)}——单一语义源，与列表/属性显示一致）。</li>
  * </ul>
  */
 public final class LargeFileHelper {
@@ -35,10 +38,8 @@ public final class LargeFileHelper {
         return size > LARGE_FILE_THRESHOLD_BYTES;
     }
 
-    /** 大文件确认对话框文案：可读大小 + 卡顿/内存说明。 */
-    public static String buildConfirmMessage(long size) {
-        return "文件较大（" + DownloadHelper.formatBytes(size) + "）\n"
-                + "完全加载到查看器可能会卡顿并占用较多内存。\n"
-                + "仍要打开吗？";
+    /** 大文件确认对话框文案资源 ID（「返回资源 ID」方案，纯函数零 Context）。 */
+    public static int confirmMessageResId() {
+        return R.string.msg_confirm_large_file;
     }
 }

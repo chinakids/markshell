@@ -1,5 +1,7 @@
 package com.ssh.mdreader.util;
 
+import com.ssh.mdreader.R;
+
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
@@ -52,33 +54,12 @@ public class LargeFileHelperTest {
         assertTrue(LargeFileHelper.isLargeFile(512L * 1024 * 1024));
     }
 
-    // ── buildConfirmMessage：委托 DownloadHelper.formatBytes（单一语义源） ──
+    // ── confirmMessageResId：返回文案资源 ID（「返回资源 ID」方案，纯函数零 Context） ──
 
     @Test
-    public void message_containsReadableSize() {
-        String msg = LargeFileHelper.buildConfirmMessage(5L * 1024 * 1024);
-        assertTrue(msg.contains("5.0 MB"));
-    }
-
-    @Test
-    public void message_mentionsLoadingCost() {
-        String msg = LargeFileHelper.buildConfirmMessage(20L * 1024 * 1024);
-        assertTrue(msg.contains("卡顿"));
-        assertTrue(msg.contains("仍要打开吗？"));
-    }
-
-    @Test
-    public void message_startsWithHeader() {
-        String msg = LargeFileHelper.buildConfirmMessage(20L * 1024 * 1024);
-        assertTrue(msg.startsWith("文件较大（"));
-    }
-
-    @Test
-    public void message_formatBytesDelegation_consistent() {
-        long bytes = 7L * 1024 * 1024;
-        assertEquals(DownloadHelper.formatBytes(bytes),
-                LargeFileHelper.buildConfirmMessage(bytes)
-                        .substring("文件较大（".length(),
-                                "文件较大（".length() + DownloadHelper.formatBytes(bytes).length()));
+    public void confirmMessage_resId_matchesResource() {
+        // 文案本体已迁入 strings.xml（格式串 %1$s=可读大小），helper 仅返回资源 ID，
+        // 由 UI 层 getString(id, DownloadHelper.formatBytes(size)) 格式化。
+        assertEquals(R.string.msg_confirm_large_file, LargeFileHelper.confirmMessageResId());
     }
 }

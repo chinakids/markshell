@@ -151,6 +151,7 @@
     <string name="msg_no_config">无法获取连接配置，请返回重新连接</string>
     <string name="msg_connect_failed">连接失败: %1$s</string>
     <string name="large_file_dialog_title">大文件</string>
+    <string name="msg_confirm_large_file">文件较大（%1$s）\n完全加载到查看器可能会卡顿并占用较多内存。\n仍要打开吗？</string>
     <string name="btn_open">打开</string>
     <string name="msg_unsupported">暂不支持此文件类型</string>
     <string name="msg_unsupported_download">「%1$s」无法在应用内直接查看。\n是否下载到本地？（可另存后使用其他应用打开）</string>
