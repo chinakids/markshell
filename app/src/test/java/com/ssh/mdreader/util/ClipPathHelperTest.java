@@ -3,11 +3,16 @@ package com.ssh.mdreader.util;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNull;
 
+import com.ssh.mdreader.R;
+
 import org.junit.Test;
 
 /**
  * JVM unit tests for {@link ClipPathHelper}.
  * Pure text logic — no Android dependencies.
+ *
+ * <p>按「返回资源 ID」方案：{@link ClipPathHelper#toastText} 返回 {@code R.string.*} 资源 ID
+ * （int；null/空路径返回 {@code 0} 表示不提示），断言资源 ID 常量而非中文字面量。
  */
 public class ClipPathHelperTest {
 
@@ -42,13 +47,17 @@ public class ClipPathHelperTest {
     // ── toastText ─────────────────────────────────────────────────────────
 
     @Test
-    public void toastTextPrefixedWithCopyNotice() {
-        assertEquals("已复制路径: /etc/hosts", ClipPathHelper.toastText("/etc/hosts"));
+    public void toastTextReturnsCopyResourceId() {
+        assertEquals(R.string.toast_copy_path_done, ClipPathHelper.toastText("/etc/hosts"));
     }
 
     @Test
-    public void toastTextNullReturnsNull() {
-        assertNull(ClipPathHelper.toastText(null));
-        assertNull(ClipPathHelper.toastText(""));
+    public void toastTextNullReturnsZero() {
+        assertEquals(0, ClipPathHelper.toastText(null));
+    }
+
+    @Test
+    public void toastTextEmptyReturnsZero() {
+        assertEquals(0, ClipPathHelper.toastText(""));
     }
 }

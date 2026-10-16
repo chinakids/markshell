@@ -98,9 +98,9 @@ public class UiUtils {
         if (cm != null) {
             cm.setPrimaryClip(ClipData.newPlainText("远程路径", clip));
         }
-        String msg = ClipPathHelper.toastText(path);
-        if (msg != null) {
-            showToast(context, msg);
+        int id = ClipPathHelper.toastText(path);
+        if (id != 0) {
+            showToast(context, context.getString(id, path));
         }
     }
 

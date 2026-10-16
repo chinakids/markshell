@@ -58,6 +58,7 @@
     <!-- 查看器通用菜单 → 中文硬编码资源化首批（方案1 全面迁移，2026-10-14） -->
     <string name="menu_find">查找</string>
     <string name="menu_copy_path">复制路径</string>
+    <string name="toast_copy_path_done">已复制路径: %1$s</string>
     <string name="menu_share">分享</string>
     <string name="menu_goto_line">转到行号…</string>
     <string name="menu_reload">重新加载</string>

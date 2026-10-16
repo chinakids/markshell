@@ -1,5 +1,7 @@
 package com.ssh.mdreader.util;
 
+import com.ssh.mdreader.R;
+
 /**
  * 纯函数层：远程路径复制（能力发现循环 #22 复制远程路径）。
  *
@@ -14,6 +16,10 @@ package com.ssh.mdreader.util;
  *   <li>toast 文案带「已复制」前缀便于用户确认动作生效；</li>
  *   <li>null/空路径=没有可复制的对象，不走剪贴板（调用方先守卫）。</li>
  * </ul>
+ *
+ * <p>文案资源化（「返回资源 ID」方案，见迭代130）：{@link #toastText} 返回
+ * {@code R.string.*} 资源 ID（int；null/空路径返回 {@code 0} 表示不提示），由 UI 层
+ * {@code getString(id, path)} 解析——本类保持无 Context 的 JVM 纯函数可测性。
  */
 public final class ClipPathHelper {
 
@@ -29,10 +35,11 @@ public final class ClipPathHelper {
     }
 
     /**
-     * 复制后的用户提示文案；null/空路径返回 {@code null}（调用方可不提示）。
+     * 复制后的提示文案<b>资源 ID</b>；null/空路径返回 {@code 0}（调用方可不提示）。
+     * UI 层 {@code getString(id, path)} 解析（占位符 {@code %1$s}=完整路径）。
      */
-    public static String toastText(String path) {
-        if (path == null || path.isEmpty()) return null;
-        return "已复制路径: " + path;
+    public static int toastText(String path) {
+        if (path == null || path.isEmpty()) return 0;
+        return R.string.toast_copy_path_done;
     }
 }
