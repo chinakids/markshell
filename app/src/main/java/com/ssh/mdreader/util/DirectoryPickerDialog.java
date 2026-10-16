@@ -94,7 +94,7 @@ public class DirectoryPickerDialog extends Dialog {
         view.findViewById(R.id.dialog_picker_btn_move)
                 .setOnClickListener(v -> onConfirmPicked());
         ((TextView) view.findViewById(R.id.dialog_picker_btn_move))
-                .setText(copyMode ? "复制到此" : "移动到此");
+                .setText(copyMode ? R.string.btn_copy_to : R.string.btn_move_to);
 
         setCancelable(true);
     }
@@ -138,7 +138,7 @@ public class DirectoryPickerDialog extends Dialog {
         view.findViewById(R.id.dialog_picker_btn_move)
                 .setOnClickListener(v -> onConfirmPicked());
         ((TextView) view.findViewById(R.id.dialog_picker_btn_move))
-                .setText(copyMode ? "复制到此" : "移动到此");
+                .setText(copyMode ? R.string.btn_copy_to : R.string.btn_move_to);
 
         setCancelable(true);
     }
@@ -146,9 +146,10 @@ public class DirectoryPickerDialog extends Dialog {
     /** 标题：批量模式显示「移动/复制『N 项』到」，单源模式沿用「移动/复制『名称』到」。 */
     private String buildTitle(boolean singleSource) {
         if (!singleSource) {
-            return (copyMode ? "复制「" : "移动「") + batchSrcPaths.size() + " 项」到";
+            return getContext().getString(copyMode ? R.string.msg_copy_to_count : R.string.msg_move_to_count,
+                    batchSrcPaths.size());
         }
-        return (copyMode ? "复制「" : "移动「") + srcName + "」到";
+        return getContext().getString(copyMode ? R.string.msg_copy_to_name : R.string.msg_move_to_name, srcName);
     }
 
     /** 弹出「移动」模式的对话框；初始目标目录 = 源所在目录（用户可直接「上级」或点选子目录）。返回实例供调用方管理生命周期。 */
@@ -208,8 +209,8 @@ public class DirectoryPickerDialog extends Dialog {
             dismiss();
             return;
         }
-        String sameLocationMsg = copyMode ? "目标与原位置相同" : "位置未改变";
-        String intoItselfMsg = copyMode ? "不能复制到自身内部" : "不能移动到自身内部";
+        String sameLocationMsg = getContext().getString(copyMode ? R.string.toast_target_same : R.string.toast_location_unchanged);
+        String intoItselfMsg = getContext().getString(copyMode ? R.string.toast_copy_into_itself : R.string.toast_move_into_itself);
         if (SshManager.isMoveSameLocation(srcPath, currentDir)) {
             UiUtils.showToast(getContext(), sameLocationMsg);
             return;
@@ -257,7 +258,7 @@ public class DirectoryPickerDialog extends Dialog {
                 mainHandler.post(() -> {
                     if (!isShowing()) return;
                     progressBar.setVisibility(View.GONE);
-                    UiUtils.showToast(getContext(), "加载目录失败: " + message);
+                    UiUtils.showToast(getContext(), getContext().getString(R.string.msg_load_dir_failed, message));
                 });
             }
         });

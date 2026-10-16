@@ -48,7 +48,8 @@ public class TocAdapter extends RecyclerView.Adapter<TocAdapter.VH> {
     public void onBindViewHolder(@NonNull VH holder, int position) {
         TocEntry entry = items.get(position);
         String text = entry.heading.text;
-        holder.tvTitle.setText(text.isEmpty() ? "（无标题）" : text);
+        holder.tvTitle.setText(text.isEmpty() ? holder.itemView.getContext()
+                .getString(R.string.label_no_title) : text);
         // 缩进 = 级别-1（每级 14dp），器内一级（indent=0）用 14dp 与批注列表对齐
         float d = holder.tvTitle.getResources().getDisplayMetrics().density;
         int px = (int) ((entry.indent + 1) * 14 * d);

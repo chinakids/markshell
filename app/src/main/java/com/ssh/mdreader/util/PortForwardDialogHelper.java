@@ -24,19 +24,20 @@ public final class PortForwardDialogHelper {
     public static void showManager(Context context, PreferenceManager prefManager, SshConfig config) {
         String key = SshConnectionHelper.deriveConnectionKey(config);
         if (key == null) {
-            UiUtils.showToast(context, "连接信息不完整");
+            UiUtils.showToast(context, context.getString(R.string.msg_conn_incomplete));
             return;
         }
         java.util.List<PortForwardRule> rules = prefManager.getPortForwardRules(key);
         String[] items = new String[rules.size() + 1];
         int[] icons = new int[rules.size() + 1];
-        items[0] = "＋ 新建规则";
+        items[0] = context.getString(R.string.menu_new_rule);
         icons[0] = R.drawable.ic_add;
         for (int i = 0; i < rules.size(); i++) {
             items[i + 1] = PortForwardHelper.describe(rules.get(i));
             icons[i + 1] = 0;
         }
-        DialogHelper.showListDialog(context, "端口转发（" + config.getDisplayName() + "）",
+        DialogHelper.showListDialog(context,
+                context.getString(R.string.dialog_portforward_title, config.getDisplayName()),
                 items, icons, (d, which) -> {
                     if (which == 0) {
                         showEditDialog(context, prefManager, key, null);
@@ -50,17 +51,18 @@ public final class PortForwardDialogHelper {
     private static void showEditDialog(Context context, PreferenceManager prefManager,
                                        String key, PortForwardRule initial) {
         DialogHelper.showPortForwardDialog(context,
-                initial == null ? "新建端口转发规则" : "编辑端口转发规则",
-                "保存", "取消", initial, rule -> {
+                initial == null ? context.getString(R.string.title_new_rule)
+                        : context.getString(R.string.title_edit_rule),
+                context.getString(R.string.btn_save), context.getString(R.string.btn_cancel), initial, rule -> {
                     String error = PortForwardHelper.validate(rule);
                     if (error != null) {
                         UiUtils.showToast(context, error);
                         return;
                     }
                     if (prefManager.savePortForwardRule(key, rule)) {
-                        UiUtils.showToast(context, "规则已保存，重新连接后生效");
+                        UiUtils.showToast(context, context.getString(R.string.toast_rule_saved));
                     } else {
-                        UiUtils.showToast(context, "规则保存失败");
+                        UiUtils.showToast(context, context.getString(R.string.toast_rule_save_failed));
                     }
                 });
     }
@@ -69,16 +71,16 @@ public final class PortForwardDialogHelper {
     private static void showActionsDialog(Context context, PreferenceManager prefManager,
                                           String key, PortForwardRule rule) {
         DialogHelper.showListDialog(context, PortForwardHelper.describe(rule),
-                new String[]{"编辑", "删除"},
+                new String[]{context.getString(R.string.menu_edit), context.getString(R.string.menu_delete)},
                 new int[]{R.drawable.ic_edit, R.drawable.ic_delete},
                 (d, which) -> {
                     if (which == 0) {
                         showEditDialog(context, prefManager, key, rule);
                     } else if (which == 1) {
                         if (prefManager.deletePortForwardRule(key, rule.getLocalPort())) {
-                            UiUtils.showToast(context, "规则已删除");
+                            UiUtils.showToast(context, context.getString(R.string.toast_rule_deleted));
                         } else {
-                            UiUtils.showToast(context, "规则删除失败");
+                            UiUtils.showToast(context, context.getString(R.string.toast_rule_delete_failed));
                         }
                     }
                 });

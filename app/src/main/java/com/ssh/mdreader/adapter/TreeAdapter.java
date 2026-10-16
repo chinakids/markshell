@@ -416,7 +416,8 @@ public class TreeAdapter extends RecyclerView.Adapter<TreeAdapter.ViewHolder> {
 
         if (file.isDirectory()) {
             holder.ivIcon.setImageResource(R.drawable.ic_folder);
-            holder.tvInfo.setText("文件夹 · " + FileMetaHelper.formatMtime(file.getMtime()));
+            holder.tvInfo.setText(holder.itemView.getContext()
+                    .getString(R.string.msg_folder_time, FileMetaHelper.formatMtime(file.getMtime())));
             // 多选模式下点击=选中而非展开，隐藏展开箭头避免误导
             holder.ivExpand.setVisibility(selectionMode ? View.INVISIBLE : View.VISIBLE);
 
@@ -483,7 +484,7 @@ public class TreeAdapter extends RecyclerView.Adapter<TreeAdapter.ViewHolder> {
             return;
         }
 
-        holder.tvInfo.setText("加载中…");
+        holder.tvInfo.setText(R.string.msg_loading);
 
         if (listener != null) {
             listener.onDirectoryExpand(dir, new ExpandCallback() {
@@ -496,7 +497,7 @@ public class TreeAdapter extends RecyclerView.Adapter<TreeAdapter.ViewHolder> {
 
                 @Override
                 public void onError(String message) {
-                    holder.tvInfo.setText("加载失败，点击重试");
+                    holder.tvInfo.setText(R.string.msg_load_failed_retry);
                     holder.itemView.setOnClickListener(v -> toggleDirectory(dir, holder));
                 }
             });

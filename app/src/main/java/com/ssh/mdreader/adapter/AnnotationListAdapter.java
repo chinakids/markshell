@@ -79,7 +79,8 @@ public class AnnotationListAdapter
 
         // Original text — truncated label (matches the unrendered source text)
         String orig = entry.originalText != null ? entry.originalText.trim() : "";
-        holder.tvOriginal.setText(orig.isEmpty() ? "（原文未知）" : orig);
+        holder.tvOriginal.setText(orig.isEmpty() ? holder.itemView.getContext()
+                .getString(R.string.label_original_unknown) : orig);
 
         // Annotation text
         holder.tvText.setText(entry.text);
