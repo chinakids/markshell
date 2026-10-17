@@ -13,6 +13,7 @@ import android.widget.Toast;
 import androidx.core.content.FileProvider;
 
 import com.google.android.material.snackbar.Snackbar;
+import com.ssh.mdreader.R;
 import android.view.View;
 
 import java.io.File;
@@ -96,7 +97,7 @@ public class UiUtils {
         if (clip == null) return;
         ClipboardManager cm = (ClipboardManager) context.getSystemService(Context.CLIPBOARD_SERVICE);
         if (cm != null) {
-            cm.setPrimaryClip(ClipData.newPlainText("远程路径", clip));
+            cm.setPrimaryClip(ClipData.newPlainText(context.getString(R.string.clip_remote_path_label), clip));
         }
         int id = ClipPathHelper.toastText(path);
         if (id != 0) {
@@ -117,18 +118,18 @@ public class UiUtils {
      * 空/空白文本提示后不动作。chooserTitle 默认「分享文本」。
      */
     public static void shareText(Context context, String text, String fileName) {
-        shareText(context, text, fileName, "分享文本");
+        shareText(context, text, fileName, context.getString(R.string.share_text_title));
     }
 
     /** {@link #shareText(Context, String, String)} + 自定义 chooser 标题（批注导出等场景）。 */
     public static void shareText(Context context, String text, String fileName,
                                  String chooserTitle) {
         if (!ShareHelper.isShareableText(text)) {
-            showToast(context, "暂无可分享内容");
+            showToast(context, context.getString(R.string.toast_no_share_content));
             return;
         }
         if (ShareHelper.shouldStreamText(text)) {
-            String name = fileName != null && !fileName.isEmpty() ? fileName : "分享文本.txt";
+            String name = fileName != null && !fileName.isEmpty() ? fileName : context.getString(R.string.share_filename_default);
             shareStreamBytes(context, text.getBytes(java.nio.charset.StandardCharsets.UTF_8),
                     name, ShareHelper.MIME_TEXT_PLAIN, chooserTitle);
             return;
@@ -147,7 +148,7 @@ public class UiUtils {
     public static void shareBytes(Context context, byte[] bytes, String fileName,
                                   String mime, String chooserTitle) {
         if (bytes == null || bytes.length == 0) {
-            showToast(context, "暂无内容可分享");
+            showToast(context, context.getString(R.string.toast_no_share_bytes));
             return;
         }
         shareStreamBytes(context, bytes, fileName, mime, chooserTitle);
@@ -157,14 +158,14 @@ public class UiUtils {
                                          String mime, String chooserTitle) {
         File dir = new File(context.getCacheDir(), "shared");
         if (!dir.exists() && !dir.mkdirs()) {
-            showToast(context, "分享失败：缓存目录不可用");
+            showToast(context, context.getString(R.string.toast_share_fail_cache_dir));
             return;
         }
         File file = new File(dir, fileName);
         try (FileOutputStream out = new FileOutputStream(file)) {
             out.write(bytes);
         } catch (IOException e) {
-            showToast(context, "分享失败：" + errorMessage(e));
+            showToast(context, context.getString(R.string.toast_share_fail_prefix, errorMessage(e)));
             return;
         }
         Uri uri = FileProvider.getUriForFile(context, FILE_PROVIDER_AUTHORITY, file);

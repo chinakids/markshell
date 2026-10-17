@@ -403,4 +403,12 @@
     <string name="msg_load_failed_retry">加载失败，点击重试</string>
     <string name="label_no_title">（无标题）</string>
     <string name="label_original_unknown">（原文未知）</string>
+
+    <!-- UiUtils 内容分享/剪贴板 → 中文硬编码资源化（2026-10-17，第五子步） -->
+    <string name="clip_remote_path_label">远程路径</string>
+    <string name="share_text_title">分享文本</string>
+    <string name="share_filename_default">分享文本.txt</string>
+    <string name="toast_no_share_bytes">暂无内容可分享</string>
+    <string name="toast_share_fail_cache_dir">分享失败：缓存目录不可用</string>
+    <string name="toast_share_fail_prefix">分享失败：%1$s</string>
 </resources>
