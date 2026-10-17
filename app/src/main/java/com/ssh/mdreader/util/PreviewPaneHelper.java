@@ -191,7 +191,7 @@ public class PreviewPaneHelper {
                     host.runOnUiThread(() -> {
                         if (!host.isAlive()) return;
                         pb.setVisibility(View.GONE);
-                        showPreviewMessage(body, "加载失败: " + message);
+                        showPreviewMessage(body, context.getString(R.string.msg_load_failed, message));
                     });
                 }
             });
@@ -236,7 +236,7 @@ public class PreviewPaneHelper {
                     host.runOnUiThread(() -> {
                         if (!host.isAlive()) return;
                         pb.setVisibility(View.GONE);
-                        showPreviewMessage(body, "加载失败: " + message);
+                        showPreviewMessage(body, context.getString(R.string.msg_load_failed, message));
                     });
                 }
             });

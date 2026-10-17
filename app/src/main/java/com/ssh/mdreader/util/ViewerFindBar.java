@@ -198,7 +198,7 @@ public final class ViewerFindBar {
         matches = FindHelper.scanAll(textView.getText(), query, !findCaseSensitive, findWholeWord);
         if (matches.isEmpty()) {
             currentIndex = -1;
-            tvStatus.setText(query.isEmpty() ? "" : "未找到");
+            tvStatus.setText(query.isEmpty() ? "" : activity.getString(R.string.msg_not_found));
             // 新查询无匹配：清除上一查询残留高亮（状态与画面一致）
             clearHighlight();
             return;
@@ -216,7 +216,7 @@ public final class ViewerFindBar {
     private void step(int direction) {
         if (matches.isEmpty()) rebuild(false);
         if (matches.isEmpty()) {
-            tvStatus.setText("未找到");
+            tvStatus.setText(activity.getString(R.string.msg_not_found));
             return;
         }
         currentIndex = FindHelper.advance(matches, currentIndex, direction);
