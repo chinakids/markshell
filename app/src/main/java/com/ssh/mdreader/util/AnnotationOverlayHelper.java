@@ -9,6 +9,7 @@ import android.text.SpannableStringBuilder;
 import android.text.Spanned;
 import android.text.style.BackgroundColorSpan;
 import android.text.style.URLSpan;
+import com.ssh.mdreader.R;
 import io.noties.markwon.image.AsyncDrawableSpan;
 import android.util.DisplayMetrics;
 import android.util.Log;
@@ -254,7 +255,7 @@ public class AnnotationOverlayHelper {
         tvContent.setCustomSelectionActionModeCallback(new ActionMode.Callback() {
             @Override
             public boolean onCreateActionMode(ActionMode mode, Menu menu) {
-                menu.add(Menu.NONE, MENU_ANNOTATE_ID, Menu.FIRST, "批注")
+                menu.add(Menu.NONE, MENU_ANNOTATE_ID, Menu.FIRST, context.getString(R.string.menu_annotate))
                         .setShowAsAction(MenuItem.SHOW_AS_ACTION_IF_ROOM);
                 return true;
             }
@@ -351,7 +352,7 @@ public class AnnotationOverlayHelper {
         } else {
             rvAnnotationList.setVisibility(View.VISIBLE);
             layoutEmptyAnnotations.setVisibility(View.GONE);
-            tvAnnotationCount.setText(annotations.size() + " 条");
+            tvAnnotationCount.setText(context.getString(R.string.annotation_count, annotations.size()));
         }
     }
 
@@ -383,7 +384,7 @@ public class AnnotationOverlayHelper {
         }
 
         if (charOffset < 0) {
-            UiUtils.showToast(context, "该批注未找到原文（可能已被编辑修改）");
+            UiUtils.showToast(context, context.getString(R.string.toast_annotation_not_found_original));
             return;
         }
         lastVisitedStart = charOffset;   // 抽屉跳转亦属于导航，同步访问游标防重复命中
@@ -409,7 +410,7 @@ public class AnnotationOverlayHelper {
     public void navigateAnnotations(int direction) {
         if (!host.isAlive()) return;
         if (annotations.isEmpty()) {
-            UiUtils.showToast(context, "暂无批注");
+            UiUtils.showToast(context, context.getString(R.string.toast_no_annotations));
             return;
         }
 
@@ -417,7 +418,7 @@ public class AnnotationOverlayHelper {
         List<AnnotationNavigator.NavigableAnnotation> nav =
                 AnnotationNavigator.buildNavigable(annotations, plain);
         if (nav.isEmpty()) {
-            UiUtils.showToast(context, "暂无可定位的批注");
+            UiUtils.showToast(context, context.getString(R.string.toast_no_locatable_annotations));
             return;
         }
 
@@ -432,8 +433,9 @@ public class AnnotationOverlayHelper {
                 ? AnnotationNavigator.previousIndex(nav, viewportTop, anchor)
                 : AnnotationNavigator.nextIndex(nav, viewportTop, anchor);
         if (idx < 0) {
-            UiUtils.showToast(context,
-                    direction < 0 ? "已是第一条批注" : "已是最后一条批注");
+            UiUtils.showToast(context, direction < 0
+                    ? context.getString(R.string.toast_first_annotation)
+                    : context.getString(R.string.toast_last_annotation));
             return;
         }
 
@@ -591,19 +593,19 @@ public class AnnotationOverlayHelper {
         // Show what is being deleted (annotated text + source snippet), so the
         // confirmation is not a blind "are you sure".
         String text = entry.text != null ? entry.text.trim() : "";
-        if (text.isEmpty()) text = "（空批注）";
+        if (text.isEmpty()) text = context.getString(R.string.annotation_empty_text);
         if (text.length() > 40) text = text.substring(0, 40) + "…";
 
         String orig = entry.originalText != null ? entry.originalText.trim() : "";
         if (orig.length() > 40) orig = orig.substring(0, 40) + "…";
 
-        String message = "批注：「" + text + "」"
-                + (orig.isEmpty() ? "" : "\n原文：「" + orig + "」")
-                + "\n\n确定要删除这条批注吗？";
+        String message = orig.isEmpty()
+                ? context.getString(R.string.msg_delete_annotation, text)
+                : context.getString(R.string.msg_delete_annotation_with_original, text, orig);
 
         DialogHelper.showDangerConfirmDialog(context,
-                "删除批注", message,
-                "删除", "取消",
+                context.getString(R.string.dialog_title_delete_annotation), message,
+                context.getString(R.string.btn_delete), context.getString(R.string.btn_cancel),
                 d -> deleteAnnotation(entry),
                 d -> {});
     }
@@ -626,14 +628,14 @@ public class AnnotationOverlayHelper {
                         public void onSuccess() {
                             host.runOnUiThread(() -> {
                                 host.render();   // re-render to clear all spans
-                                UiUtils.showToast(context, "批注已删除");
+                                UiUtils.showToast(context, context.getString(R.string.toast_annotation_deleted));
                             });
                         }
                         @Override
                         public void onError(String ignored) {
                             host.runOnUiThread(() -> {
                                 host.render();
-                                UiUtils.showToast(context, "批注已删除");
+                                UiUtils.showToast(context, context.getString(R.string.toast_annotation_deleted));
                             });
                         }
                     });
@@ -647,7 +649,7 @@ public class AnnotationOverlayHelper {
                                 // Re-apply spans only — no need to re-render Markdown
                                 host.refreshMarkdownText();
                                 applyAnnotationSpans();
-                                UiUtils.showToast(context, "批注已删除");
+                                UiUtils.showToast(context, context.getString(R.string.toast_annotation_deleted));
                             });
                         }
                         @Override
@@ -655,7 +657,7 @@ public class AnnotationOverlayHelper {
                             // Revert in-memory removal on failure
                             annotations.add(entry);
                             host.runOnUiThread(() ->
-                                    UiUtils.showSnackbar(tvContent, "CSV更新失败: " + message));
+                                    UiUtils.showSnackbar(tvContent, context.getString(R.string.toast_csv_update_failed, message)));
                         }
                     });
         }
@@ -668,7 +670,9 @@ public class AnnotationOverlayHelper {
      */
     private void showEditAnnotationDialog(AnnotationEntry entry) {
         if (!host.isAlive()) return;
-        DialogHelper.showInputDialog(context, "编辑批注", "请输入批注内容…", "保存", "取消",
+        DialogHelper.showInputDialog(context, context.getString(R.string.dialog_title_edit_annotation),
+                context.getString(R.string.hint_annotation_input),
+                context.getString(R.string.btn_save), context.getString(R.string.btn_cancel),
                 0, entry.text, input -> {
                     if (input.isEmpty() || input.equals(entry.text)) return;
                     applyEditAnnotation(entry, input);
@@ -696,7 +700,7 @@ public class AnnotationOverlayHelper {
                         host.runOnUiThread(() -> {
                             refreshAnnotationDrawer();
                             applyAnnotationSpans();
-                            UiUtils.showToast(context, "批注已更新");
+                            UiUtils.showToast(context, context.getString(R.string.toast_annotation_updated));
                         });
                     }
                     @Override
@@ -707,7 +711,7 @@ public class AnnotationOverlayHelper {
                             annotations.clear();
                             annotations.addAll(rollback);
                             refreshAnnotationDrawer();
-                            UiUtils.showSnackbar(tvContent, "批注更新失败: " + message);
+                            UiUtils.showSnackbar(tvContent, context.getString(R.string.toast_annotation_update_failed, message));
                         });
                     }
                 });
@@ -731,11 +735,13 @@ public class AnnotationOverlayHelper {
         final String finalSelected = selectedText.trim();
         final int    finalSelStart = tvSelStart;
 
-        DialogHelper.showInputDialog(context, "添加批注", "请输入批注内容…", "确认", "取消",
+        DialogHelper.showInputDialog(context, context.getString(R.string.dialog_title_add_annotation),
+                context.getString(R.string.hint_annotation_input),
+                context.getString(R.string.btn_confirm), context.getString(R.string.btn_cancel),
                 input -> {
                     if (input.isEmpty()) return;
                     if (finalSelected.isEmpty()) {
-                        UiUtils.showToast(context, "未能读取选中文本");
+                        UiUtils.showToast(context, context.getString(R.string.toast_cannot_read_selection));
                         return;
                     }
                     // Count how many times the selected text appeared before this selection
@@ -770,13 +776,13 @@ public class AnnotationOverlayHelper {
                         host.runOnUiThread(() -> {
                             annotations.add(entry);
                             applyAnnotationSpans(); // overlay span without re-rendering
-                            UiUtils.showToast(context, "批注已保存");
+                            UiUtils.showToast(context, context.getString(R.string.toast_annotation_saved));
                         });
                     }
                     @Override
                     public void onError(String message) {
                         host.runOnUiThread(() ->
-                                UiUtils.showSnackbar(tvContent, "批注保存失败: " + message));
+                                UiUtils.showSnackbar(tvContent, context.getString(R.string.toast_annotation_save_failed, message)));
                     }
                 });
     }
@@ -801,7 +807,7 @@ public class AnnotationOverlayHelper {
                     public void onError(String ignored) {
                         // CSV 不存在（首次打开）→ 视为暂无批注
                         host.runOnUiThread(() ->
-                                UiUtils.showToast(context, "暂无批注可导出"));
+                                UiUtils.showToast(context, context.getString(R.string.toast_no_annotations_export)));
                     }
                 });
     }
@@ -809,11 +815,13 @@ public class AnnotationOverlayHelper {
     private void showExportFormatDialog(@NonNull List<AnnotationEntry> entries) {
         if (!host.isAlive()) return;
         if (entries.isEmpty()) {
-            UiUtils.showToast(context, "暂无批注可导出");
+            UiUtils.showToast(context, context.getString(R.string.toast_no_annotations_export));
             return;
         }
-        DialogHelper.showListDialog(context, "导出批注",
-                new String[]{"纯文本报告", "HTML 批注块", "Markdown 附录"},
+        DialogHelper.showListDialog(context, context.getString(R.string.dialog_title_export_annotations),
+                new String[]{context.getString(R.string.export_format_text),
+                        context.getString(R.string.export_format_html),
+                        context.getString(R.string.export_format_markdown)},
                 null,
                 (dialog, which) -> onExportFormatSelected(entries, which));
     }
@@ -834,8 +842,11 @@ public class AnnotationOverlayHelper {
     private void showExportActionDialog(@NonNull String text,
                                         @NonNull AnnotationHelper.ExportFormat format) {
         if (!host.isAlive()) return;
-        DialogHelper.showListDialog(context, "导出内容（" + formatLabel(format) + "）",
-                new String[]{"分享…", "复制到剪贴板"},
+        DialogHelper.showListDialog(context,
+                context.getString(R.string.export_content_title,
+                        context.getString(formatLabelResId(format))),
+                new String[]{context.getString(R.string.export_action_share),
+                        context.getString(R.string.export_action_copy)},
                 null,
                 (dialog, which) -> {
                     if (!host.isAlive()) return;
@@ -848,18 +859,20 @@ public class AnnotationOverlayHelper {
         if (!host.isAlive()) return;
         // #51 单一语义源：批注导出与查看器分享共用 UiUtils.shareText（EXTRA_TEXT 直发/
         // 超大降级 FileProvider 流，接受方语义一致），chooser 标题保留「分享批注」。
-        UiUtils.shareText(context, text, "批注_" + System.currentTimeMillis() + ".txt", "分享批注");
+        UiUtils.shareText(context, text,
+                context.getString(R.string.export_filename_prefix) + System.currentTimeMillis() + ".txt",
+                context.getString(R.string.share_annotations_title));
     }
 
     private void copyExport(@NonNull String text) {
         ClipboardManager cm = (ClipboardManager)
                 context.getSystemService(Context.CLIPBOARD_SERVICE);
         if (cm == null) {
-            UiUtils.showToast(context, "复制失败");
+            UiUtils.showToast(context, context.getString(R.string.toast_clipboard_failed));
             return;
         }
-        cm.setPrimaryClip(ClipData.newPlainText("批注导出", text));
-        UiUtils.showToast(context, "批注已复制到剪贴板");
+        cm.setPrimaryClip(ClipData.newPlainText(context.getString(R.string.clip_annotations_export_label), text));
+        UiUtils.showToast(context, context.getString(R.string.toast_annotations_copied));
     }
 
     /** 导出时展示的来源名：由批注 CSV 路径反推原 Markdown 文件名。 */
@@ -868,11 +881,11 @@ public class AnnotationOverlayHelper {
         return AnnotationHelper.buildMarkdownFilePath(annotationFilePath);
     }
 
-    private static String formatLabel(@NonNull AnnotationHelper.ExportFormat format) {
+    private static int formatLabelResId(@NonNull AnnotationHelper.ExportFormat format) {
         switch (format) {
-            case HTML:     return "HTML 批注块";
-            case MARKDOWN: return "Markdown 附录";
-            default:       return "纯文本报告";
+            case HTML:     return R.string.export_format_html;
+            case MARKDOWN: return R.string.export_format_markdown;
+            default:       return R.string.export_format_text;
         }
     }
 

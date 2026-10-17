@@ -411,4 +411,41 @@
     <string name="toast_no_share_bytes">暂无内容可分享</string>
     <string name="toast_share_fail_cache_dir">分享失败：缓存目录不可用</string>
     <string name="toast_share_fail_prefix">分享失败：%1$s</string>
+
+    <!-- 批注（AnnotationOverlayHelper）i18n -->
+    <string name="menu_annotate">批注</string>
+    <string name="annotation_count">%1$d 条</string>
+    <string name="toast_annotation_not_found_original">该批注未找到原文（可能已被编辑修改）</string>
+    <string name="toast_no_annotations">暂无批注</string>
+    <string name="toast_no_locatable_annotations">暂无可定位的批注</string>
+    <string name="toast_first_annotation">已是第一条批注</string>
+    <string name="toast_last_annotation">已是最后一条批注</string>
+    <string name="annotation_empty_text">（空批注）</string>
+    <string name="msg_delete_annotation">批注：「%1$s」\n\n确定要删除这条批注吗？</string>
+    <string name="msg_delete_annotation_with_original">批注：「%1$s」\n原文：「%2$s」\n\n确定要删除这条批注吗？</string>
+    <string name="dialog_title_delete_annotation">删除批注</string>
+    <string name="toast_annotation_deleted">批注已删除</string>
+    <string name="toast_csv_update_failed">CSV更新失败: %1$s</string>
+    <string name="dialog_title_edit_annotation">编辑批注</string>
+    <string name="hint_annotation_input">请输入批注内容…</string>
+    <string name="toast_annotation_updated">批注已更新</string>
+    <string name="toast_annotation_update_failed">批注更新失败: %1$s</string>
+    <string name="dialog_title_add_annotation">添加批注</string>
+    <string name="btn_confirm">确认</string>
+    <string name="toast_cannot_read_selection">未能读取选中文本</string>
+    <string name="toast_annotation_saved">批注已保存</string>
+    <string name="toast_annotation_save_failed">批注保存失败: %1$s</string>
+    <string name="toast_no_annotations_export">暂无批注可导出</string>
+    <string name="dialog_title_export_annotations">导出批注</string>
+    <string name="export_format_text">纯文本报告</string>
+    <string name="export_format_html">HTML 批注块</string>
+    <string name="export_format_markdown">Markdown 附录</string>
+    <string name="export_content_title">导出内容（%1$s）</string>
+    <string name="export_action_share">分享…</string>
+    <string name="export_action_copy">复制到剪贴板</string>
+    <string name="export_filename_prefix">批注_</string>
+    <string name="share_annotations_title">分享批注</string>
+    <string name="toast_clipboard_failed">复制失败</string>
+    <string name="clip_annotations_export_label">批注导出</string>
+    <string name="toast_annotations_copied">批注已复制到剪贴板</string>
 </resources>
