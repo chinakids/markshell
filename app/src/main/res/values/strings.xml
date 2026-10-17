@@ -388,6 +388,13 @@
     <string name="toast_location_unchanged">位置未改变</string>
     <string name="toast_copy_into_itself">不能复制到自身内部</string>
     <string name="toast_move_into_itself">不能移动到自身内部</string>
+    <string name="error_batch_move_empty">没有可移动的项目</string>
+    <string name="error_batch_copy_empty">没有可复制的项目</string>
+    <string name="error_batch_same_location">所选项目有与目标位置相同的项</string>
+    <string name="error_batch_move_into_itself">不能把目录移动到自身内部</string>
+    <string name="error_batch_copy_into_itself">不能把目录复制到自身内部</string>
+    <string name="error_batch_move_clash">移动后目标重名冲突</string>
+    <string name="error_batch_copy_clash">复制后目标重名冲突</string>
     <string name="msg_load_dir_failed">加载目录失败: %1$s</string>
     <string name="msg_conn_incomplete">连接信息不完整</string>
     <string name="menu_new_rule">＋ 新建规则</string>

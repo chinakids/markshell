@@ -198,11 +198,11 @@ public class DirectoryPickerDialog extends Dialog {
 
     private void onConfirmPicked() {
         if (batchSrcPaths != null) {
-            String error = copyMode
+            int errorId = copyMode
                     ? SshManager.validateBatchCopy(batchSrcPaths, batchDirSrcPaths, currentDir)
                     : SshManager.validateBatchMove(batchSrcPaths, batchDirSrcPaths, currentDir);
-            if (error != null) {
-                UiUtils.showToast(getContext(), error);
+            if (errorId != 0) {
+                UiUtils.showToast(getContext(), getContext().getString(errorId));
                 return;
             }
             listener.onPicked(currentDir);

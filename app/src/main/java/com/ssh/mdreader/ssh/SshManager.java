@@ -8,6 +8,7 @@ import com.jcraft.jsch.JSch;
 import com.jcraft.jsch.Session;
 import com.jcraft.jsch.SftpATTRS;
 import com.jcraft.jsch.SftpException;
+import com.ssh.mdreader.R;
 import com.ssh.mdreader.model.PortForwardRule;
 import com.ssh.mdreader.model.RemoteFile;
 import com.ssh.mdreader.model.SearchResult;
@@ -1100,56 +1101,57 @@ public class SshManager {
 
     /**
      * 批量移动校验（纯函数，便于单测）：任一源与目标同位置、目录源移入自身、
-     * 或两个源移到同一目标后同名时返回错误消息；全部通过返回 null。
-     * UI 层据此拦截并提示，不发起移动。
+     * 或两个源移到同一目标后同名时返回错误消息资源 ID；全部通过返回 0。
+     * UI 层据此 getString(id) 拦截并提示，不发起移动。
      *
      * @param dirSrcPaths 目录类型的源路径集合（用于自指校验；文件源不在其中）
+     * @return 0 表示通过，否则为 {@code R.string.*} 错误资源 ID
      */
-    public static String validateBatchMove(List<String> srcPaths, java.util.Set<String> dirSrcPaths,
-                                           String targetDir) {
-        if (srcPaths == null || srcPaths.isEmpty()) return "没有可移动的项目";
+    public static int validateBatchMove(List<String> srcPaths, java.util.Set<String> dirSrcPaths,
+                                        String targetDir) {
+        if (srcPaths == null || srcPaths.isEmpty()) return R.string.error_batch_move_empty;
         java.util.Set<String> targets = new java.util.HashSet<>();
         for (String src : srcPaths) {
             if (isMoveSameLocation(src, targetDir)) {
-                return "所选项目有与目标位置相同的项";
+                return R.string.error_batch_same_location;
             }
             if (dirSrcPaths != null && dirSrcPaths.contains(src)
                     && isMoveIntoItself(src, targetDir)) {
-                return "不能把目录移动到自身内部";
+                return R.string.error_batch_move_into_itself;
             }
             String dst = buildMovePath(src, targetDir);
             if (!targets.add(dst)) {
-                return "移动后目标重名冲突: " + dst;
+                return R.string.error_batch_move_clash;
             }
         }
-        return null;
+        return 0;
     }
 
     /**
      * 批量复制校验（纯函数，便于单测）：任一源与目标同位置、目录源复制到自身内部（递归死循环）、
-     * 或两个源复制到同一目标后同名时返回错误消息；全部通过返回 null。
-     * UI 层据此拦截并提示，不发起复制。与 {@link #validateBatchMove} 同型（文案按复制语义）。
+     * 或两个源复制到同一目标后同名时返回错误消息资源 ID；全部通过返回 0。
+     * UI 层据此 getString(id) 拦截并提示，不发起复制。与 {@link #validateBatchMove} 同型（文案按复制语义）。
      *
      * @param dirSrcPaths 目录类型的源路径集合（用于自指校验；文件源不在其中）
      */
-    public static String validateBatchCopy(List<String> srcPaths, java.util.Set<String> dirSrcPaths,
-                                           String targetDir) {
-        if (srcPaths == null || srcPaths.isEmpty()) return "没有可复制的项目";
+    public static int validateBatchCopy(List<String> srcPaths, java.util.Set<String> dirSrcPaths,
+                                        String targetDir) {
+        if (srcPaths == null || srcPaths.isEmpty()) return R.string.error_batch_copy_empty;
         java.util.Set<String> targets = new java.util.HashSet<>();
         for (String src : srcPaths) {
             if (isMoveSameLocation(src, targetDir)) {
-                return "所选项目有与目标位置相同的项";
+                return R.string.error_batch_same_location;
             }
             if (dirSrcPaths != null && dirSrcPaths.contains(src)
                     && isMoveIntoItself(src, targetDir)) {
-                return "不能把目录复制到自身内部";
+                return R.string.error_batch_copy_into_itself;
             }
             String dst = buildCopyPath(src, targetDir);
             if (!targets.add(dst)) {
-                return "复制后目标重名冲突: " + dst;
+                return R.string.error_batch_copy_clash;
             }
         }
-        return null;
+        return 0;
     }
 
     public interface RenameFileCallback {
