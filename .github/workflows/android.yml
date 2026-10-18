@@ -3,6 +3,7 @@ name: Android CI
 on:
   push:
     branches: [ "main" ]
+    tags: [ "v*" ]
   pull_request:
     branches: [ "main" ]
 
@@ -24,3 +25,28 @@ jobs:
       run: chmod +x gradlew
     - name: Build with Gradle
       run: ./gradlew build
+
+  # v1.0.0 发布打包：打 tag v* 触发 → assembleDebug 产 APK → 作为 GitHub Release 资产上传。
+  # 注：本仓库 Actions 调度受账号计划限制可能不自动执行；若未跑，可本地
+  # `./gradlew assembleDebug` 后用 `gh release create <tag> <apk>` 手动上传（见 docs/推进器日志.md）。
+  release:
+    if: startsWith(github.ref, 'refs/tags/v')
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+    steps:
+    - uses: actions/checkout@v5
+    - name: set up JDK 17
+      uses: actions/setup-java@v5
+      with:
+        java-version: '17'
+        distribution: 'temurin'
+        cache: gradle
+    - name: Grant execute permission for gradlew
+      run: chmod +x gradlew
+    - name: Build debug APK
+      run: ./gradlew assembleDebug
+    - name: Upload APK to GitHub Release
+      uses: softprops/action-gh-release@v2
+      with:
+        files: app/build/outputs/apk/debug/app-debug.apk
