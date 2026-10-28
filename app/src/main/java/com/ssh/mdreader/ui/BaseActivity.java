@@ -6,7 +6,8 @@ import androidx.annotation.Nullable;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.appcompat.app.AppCompatDelegate;
 
-import com.google.android.material.appbar.MaterialToolbar;
+import com.google.android.material.appbar.MaterialToolbar; // javadoc 引用
+import androidx.appcompat.widget.Toolbar;
 import com.ssh.mdreader.R;
 import com.ssh.mdreader.util.PreferenceManager;
 import com.ssh.mdreader.util.ThemeHelper;
@@ -15,7 +16,13 @@ import java.util.Calendar;
 
 public abstract class BaseActivity extends AppCompatActivity {
 
-    protected MaterialToolbar toolbar;
+    /**
+     * 工具栏基类引用：承载各 Activity 布局里的 Toolbar。用基类 {@link Toolbar}
+     * （而非 MaterialToolbar）——项目内布局既有 MaterialToolbar 也有 appcompat Toolbar，
+     * 字段若窄到 MaterialToolbar，findViewById 会对 appcompat Toolbar 布局（如 CSV 查看器）
+     * 做 checkcast 抛 ClassCastException（打开即崩）。基类引用两者皆容。
+     */
+    protected Toolbar toolbar;
 
     @Override
     protected void onCreate(@Nullable Bundle savedInstanceState) {
