@@ -361,7 +361,7 @@
     <string name="dialog_delete_selected_title">删除所选 %1$d 项</string>
     <string name="msg_delete_selected_confirm">确定要删除选中的 %1$d 项（目录含全部内容）吗？此操作不可恢复。</string>
     <string name="toast_deleted_count">已删除 %1$d 项</string>
-    <string name="toast_partial_failure">部分失败：成功 %1$d 项，失败 %1$d 项：%2$s</string>
+    <string name="toast_partial_failure">部分失败：成功 %1$d 项，失败 %2$d 项：%3$s</string>
     <string name="toast_delete_failed_prefix">删除失败：%1$s</string>
     <string name="toast_chmod_failed_prefix">设置权限失败：%1$s</string>
     <string name="dialog_chmod_batch_title">批量设置权限（%1$d 项）</string>
