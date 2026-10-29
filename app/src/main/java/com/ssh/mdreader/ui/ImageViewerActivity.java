@@ -17,12 +17,14 @@ import android.view.MenuItem;
 import android.view.MotionEvent;
 import android.view.ScaleGestureDetector;
 import android.view.View;
+import android.view.ViewConfiguration;
 import android.view.animation.DecelerateInterpolator;
 import android.widget.FrameLayout;
 import android.widget.ImageView;
 import android.widget.TextView;
 
 import com.ssh.mdreader.R;
+import com.ssh.mdreader.model.RemoteFile;
 import com.ssh.mdreader.ssh.SshManager;
 import com.ssh.mdreader.util.DialogHelper;
 import com.ssh.mdreader.util.ImageExifHelper;
@@ -33,6 +35,8 @@ import com.ssh.mdreader.util.UiUtils;
 import java.io.File;
 import java.io.FileOutputStream;
 import java.io.OutputStream;
+import java.util.ArrayList;
+import java.util.List;
 
 public class ImageViewerActivity extends BaseActivity {
 
@@ -48,6 +52,9 @@ public class ImageViewerActivity extends BaseActivity {
     private ScaleGestureDetector scaleDetector;
 
     private static final int NONE = 0, DRAG = 1, ZOOM = 2;
+
+    /** 适应态基准：fitImageToView 后 currentScale 归此为 1f（相对缩放因子，非矩阵绝对值）。 */
+    private static final float FIT_SCALE = 1f;
     private int mode = NONE;
     private final PointF lastTouch = new PointF();
 
@@ -60,6 +67,14 @@ public class ImageViewerActivity extends BaseActivity {
     private byte[] originalBytes;
     private String fileName;
     private ValueAnimator currentAnimator;
+
+    /** 同目录图片顺序（名称序，目录列表口径），用于左右滑切换上一张/下一张。 */
+    private final List<RemoteFile> siblingImages = new ArrayList<>();
+    private int currentIndex = -1;
+
+    /** 左右滑判定：起手点与阈值（未缩放态才启用，缩放/平移中不抢手势）。 */
+    private float downX, downY;
+    private int swipeThresholdPx;
 
     @SuppressLint("ClickableViewAccessibility") // onTouch 已在 ACTION_UP 调用 frameContainer.performClick()；framework 类无法 override performClick，抑制固定 lint
     @Override
@@ -94,12 +109,20 @@ public class ImageViewerActivity extends BaseActivity {
 
         frameContainer.setOnTouchListener(this::onTouch);
 
+        // 左右滑阈值：屏幕 1/8 宽，兼顾触达与防误触（未缩放态才启用切换）。
+        swipeThresholdPx = Math.max(
+                ViewConfiguration.get(this).getScaledTouchSlop() * 4,
+                getResources().getDisplayMetrics().widthPixels / 8);
+
         // Long-press to save
         ivImage.setOnLongClickListener(v -> {
             if (currentBitmap == null) return false;
             showSaveDialog();
             return true;
         });
+
+        // 同目录图片列表（用于左右滑切换上一张/下一张），异步拉取，失败静默降级为单图浏览。
+        loadSiblingImages();
 
         loadImage();
     }
@@ -229,6 +252,8 @@ public class ImageViewerActivity extends BaseActivity {
         switch (event.getActionMasked()) {
             case MotionEvent.ACTION_DOWN:
                 lastTouch.set(event.getX(), event.getY());
+                downX = event.getX();
+                downY = event.getY();
                 mode = DRAG;
                 break;
 
@@ -237,7 +262,9 @@ public class ImageViewerActivity extends BaseActivity {
                 break;
 
             case MotionEvent.ACTION_MOVE:
-                if (mode == DRAG && !scaleDetector.isInProgress()) {
+                // 适应态（未放大）不平移：留出手势给左右滑切图；放大后才拖拽平移。
+                if (mode == DRAG && !scaleDetector.isInProgress()
+                        && currentScale > FIT_SCALE + 0.01f) {
                     float dx = event.getX() - lastTouch.x;
                     float dy = event.getY() - lastTouch.y;
                     matrix.postTranslate(dx, dy);
@@ -247,13 +274,81 @@ public class ImageViewerActivity extends BaseActivity {
                 break;
 
             case MotionEvent.ACTION_UP:
+                mode = NONE;
+                frameContainer.performClick();
+                // 未放大态下把明显的水平滑动识别为「切上一张/下一张」；放大/平移中不抢手势。
+                if (handleSwipeIfApplicable(event)) {
+                    break;
+                }
+                animateToBounds();
+                break;
+
             case MotionEvent.ACTION_POINTER_UP:
                 mode = NONE;
                 frameContainer.performClick();
                 animateToBounds();
                 break;
+
+            case MotionEvent.ACTION_CANCEL:
+                mode = NONE;
+                break;
         }
         return true;
+    }
+
+    /**
+     * 左右滑切换判定（单一入口）：仅在图片未放大（currentScale≈适应态）、
+     * 水平位移超过阈值且明显大于垂直位移时触发，避免与放大后的平移手势冲突。
+     * 返回是否已消费本次手势（消费则跳转，调用方仍会执行边界回弹）。
+     */
+    private boolean handleSwipeIfApplicable(MotionEvent event) {
+        if (siblingImages.size() < 2 || currentIndex < 0) return false;
+        // 放大态（用户正在缩放/平移）不抢手势；适应态（fit 后 currentScale=1f）才允许切图。
+        if (currentScale > FIT_SCALE + 0.01f) return false;
+        if (scaleDetector.isInProgress()) return false;
+
+        float dx = event.getX() - downX;
+        float dy = event.getY() - downY;
+        if (Math.abs(dx) < swipeThresholdPx) return false;
+        if (Math.abs(dx) < Math.abs(dy) * 1.5f) return false;
+
+        // 左滑（dx<0）→ 下一张；右滑（dx>0）→ 上一张。
+        int target = currentIndex + (dx < 0 ? 1 : -1);
+        if (target < 0 || target >= siblingImages.size()) {
+            // 到边界：轻提示，不切换。
+            UiUtils.showToast(this, getString(dx < 0
+                    ? R.string.toast_image_last
+                    : R.string.toast_image_first));
+            return true;
+        }
+        switchToImage(target);
+        return true;
+    }
+
+    /** 切换到 siblingImages 指定索引的图片（复用加载/解码/适应流程，重置缩放矩阵）。 */
+    private void switchToImage(int index) {
+        if (index < 0 || index >= siblingImages.size()) return;
+        RemoteFile target = siblingImages.get(index);
+        currentIndex = index;
+        // 重定向本次 Activity 的「当前文件」，让菜单（复制路径/分享/保存）、标题、重载都跟随新图。
+        getIntent().putExtra("file_path", target.getPath());
+        getIntent().putExtra("file_name", target.getName());
+        fileName = target.getName();
+
+        if (toolbar != null) {
+            toolbar.setTitle(fileName != null ? fileName : getString(R.string.title_image_viewer));
+        }
+        // 重置视图变换与旧状态，避免新图沿用上一张的缩放/平移。
+        if (currentAnimator != null && currentAnimator.isRunning()) {
+            currentAnimator.cancel();
+        }
+        matrix.reset();
+        ivImage.setImageMatrix(matrix);
+        currentScale = 1f;
+        currentBitmap = null;
+        originalBytes = null;
+
+        loadImage();
     }
 
     private void animateToBounds() {
@@ -331,6 +426,47 @@ public class ImageViewerActivity extends BaseActivity {
             currentScale = newScale;
         });
         currentAnimator.start();
+    }
+
+    /**
+     * 拉取「当前图片所在目录」的图片列表（名称序，与浏览列表/`listFiles` 同口径），
+     * 供左右滑在上一张/下一张间切换。失败静默降级（siblingImages 保持空 → 单图浏览、滑动不触发），
+     * 不打扰当前阅读。
+     */
+    private void loadSiblingImages() {
+        String filePath = getIntent() != null ? getIntent().getStringExtra("file_path") : null;
+        if (filePath == null) return;
+        int slash = filePath.lastIndexOf('/');
+        if (slash <= 0) return; // 根目录/无目录段，无同级可切
+        final String dir = filePath.substring(0, slash);
+
+        SshManager.getInstance().listFiles(dir, new SshManager.FileListCallback() {
+            @Override
+            public void onSuccess(List<RemoteFile> files) {
+                List<RemoteFile> images = new ArrayList<>();
+                for (RemoteFile f : files) {
+                    if (!f.isDirectory() && f.isImageFile()) images.add(f);
+                }
+                runOnUiThread(() -> {
+                    siblingImages.clear();
+                    siblingImages.addAll(images);
+                    currentIndex = indexOfPath(siblingImages, filePath);
+                });
+            }
+
+            @Override
+            public void onError(String message) {
+                // 静默：拿不到同级列表就当单图浏览
+            }
+        });
+    }
+
+    /** 在列表中定位当前文件索引（按 path 精确匹配）；找不到返回 -1。 */
+    private static int indexOfPath(List<RemoteFile> files, String path) {
+        for (int i = 0; i < files.size(); i++) {
+            if (path.equals(files.get(i).getPath())) return i;
+        }
+        return -1;
     }
 
     private void loadImage() {
