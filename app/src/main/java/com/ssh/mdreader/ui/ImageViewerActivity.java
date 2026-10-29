@@ -17,9 +17,9 @@ import android.view.MenuItem;
 import android.view.MotionEvent;
 import android.view.ScaleGestureDetector;
 import android.view.View;
-import android.view.ViewConfiguration;
 import android.view.animation.DecelerateInterpolator;
 import android.widget.FrameLayout;
+import android.widget.ImageButton;
 import android.widget.ImageView;
 import android.widget.TextView;
 
@@ -53,8 +53,6 @@ public class ImageViewerActivity extends BaseActivity {
 
     private static final int NONE = 0, DRAG = 1, ZOOM = 2;
 
-    /** 适应态基准：fitImageToView 后 currentScale 归此为 1f（相对缩放因子，非矩阵绝对值）。 */
-    private static final float FIT_SCALE = 1f;
     private int mode = NONE;
     private final PointF lastTouch = new PointF();
 
@@ -68,13 +66,12 @@ public class ImageViewerActivity extends BaseActivity {
     private String fileName;
     private ValueAnimator currentAnimator;
 
-    /** 同目录图片顺序（名称序，目录列表口径），用于左右滑切换上一张/下一张。 */
+    /** 同目录图片顺序（名称序，目录列表口径），用于上一张/下一张切换。 */
     private final List<RemoteFile> siblingImages = new ArrayList<>();
     private int currentIndex = -1;
 
-    /** 左右滑判定：起手点与阈值（未缩放态才启用，缩放/平移中不抢手势）。 */
-    private float downX, downY;
-    private int swipeThresholdPx;
+    /** 上一张/下一张按钮（无同级图片时隐藏；到边界时置灰不可点）。 */
+    private ImageButton btnPrevImage, btnNextImage;
 
     @SuppressLint("ClickableViewAccessibility") // onTouch 已在 ACTION_UP 调用 frameContainer.performClick()；framework 类无法 override performClick，抑制固定 lint
     @Override
@@ -109,10 +106,10 @@ public class ImageViewerActivity extends BaseActivity {
 
         frameContainer.setOnTouchListener(this::onTouch);
 
-        // 左右滑阈值：屏幕 1/8 宽，兼顾触达与防误触（未缩放态才启用切换）。
-        swipeThresholdPx = Math.max(
-                ViewConfiguration.get(this).getScaledTouchSlop() * 4,
-                getResources().getDisplayMetrics().widthPixels / 8);
+        btnPrevImage = findViewById(R.id.btn_prev_image);
+        btnNextImage = findViewById(R.id.btn_next_image);
+        btnPrevImage.setOnClickListener(v -> switchToImage(currentIndex - 1));
+        btnNextImage.setOnClickListener(v -> switchToImage(currentIndex + 1));
 
         // Long-press to save
         ivImage.setOnLongClickListener(v -> {
@@ -121,7 +118,7 @@ public class ImageViewerActivity extends BaseActivity {
             return true;
         });
 
-        // 同目录图片列表（用于左右滑切换上一张/下一张），异步拉取，失败静默降级为单图浏览。
+        // 同目录图片列表（用于上一张/下一张按钮），异步拉取，失败静默降级为单图浏览。
         loadSiblingImages();
 
         loadImage();
@@ -252,8 +249,6 @@ public class ImageViewerActivity extends BaseActivity {
         switch (event.getActionMasked()) {
             case MotionEvent.ACTION_DOWN:
                 lastTouch.set(event.getX(), event.getY());
-                downX = event.getX();
-                downY = event.getY();
                 mode = DRAG;
                 break;
 
@@ -262,9 +257,7 @@ public class ImageViewerActivity extends BaseActivity {
                 break;
 
             case MotionEvent.ACTION_MOVE:
-                // 适应态（未放大）不平移：留出手势给左右滑切图；放大后才拖拽平移。
-                if (mode == DRAG && !scaleDetector.isInProgress()
-                        && currentScale > FIT_SCALE + 0.01f) {
+                if (mode == DRAG && !scaleDetector.isInProgress()) {
                     float dx = event.getX() - lastTouch.x;
                     float dy = event.getY() - lastTouch.y;
                     matrix.postTranslate(dx, dy);
@@ -274,15 +267,6 @@ public class ImageViewerActivity extends BaseActivity {
                 break;
 
             case MotionEvent.ACTION_UP:
-                mode = NONE;
-                frameContainer.performClick();
-                // 未放大态下把明显的水平滑动识别为「切上一张/下一张」；放大/平移中不抢手势。
-                if (handleSwipeIfApplicable(event)) {
-                    break;
-                }
-                animateToBounds();
-                break;
-
             case MotionEvent.ACTION_POINTER_UP:
                 mode = NONE;
                 frameContainer.performClick();
@@ -297,32 +281,23 @@ public class ImageViewerActivity extends BaseActivity {
     }
 
     /**
-     * 左右滑切换判定（单一入口）：仅在图片未放大（currentScale≈适应态）、
-     * 水平位移超过阈值且明显大于垂直位移时触发，避免与放大后的平移手势冲突。
-     * 返回是否已消费本次手势（消费则跳转，调用方仍会执行边界回弹）。
+     * 更新上一张/下一张按钮的可见与可用状态：同级图片不足 2 张时隐藏；
+     * 到边界（第一张/最后一张）时置灰不可点，给确定的边界感。
      */
-    private boolean handleSwipeIfApplicable(MotionEvent event) {
-        if (siblingImages.size() < 2 || currentIndex < 0) return false;
-        // 放大态（用户正在缩放/平移）不抢手势；适应态（fit 后 currentScale=1f）才允许切图。
-        if (currentScale > FIT_SCALE + 0.01f) return false;
-        if (scaleDetector.isInProgress()) return false;
-
-        float dx = event.getX() - downX;
-        float dy = event.getY() - downY;
-        if (Math.abs(dx) < swipeThresholdPx) return false;
-        if (Math.abs(dx) < Math.abs(dy) * 1.5f) return false;
-
-        // 左滑（dx<0）→ 下一张；右滑（dx>0）→ 上一张。
-        int target = currentIndex + (dx < 0 ? 1 : -1);
-        if (target < 0 || target >= siblingImages.size()) {
-            // 到边界：轻提示，不切换。
-            UiUtils.showToast(this, getString(dx < 0
-                    ? R.string.toast_image_last
-                    : R.string.toast_image_first));
-            return true;
+    private void updateNavButtons() {
+        if (btnPrevImage == null || btnNextImage == null) return;
+        boolean hasSiblings = siblingImages.size() >= 2 && currentIndex >= 0;
+        int vis = hasSiblings ? View.VISIBLE : View.GONE;
+        btnPrevImage.setVisibility(vis);
+        btnNextImage.setVisibility(vis);
+        if (hasSiblings) {
+            boolean canPrev = currentIndex > 0;
+            boolean canNext = currentIndex < siblingImages.size() - 1;
+            btnPrevImage.setEnabled(canPrev);
+            btnNextImage.setEnabled(canNext);
+            btnPrevImage.setAlpha(canPrev ? 1f : 0.3f);
+            btnNextImage.setAlpha(canNext ? 1f : 0.3f);
         }
-        switchToImage(target);
-        return true;
     }
 
     /** 切换到 siblingImages 指定索引的图片（复用加载/解码/适应流程，重置缩放矩阵）。 */
@@ -348,6 +323,7 @@ public class ImageViewerActivity extends BaseActivity {
         currentBitmap = null;
         originalBytes = null;
 
+        updateNavButtons();
         loadImage();
     }
 
@@ -451,6 +427,7 @@ public class ImageViewerActivity extends BaseActivity {
                     siblingImages.clear();
                     siblingImages.addAll(images);
                     currentIndex = indexOfPath(siblingImages, filePath);
+                    updateNavButtons();
                 });
             }
 

@@ -30,6 +30,8 @@ public class ConnectionActivity extends BaseActivity {
     private ProgressBar progressBar;
     private PreferenceManager prefManager;
     private int editIndex = -1;
+    /** 复制模式：由连接列表「复制」进入，保存时走 addConnection（不去重，保留原连接）。 */
+    private boolean isDuplicate = false;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -38,6 +40,7 @@ public class ConnectionActivity extends BaseActivity {
 
         boolean isEdit = getIntent().getBooleanExtra("is_edit", false);
         editIndex = getIntent().getIntExtra("edit_index", -1);
+        isDuplicate = getIntent().getBooleanExtra("is_duplicate", false);
         setupToolbar(isEdit ? getString(R.string.title_edit_connection) : getString(R.string.title_new_connection), true);
 
         prefManager = new PreferenceManager(this);
@@ -125,6 +128,8 @@ public class ConnectionActivity extends BaseActivity {
 
         if (editIndex >= 0) {
             prefManager.updateConnection(editIndex, config);
+        } else if (isDuplicate) {
+            prefManager.addConnection(config);
         } else {
             prefManager.saveConnection(config);
         }
@@ -156,6 +161,8 @@ public class ConnectionActivity extends BaseActivity {
                     }
                     if (editIndex >= 0) {
                         prefManager.updateConnection(editIndex, config);
+                    } else if (isDuplicate) {
+                        prefManager.addConnection(config);
                     } else {
                         prefManager.saveConnection(config);
                     }

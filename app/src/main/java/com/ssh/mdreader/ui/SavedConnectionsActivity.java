@@ -283,6 +283,7 @@ public class SavedConnectionsActivity extends BaseActivity {
         intent.putExtra("privateKey", config.getPrivateKey());
         intent.putExtra("keyPassphrase", config.getKeyPassphrase());
         intent.putExtra("group", config.getGroup());
+        intent.putExtra("is_duplicate", true);
         startActivity(intent);
     }
 

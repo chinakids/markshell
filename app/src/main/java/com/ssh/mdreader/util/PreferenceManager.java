@@ -109,6 +109,20 @@ public class PreferenceManager implements HostKeyStore {
         saveConnectionList(existing);
     }
 
+    /**
+     * 新增连接（复制语义）：直接前置插入，**不做 host+port+username 去重**。
+     *
+     * <p>为什么需要单独一条通道：{@link #saveConnection} 的去重是为「同一目标再次保存=覆盖旧条目」，
+     * 但「复制连接」的场景恰恰是**同目标、同账号、不同别名**并存（如两台用途不同的会话共用一套凭据），
+     * 若走 saveConnection 会先把原条目删掉再加副本——表现为「复制一次，原连接消失」。
+     * 复制入口必须用本方法，编辑入口仍走 {@link #updateConnection}。</p>
+     */
+    public void addConnection(SshConfig config) {
+        List<SshConfig> existing = getSavedConnections();
+        existing.add(0, config);
+        saveConnectionList(existing);
+    }
+
     public List<SshConfig> getSavedConnections() {
         String json = prefs.getString(KEY_SAVED_CONNECTIONS, "");
         List<SshConfig> list = new ArrayList<>();

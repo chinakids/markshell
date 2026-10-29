@@ -51,6 +51,31 @@
             android:textSize="15sp"
             android:visibility="gone" />
 
+        <!-- 同目录上一张/下一张按钮（中线左右，半透明，默认隐藏；无同级图片时不显示） -->
+        <ImageButton
+            android:id="@+id/btn_prev_image"
+            android:layout_width="48dp"
+            android:layout_height="48dp"
+            android:layout_gravity="center_vertical|start"
+            android:layout_marginStart="12dp"
+            android:background="?attr/selectableItemBackgroundBorderless"
+            android:contentDescription="@string/btn_prev_image"
+            android:src="@drawable/ic_annotation_prev"
+            app:tint="#CCFFFFFF"
+            android:visibility="gone" />
+
+        <ImageButton
+            android:id="@+id/btn_next_image"
+            android:layout_width="48dp"
+            android:layout_height="48dp"
+            android:layout_gravity="center_vertical|end"
+            android:layout_marginEnd="12dp"
+            android:background="?attr/selectableItemBackgroundBorderless"
+            android:contentDescription="@string/btn_next_image"
+            android:src="@drawable/ic_annotation_next"
+            app:tint="#CCFFFFFF"
+            android:visibility="gone" />
+
     </FrameLayout>
 
     <include layout="@layout/loading_overlay" />
