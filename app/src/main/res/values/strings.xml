@@ -301,6 +301,7 @@
     <string name="title_image_viewer">图片查看器</string>
     <string name="btn_prev_image">上一张</string>
     <string name="btn_next_image">下一张</string>
+    <string name="image_position">%1$d / %2$d</string>
     <string name="menu_save_image">保存图片</string>
     <string name="menu_share_image">分享图片</string>
     <string name="toast_path_unavailable">路径不可用</string>

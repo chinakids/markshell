@@ -289,6 +289,7 @@ public class MainActivity extends BaseActivity {
         intent.putExtra("privateKey", config.getPrivateKey());
         intent.putExtra("keyPassphrase", config.getKeyPassphrase());
         intent.putExtra("group", config.getGroup());
+        intent.putExtra("is_duplicate", true);
         startActivity(intent);
     }
 

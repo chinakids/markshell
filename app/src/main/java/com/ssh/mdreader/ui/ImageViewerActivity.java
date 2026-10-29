@@ -21,6 +21,7 @@ import android.view.animation.DecelerateInterpolator;
 import android.widget.FrameLayout;
 import android.widget.ImageButton;
 import android.widget.ImageView;
+import android.widget.LinearLayout;
 import android.widget.TextView;
 
 import com.ssh.mdreader.R;
@@ -70,8 +71,10 @@ public class ImageViewerActivity extends BaseActivity {
     private final List<RemoteFile> siblingImages = new ArrayList<>();
     private int currentIndex = -1;
 
-    /** 上一张/下一张按钮（无同级图片时隐藏；到边界时置灰不可点）。 */
+    /** 上一张/下一张按钮（底部条：无同级图片时隐藏；到边界时置灰不可点）。 */
+    private LinearLayout navBar;
     private ImageButton btnPrevImage, btnNextImage;
+    private TextView tvImagePosition;
 
     @SuppressLint("ClickableViewAccessibility") // onTouch 已在 ACTION_UP 调用 frameContainer.performClick()；framework 类无法 override performClick，抑制固定 lint
     @Override
@@ -108,6 +111,8 @@ public class ImageViewerActivity extends BaseActivity {
 
         btnPrevImage = findViewById(R.id.btn_prev_image);
         btnNextImage = findViewById(R.id.btn_next_image);
+        navBar = findViewById(R.id.nav_bar);
+        tvImagePosition = findViewById(R.id.tv_image_position);
         btnPrevImage.setOnClickListener(v -> switchToImage(currentIndex - 1));
         btnNextImage.setOnClickListener(v -> switchToImage(currentIndex + 1));
 
@@ -285,18 +290,19 @@ public class ImageViewerActivity extends BaseActivity {
      * 到边界（第一张/最后一张）时置灰不可点，给确定的边界感。
      */
     private void updateNavButtons() {
-        if (btnPrevImage == null || btnNextImage == null) return;
+        if (navBar == null || btnPrevImage == null || btnNextImage == null) return;
         boolean hasSiblings = siblingImages.size() >= 2 && currentIndex >= 0;
-        int vis = hasSiblings ? View.VISIBLE : View.GONE;
-        btnPrevImage.setVisibility(vis);
-        btnNextImage.setVisibility(vis);
-        if (hasSiblings) {
-            boolean canPrev = currentIndex > 0;
-            boolean canNext = currentIndex < siblingImages.size() - 1;
-            btnPrevImage.setEnabled(canPrev);
-            btnNextImage.setEnabled(canNext);
-            btnPrevImage.setAlpha(canPrev ? 1f : 0.3f);
-            btnNextImage.setAlpha(canNext ? 1f : 0.3f);
+        navBar.setVisibility(hasSiblings ? View.VISIBLE : View.GONE);
+        if (!hasSiblings) return;
+        boolean canPrev = currentIndex > 0;
+        boolean canNext = currentIndex < siblingImages.size() - 1;
+        btnPrevImage.setEnabled(canPrev);
+        btnNextImage.setEnabled(canNext);
+        btnPrevImage.setAlpha(canPrev ? 1f : 0.3f);
+        btnNextImage.setAlpha(canNext ? 1f : 0.3f);
+        if (tvImagePosition != null) {
+            tvImagePosition.setText(getString(R.string.image_position,
+                    currentIndex + 1, siblingImages.size()));
         }
     }
 
