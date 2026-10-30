@@ -64,6 +64,8 @@
     <string name="menu_reload">重新加载</string>
     <string name="menu_wrap">自动换行</string>
     <string name="title_code_viewer">代码查看器</string>
+    <string name="title_html_viewer">网页视图</string>
+    <string name="menu_view_source">查看源码</string>
     <string name="toast_content_not_loaded">内容尚未加载完成</string>
     <string name="goto_line_dialog_title">转到行号</string>
     <string name="goto_line_range">输入行号（1-%1$d）</string>

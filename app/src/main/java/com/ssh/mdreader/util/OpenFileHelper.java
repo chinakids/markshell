@@ -6,6 +6,7 @@ import android.content.Intent;
 import com.ssh.mdreader.model.RemoteFile;
 import com.ssh.mdreader.ui.CodeViewerActivity;
 import com.ssh.mdreader.ui.CsvReaderActivity;
+import com.ssh.mdreader.ui.HtmlViewerActivity;
 import com.ssh.mdreader.ui.ImageViewerActivity;
 import com.ssh.mdreader.ui.MarkdownReaderActivity;
 import com.ssh.mdreader.ui.TextViewerActivity;
@@ -24,7 +25,7 @@ import com.ssh.mdreader.ui.TextViewerActivity;
 public final class OpenFileHelper {
 
     /** 查看器类型（与 RemoteFile 扩展名判定同源）；不支持的类型为 null。 */
-    public enum ViewerKind { MARKDOWN, CSV, CODE, IMAGE, TEXT }
+    public enum ViewerKind { MARKDOWN, CSV, HTML, CODE, IMAGE, TEXT }
 
     private OpenFileHelper() {
     }
@@ -42,6 +43,9 @@ public final class OpenFileHelper {
         RemoteFile probe = new RemoteFile(name, remotePath, false, 0, 0, 0);
         if (probe.isMarkdown()) return ViewerKind.MARKDOWN;
         if (probe.isCsv()) return ViewerKind.CSV;
+        // HTML 必须先于 CODE 判定：.html/.htm 同时命中 isCodeFile（源码高亮），
+        // 但默认期望是渲染网页 → WebView 查看器。
+        if (probe.isHtml()) return ViewerKind.HTML;
         if (probe.isCodeFile()) return ViewerKind.CODE;
         if (probe.isImageFile()) return ViewerKind.IMAGE;
         if (probe.isTextFile()) return ViewerKind.TEXT;
@@ -64,6 +68,9 @@ public final class OpenFileHelper {
                 break;
             case CSV:
                 intent.setClass(context, CsvReaderActivity.class);
+                break;
+            case HTML:
+                intent.setClass(context, HtmlViewerActivity.class);
                 break;
             case CODE:
                 intent.setClass(context, CodeViewerActivity.class);

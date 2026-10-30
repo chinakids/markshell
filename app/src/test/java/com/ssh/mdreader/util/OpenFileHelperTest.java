@@ -62,8 +62,11 @@ public class OpenFileHelperTest {
     }
 
     @Test
-    public void codeHtmlHtm() {
-        assertKind(OpenFileHelper.ViewerKind.CODE, "/web/index.htm");
+    public void htmlRendersInHtmlViewer() {
+        // .htm/.html 同时命中 isCodeFile，但分发优先 HTML → WebView 渲染查看器
+        assertKind(OpenFileHelper.ViewerKind.HTML, "/web/index.htm");
+        assertKind(OpenFileHelper.ViewerKind.HTML, "/web/index.html");
+        assertKind(OpenFileHelper.ViewerKind.HTML, "/WEB/PAGE.HTML");
     }
 
     @Test

@@ -66,6 +66,17 @@ public class RemoteFile {
         return name.toLowerCase(Locale.ROOT).endsWith(".csv");
     }
 
+    /**
+     * HTML 网页文件：独立于 {@link #isCodeFile()} 判定，供「渲染预览」分支使用
+     * （.html/.htm 在 isCodeFile 里也命中，代码查看器只看源码；本判定用于分发给
+     * WebView 渲染查看器。分发时 HTML 优先于 CODE，见 OpenFileHelper.detectViewerKind）。
+     */
+    public boolean isHtml() {
+        if (directory) return false;
+        String lower = name.toLowerCase(Locale.ROOT);
+        return lower.endsWith(".html") || lower.endsWith(".htm");
+    }
+
     public boolean isCodeFile() {
         if (directory) return false;
         String lower = name.toLowerCase(Locale.ROOT);

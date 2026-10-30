@@ -115,7 +115,7 @@ public class PreviewPaneHelper {
         previewBasePath = file.getPath();
         pane.removeAllViews();
 
-        boolean supported = file.isMarkdown() || file.isCsv() || file.isCodeFile()
+        boolean supported = file.isMarkdown() || file.isCsv() || file.isHtml() || file.isCodeFile()
                 || file.isImageFile() || file.isTextFile();
 
         LinearLayout root = new LinearLayout(context);
